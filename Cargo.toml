@@ -1,0 +1,12 @@
+[package]
+name = "dcompass"
+version = "0.1.0"
+authors = ["Harry Ying <lexugeyky@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+trust-dns-resolver = { version = "*", features = ["dns-over-https-rustls"] }
+trust-dns-proto = "*"
+dmatcher = "*"
+simple_logger = "^1.11"
+log = "^0.4"
