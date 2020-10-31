@@ -6,7 +6,8 @@ edition = "2018"
 
 [dependencies]
 trust-dns-resolver = { version = "*", features = ["dns-over-https-rustls"] }
+tokio = { version = "^0.2", features = ["full"]}
 trust-dns-proto = "*"
-dmatcher = "*"
+dmatcher = {version = "*", path = "../dmatcher"}
 simple_logger = "^1.11"
 log = "^0.4"
