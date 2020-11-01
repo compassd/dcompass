@@ -1,0 +1,47 @@
+{
+    "upstreams": [
+	{
+	    "name" : "domestic",
+	    "method":"Udp",
+	    "port": 53,
+	    "ips": [
+		"114.114.114.114",
+		"223.5.5.5"
+	    ],
+	    "cache_size": 4096
+	},
+	{
+	    "name" : "apple",
+	    "method":"Udp",
+	    "port": 53,
+	    "ips": [
+		"114.114.114.114",
+		"223.5.5.5",
+		"223.6.6.6",
+		"8.8.8.8"
+	    ],
+	    "cache_size": 4096
+	},
+	{
+	    "name" : "secure",
+	    "method":{"Tls":"dns.quad9.net"},
+	    "port": 853,
+	    "ips": [
+		"9.9.9.9"
+	    ],
+	    "cache_size": 4096
+	}
+
+    ],
+    "rules": [
+	{
+	    "dst": "domestic",
+	    "path": "./data/china.txt"
+	},
+	{
+	    "dst": "apple",
+	    "path": "./data/apple.txt"
+	}
+    ],
+    "default":"secure"
+}

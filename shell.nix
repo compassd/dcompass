@@ -8,7 +8,6 @@ in
     buildInputs = [
       clang # needed for bindgen
       latest.rustChannels.stable.rust
-      openssl
       pkgconfig
     ];
 }
