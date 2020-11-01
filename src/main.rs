@@ -58,6 +58,8 @@ async fn main() -> Result<()> {
         tokio::sync::mpsc::Receiver<(Vec<u8>, SocketAddr)>,
     );
 
+    SimpleLogger::new().with_level(LevelFilter::Info).init()?;
+
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
@@ -70,13 +72,12 @@ async fn main() -> Result<()> {
         }
         None => Filter::from_json(include_str!("./config.json")).await?,
     };
+
     let filter = Arc::new(filter);
     // Bind an UDP socket
     let (mut server_rx, mut server_tx) = UdpSocket::bind(addr).await?.split();
     // Create channel
     let (tx, mut rx): ChannelPair = mpsc::channel(32);
-
-    SimpleLogger::new().with_level(LevelFilter::Info).init()?;
 
     // Response loop
     tokio::spawn(async move {
