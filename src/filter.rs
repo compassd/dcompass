@@ -1,14 +1,17 @@
 use crate::parser::{Parsed, Rule, Upstream, UpstreamKind};
+use anyhow::{anyhow, Result};
 use dmatcher::Dmatcher;
 use hashbrown::HashMap;
 use log::*;
 use std::fs::File;
 use std::io::Read;
+use std::net::SocketAddr;
+use std::time::Duration;
 use trust_dns_proto::{
     rr::{Record, RecordType},
     xfer::dns_request::DnsRequestOptions,
 };
-use trust_dns_resolver::{config::*, error::ResolveResult, TokioAsyncResolver};
+use trust_dns_resolver::{config::*, TokioAsyncResolver};
 
 pub struct Filter {
     resolvers: HashMap<String, TokioAsyncResolver>,
@@ -25,16 +28,18 @@ impl Filter {
         }
     }
 
-    pub fn insert_rule(&mut self, rule: Rule) {
-        let mut file = File::open(rule.path).unwrap();
+    pub fn insert_rule(&mut self, rule: Rule) -> Result<()> {
+        let mut file = File::open(rule.path)?;
         let mut data = String::new();
-        file.read_to_string(&mut data).unwrap();
-        self.matcher.insert_lines(data, rule.dst).unwrap();
+        file.read_to_string(&mut data)?;
+        self.matcher.insert_lines(data, rule.dst)?;
+        Ok(())
     }
 
-    pub async fn insert_upstream(&mut self, upstream: Upstream) {
+    pub async fn insert_upstream(&mut self, upstream: Upstream) -> Result<()> {
         let mut opts = ResolverOpts::default();
         opts.cache_size = upstream.cache_size;
+        opts.timeout = Duration::from_secs(upstream.timeout);
 
         self.resolvers.insert(
             upstream.name,
@@ -60,33 +65,49 @@ impl Filter {
                 ),
                 opts,
             )
-            .await
-            .unwrap(),
+            .await?,
         );
+        Ok(())
     }
 
-    pub async fn from_json(data: &str) -> Self {
+    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr)> {
         let mut filter = Self::new();
-        let p: Parsed = serde_json::from_str(data).unwrap();
-        for r in p.rules {
-            filter.insert_rule(r);
-        }
+        let p: Parsed = serde_json::from_str(data)?;
         for u in p.upstreams {
-            filter.insert_upstream(u).await;
+            filter.insert_upstream(u).await?;
+        }
+        // Check before inserting
+        Filter::check(&filter, &p.rules)?;
+        for r in p.rules {
+            filter.insert_rule(r)?;
         }
         filter.default_name = p.default;
-        filter
+        Ok((filter, p.address))
     }
 
-    pub async fn resolve(&self, domain: String, qtype: RecordType) -> ResolveResult<Vec<Record>> {
-        Ok((match self.matcher.matches(domain.clone()).unwrap() {
+    fn check(filter: &Self, rules: &[Rule]) -> Result<()> {
+        for r in rules {
+            filter
+                .resolvers
+                .get(&r.dst)
+                .ok_or_else(|| anyhow!("Missing resolver: {}", &r.dst))?;
+        }
+        Ok(())
+    }
+
+    pub async fn resolve(&self, domain: String, qtype: RecordType) -> Result<Vec<Record>> {
+        Ok((match self.matcher.matches(domain.as_str())? {
             Some(u) => {
                 info!("Routed via {}", u);
-                self.resolvers.get(u).unwrap()
+                self.resolvers
+                    .get(u)
+                    .ok_or_else(|| anyhow!("Missing resolver: {}", &u))? // These won't be reached unless it is unchecked.
             }
             None => {
                 info!("Routed via default: {}", &self.default_name);
-                self.resolvers.get(&self.default_name).unwrap()
+                self.resolvers
+                    .get(&self.default_name)
+                    .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
             }
         })
         .lookup(

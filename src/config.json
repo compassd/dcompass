@@ -8,7 +8,8 @@
 		"114.114.114.114",
 		"223.5.5.5"
 	    ],
-	    "cache_size": 4096
+	    "cache_size": 4096,
+	    "timeout": 2
 	},
 	{
 	    "name" : "apple",
@@ -20,7 +21,8 @@
 		"223.6.6.6",
 		"8.8.8.8"
 	    ],
-	    "cache_size": 4096
+	    "cache_size": 4096,
+	    "timeout": 2
 	},
 	{
 	    "name" : "secure",
@@ -29,7 +31,8 @@
 	    "ips": [
 		"9.9.9.9"
 	    ],
-	    "cache_size": 4096
+	    "cache_size": 4096,
+	    "timeout": 2
 	}
 
     ],
@@ -39,9 +42,10 @@
 	    "path": "./data/china.txt"
 	},
 	{
-	    "dst": "apple",
+	    "dst": "domestic",
 	    "path": "./data/apple.txt"
 	}
     ],
-    "default":"secure"
+    "default":"secure",
+    "address":"0.0.0.0:53"
 }
