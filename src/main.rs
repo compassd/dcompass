@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
             if let Some((msg, src)) = rx.recv().await {
                 match server_tx.send_to(&msg.to_vec(), &src).await {
                     Err(e) => error!("Sending response back failed: {}", e),
-                    Ok(_) => info!("Sent response back successfully"),
+                    Ok(_) => info!("Sent response back successfully to {}", src),
                 }
             }
         }
