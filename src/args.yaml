@@ -1,0 +1,14 @@
+name: dcompass
+version: "0.1"
+about: High-performance DNS server with rule matching/DoT/DoH functionalities built-in.
+author: Harry Ying <lexugeyky@outlook.com>
+
+args:
+    # The name of this argument, is 'opt' which will be used to access the value
+    # later in your Rust code
+    - config:
+        help: Path to configuration file. Use built-in if not provided.
+        short: c
+        long: config
+        multiple: false
+        takes_value: true

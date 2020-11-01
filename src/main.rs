@@ -7,6 +7,8 @@ use anyhow::Result;
 use log::*;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, sync::Arc};
+use tokio::fs::File;
+use tokio::prelude::*;
 use tokio::{
     net::UdpSocket,
     sync::{mpsc, mpsc::Sender},
@@ -50,12 +52,24 @@ async fn handle_query(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    use clap::{load_yaml, App};
     type ChannelPair = (
         Sender<(Vec<u8>, SocketAddr)>,
         tokio::sync::mpsc::Receiver<(Vec<u8>, SocketAddr)>,
     );
 
-    let (filter, addr) = Filter::from_json(include_str!("./config.json")).await?;
+    let yaml = load_yaml!("args.yaml");
+    let m = App::from(yaml).get_matches();
+
+    let (filter, addr) = match m.value_of("config") {
+        Some(c) => {
+            let mut file = File::open(c).await?;
+            let mut config = String::new();
+            file.read_to_string(&mut config).await?;
+            Filter::from_json(&config).await?
+        }
+        None => Filter::from_json(include_str!("./config.json")).await?,
+    };
     let filter = Arc::new(filter);
     // Bind an UDP socket
     let (mut server_rx, mut server_tx) = UdpSocket::bind(addr).await?.split();

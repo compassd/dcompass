@@ -3,10 +3,10 @@ use anyhow::{anyhow, Result};
 use dmatcher::Dmatcher;
 use hashbrown::HashMap;
 use log::*;
-use std::fs::File;
-use std::io::Read;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tokio::fs::File;
+use tokio::prelude::*;
 use trust_dns_proto::{
     rr::{Record, RecordType},
     xfer::dns_request::DnsRequestOptions,
@@ -28,10 +28,10 @@ impl Filter {
         }
     }
 
-    pub fn insert_rule(&mut self, rule: Rule) -> Result<()> {
-        let mut file = File::open(rule.path)?;
+    pub async fn insert_rule(&mut self, rule: Rule) -> Result<()> {
+        let mut file = File::open(rule.path).await?;
         let mut data = String::new();
-        file.read_to_string(&mut data)?;
+        file.read_to_string(&mut data).await?;
         self.matcher.insert_lines(data, rule.dst)?;
         Ok(())
     }
@@ -79,7 +79,7 @@ impl Filter {
         // Check before inserting
         Filter::check(&filter, &p.rules)?;
         for r in p.rules {
-            filter.insert_rule(r)?;
+            filter.insert_rule(r).await?;
         }
         filter.default_name = p.default;
         Ok((filter, p.address))
