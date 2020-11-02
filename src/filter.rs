@@ -3,14 +3,11 @@ use anyhow::{anyhow, Result};
 use dmatcher::Dmatcher;
 use hashbrown::HashMap;
 use log::*;
-use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::fs::File;
-use tokio::prelude::*;
+use std::{net::SocketAddr, time::Duration};
+use tokio::{fs::File, prelude::*};
 use tokio_compat_02::FutureExt;
-use trust_dns_proto::op::response_code::ResponseCode;
-use trust_dns_proto::op::Message;
 use trust_dns_proto::{
+    op::{response_code::ResponseCode, Message},
     rr::{Record, RecordType},
     xfer::dns_request::DnsRequestOptions,
 };
@@ -102,6 +99,24 @@ impl Filter {
         Ok(())
     }
 
+    fn get_resolver(&self, domain: &str) -> Result<&TokioAsyncResolver> {
+        Ok(match self.matcher.matches(domain)? {
+            Some(u) => {
+                info!("Routed via {}", u);
+                self.resolvers
+                    .get(u)
+                    .ok_or_else(|| anyhow!("Missing resolver: {}", &u))?
+                // These won't be reached unless it is unchecked.
+            }
+            None => {
+                info!("Routed via default: {}", &self.default_name);
+                self.resolvers
+                    .get(&self.default_name)
+                    .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
+            }
+        })
+    }
+
     pub async fn resolve(
         &self,
         domain: String,
@@ -113,30 +128,17 @@ impl Filter {
             Message::error_msg(req.id(), req.op_code(), ResponseCode::NXDomain)
         } else {
             // Get the corresponding resolver
-            match (match self.matcher.matches(domain.as_str())? {
-                Some(u) => {
-                    info!("Routed via {}", u);
-                    self.resolvers
-                        .get(u)
-                        .ok_or_else(|| anyhow!("Missing resolver: {}", &u))?
-                    // These won't be reached unless it is unchecked.
-                }
-                None => {
-                    info!("Routed via default: {}", &self.default_name);
-                    self.resolvers
-                        .get(&self.default_name)
-                        .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
-                }
-            })
-            .lookup(
-                domain,
-                qtype,
-                DnsRequestOptions {
-                    expects_multiple_responses: false,
-                },
-            )
-            .compat()
-            .await
+            match self
+                .get_resolver(domain.as_str())?
+                .lookup(
+                    domain,
+                    qtype,
+                    DnsRequestOptions {
+                        expects_multiple_responses: false,
+                    },
+                )
+                .compat()
+                .await
             {
                 Err(e) => {
                     warn!("Resolve failed: {}", e);
@@ -149,5 +151,16 @@ impl Filter {
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Filter;
+    use futures::executor::block_on;
+
+    #[test]
+    fn parse() {
+        block_on(Filter::from_json(include_str!("./config.json"))).unwrap();
     }
 }
