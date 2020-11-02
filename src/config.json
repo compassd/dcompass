@@ -17,5 +17,6 @@
 
   ],
   "default":"secure",
-  "address":"0.0.0.0:2053"
+  "address":"0.0.0.0:2053",
+  "workers":10
 }

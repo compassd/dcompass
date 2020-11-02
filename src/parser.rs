@@ -30,4 +30,5 @@ pub struct Parsed {
     pub upstreams: Vec<Upstream>,
     pub default: String,
     pub address: SocketAddr,
+    pub workers: i32,
 }

@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::prelude::*;
+use tokio_compat_02::FutureExt;
 use trust_dns_proto::{
     rr::{Record, RecordType},
     xfer::dns_request::DnsRequestOptions,
@@ -65,12 +66,13 @@ impl Filter {
                 ),
                 opts,
             )
+            .compat()
             .await?,
         );
         Ok(())
     }
 
-    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr)> {
+    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr, i32)> {
         let mut filter = Self::new();
         let p: Parsed = serde_json::from_str(data)?;
         for u in p.upstreams {
@@ -82,7 +84,7 @@ impl Filter {
             filter.insert_rule(r).await?;
         }
         filter.default_name = p.default;
-        Ok((filter, p.address))
+        Ok((filter, p.address, p.workers))
     }
 
     fn check(filter: &Self, rules: &[Rule]) -> Result<()> {
@@ -117,6 +119,7 @@ impl Filter {
                 expects_multiple_responses: false,
             },
         )
+        .compat()
         .await?
         .record_iter()
         .cloned()
