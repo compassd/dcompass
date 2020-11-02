@@ -45,6 +45,7 @@ impl Filter {
             opts.cache_size = upstream.cache_size;
             opts.distrust_nx_responses = false; // This slows down resolution and does no good.
             opts.timeout = Duration::from_secs(upstream.timeout);
+            opts.preserve_intermediates = true;
 
             r.insert(
                 upstream.tag,
@@ -150,6 +151,10 @@ impl Filter {
                     Message::error_msg(req.id(), req.op_code(), ResponseCode::NXDomain)
                 }
                 Ok(r) => {
+                    // If recursion is desired, then we respond that we did it.
+                    if req.recursion_desired() {
+                        req.set_recursion_available(true);
+                    }
                     req.add_answers(r.record_iter().cloned().collect::<Vec<Record>>());
                     req
                 }
