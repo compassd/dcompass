@@ -1,8 +1,9 @@
 mod filter;
 mod parser;
-mod upstream;
+mod worker;
 
 use crate::filter::Filter;
+use crate::worker::worker;
 use anyhow::Result;
 use futures::future::join_all;
 use log::*;
@@ -11,46 +12,6 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
-use trust_dns_proto::op::response_code::ResponseCode;
-use trust_dns_proto::op::Message;
-
-/// Handle a single incoming packet
-async fn worker(filter: Arc<Filter>, socket: Arc<UdpSocket>) -> Result<()> {
-    let mut buf = [0; 512];
-    let (_, src) = socket.recv_from(&mut buf).await?;
-
-    let request = Message::from_vec(&buf)?;
-
-    for q in request.queries() {
-        info!("Received query: {:?}", q);
-
-        match filter.resolve(q.name().to_utf8(), q.query_type()).await {
-            Err(e) => {
-                socket
-                    .send_to(
-                        &Message::error_msg(
-                            request.id(),
-                            request.op_code(),
-                            ResponseCode::NXDomain,
-                        )
-                        .to_vec()?,
-                        src,
-                    )
-                    .await?;
-                // Give back the error
-                return Err(e);
-            }
-            Ok(r) => {
-                socket
-                    .send_to(&request.clone().add_answers(r).to_vec()?, src)
-                    .await?;
-                info!("Response completed. Sent back to {} successfully.", src);
-            }
-        };
-    }
-
-    Ok(())
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -96,13 +57,12 @@ async fn main() -> Result<()> {
                 let socket = socket.clone();
                 let filter = filter.clone();
 
-                match worker(filter, socket).await {
+                match worker(filter, socket, i).await {
                     Ok(_) => (),
                     Err(e) => warn!("Handling query failed: {}", e),
                 }
             }
         }));
-        info!("Worker {} started.", i);
     }
 
     join_all(handles).await;
