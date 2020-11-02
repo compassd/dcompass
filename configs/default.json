@@ -10,7 +10,8 @@
 		"9.9.9.9"
 	    ],
 	    "cache_size":4096,
-	    "timeout":2
+	    "timeout":2,
+	    "num_conn":1
 	}
     ],
     "rules":[

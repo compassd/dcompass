@@ -43,8 +43,10 @@ impl Filter {
         for upstream in upstreams {
             let mut opts = ResolverOpts::default();
             opts.cache_size = upstream.cache_size;
-            opts.distrust_nx_responses = false; // This slows down resolution and does no good.
+            opts.num_concurrent_reqs = upstream.num_conn;
             opts.timeout = Duration::from_secs(upstream.timeout);
+
+            opts.distrust_nx_responses = false; // This slows down resolution and does no good.
             opts.preserve_intermediates = true;
 
             r.insert(

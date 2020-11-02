@@ -34,6 +34,7 @@ pub struct Upstream {
     pub ips: Vec<IpAddr>,
     pub cache_size: usize,
     pub timeout: u64,
+    pub num_conn: usize,
 }
 
 #[derive(Serialize, Deserialize)]

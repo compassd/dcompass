@@ -9,7 +9,8 @@
 		"223.5.5.5"
 	    ],
 	    "cache_size": 4096,
-	    "timeout": 1
+	    "timeout": 1,
+	    "num_conn":2
 	},
 	{
 	    "tag" : 2,
@@ -22,7 +23,8 @@
 		"8.8.8.8"
 	    ],
 	    "cache_size": 4096,
-	    "timeout": 1
+	    "timeout": 1,
+	    "num_conn":4
 	},
 	{
 	    "tag" : 1,
@@ -32,7 +34,8 @@
 		"9.9.9.9"
 	    ],
 	    "cache_size": 4096,
-	    "timeout": 1
+	    "timeout": 1,
+	    "num_conn":1
 	}
 
     ],
