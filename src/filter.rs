@@ -80,7 +80,7 @@ impl Filter {
             filter.insert_upstream(u).await?;
         }
         // Check before inserting
-        Filter::check(&filter, &p.rules)?;
+        Filter::check(&filter, &p.rules, &p.default)?;
         for r in p.rules {
             filter.insert_rule(r).await?;
         }
@@ -89,13 +89,17 @@ impl Filter {
         Ok((filter, p.address, p.workers, p.verbosity))
     }
 
-    fn check(filter: &Self, rules: &[Rule]) -> Result<()> {
+    fn check(filter: &Self, rules: &[Rule], default: &str) -> Result<()> {
         for r in rules {
             filter
                 .resolvers
                 .get(&r.dst)
                 .ok_or_else(|| anyhow!("Missing resolver: {}", &r.dst))?;
         }
+        filter
+            .resolvers
+            .get(default)
+            .ok_or_else(|| anyhow!("Missing default resolver: {}", default))?;
         Ok(())
     }
 
@@ -112,7 +116,7 @@ impl Filter {
                 info!("Routed via default: {}", &self.default_name);
                 self.resolvers
                     .get(&self.default_name)
-                    .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
+                    .ok_or_else(|| anyhow!("Missing default resolver: {}", &self.default_name))?
             }
         })
     }
