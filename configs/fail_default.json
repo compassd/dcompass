@@ -1,0 +1,50 @@
+{
+    "upstreams": [
+	{
+	    "tag" : 3,
+	    "method":"Udp",
+	    "port": 53,
+	    "ips": [
+		"114.114.114.114",
+		"223.5.5.5"
+	    ],
+	    "cache_size": 4096,
+	    "timeout": 1
+	},
+	{
+	    "tag" : 2,
+	    "method":"Udp",
+	    "port": 53,
+	    "ips": [
+		"114.114.114.114",
+		"223.5.5.5",
+		"223.6.6.6",
+		"8.8.8.8"
+	    ],
+	    "cache_size": 4096,
+	    "timeout": 1
+	},
+	{
+	    "tag" : 1,
+	    "method":{"Tls":"dns.quad9.net"},
+	    "port": 853,
+	    "ips": [
+		"9.9.9.9"
+	    ],
+	    "cache_size": 4096,
+	    "timeout": 1
+	}
+
+    ],
+    "rules": [
+	{
+	    "dst": 1,
+	    "path": "./data/china.txt"
+	}
+    ],
+    "default_tag":5,
+    "address":"0.0.0.0:2053",
+    "workers":10,
+    "verbosity":"Off",
+    "disable_ipv6": true
+}

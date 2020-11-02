@@ -1,7 +1,7 @@
 {
     "upstreams":[
 	{
-	    "name":"secure",
+	    "tag":1,
 	    "method":{
 		"Tls":"dns.quad9.net"
 	    },
@@ -16,7 +16,7 @@
     "rules":[
 
     ],
-    "default":"secure",
+    "default_tag":1,
     "address":"0.0.0.0:2053",
     "workers":10,
     "verbosity": "Info",

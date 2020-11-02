@@ -14,91 +14,93 @@ use trust_dns_proto::{
 use trust_dns_resolver::{config::*, TokioAsyncResolver};
 
 pub struct Filter {
-    resolvers: HashMap<String, TokioAsyncResolver>,
-    default_name: String,
+    resolvers: HashMap<u32, TokioAsyncResolver>,
+    default_tag: u32,
     disable_ipv6: bool,
-    matcher: Dmatcher,
+    matcher: Dmatcher<u32>,
+    dsts: Vec<u32>,
 }
 
 impl Filter {
-    fn new() -> Self {
-        Self {
-            resolvers: HashMap::new(),
-            matcher: Dmatcher::new(),
-            default_name: String::new(),
-            disable_ipv6: false,
+    async fn insert_rules(rules: Vec<Rule>) -> Result<(Dmatcher<u32>, Vec<u32>)> {
+        let mut matcher = Dmatcher::new();
+        let mut v = vec![];
+        for r in rules {
+            println!("here!");
+            let mut file = File::open(r.path).await?;
+            let mut data = String::new();
+
+            file.read_to_string(&mut data).await?;
+            matcher.insert_lines(data, r.dst)?;
+            v.push(r.dst);
         }
+        Ok((matcher, v))
     }
 
-    pub async fn insert_rule(&mut self, rule: Rule) -> Result<()> {
-        let mut file = File::open(rule.path).await?;
-        let mut data = String::new();
-        file.read_to_string(&mut data).await?;
-        self.matcher.insert_lines(data, rule.dst)?;
-        Ok(())
+    async fn insert_upstreams(
+        upstreams: Vec<Upstream>,
+    ) -> Result<HashMap<u32, TokioAsyncResolver>> {
+        let mut r = HashMap::new();
+
+        for upstream in upstreams {
+            let mut opts = ResolverOpts::default();
+            opts.cache_size = upstream.cache_size;
+            opts.distrust_nx_responses = false; // This slows down resolution and does no good.
+            opts.timeout = Duration::from_secs(upstream.timeout);
+
+            r.insert(
+                upstream.tag,
+                TokioAsyncResolver::tokio(
+                    ResolverConfig::from_parts(
+                        None,
+                        vec![],
+                        match upstream.method {
+                            UpstreamKind::Tls(tls_name) => NameServerConfigGroup::from_ips_tls(
+                                &upstream.ips,
+                                upstream.port,
+                                tls_name,
+                            ),
+                            UpstreamKind::Udp => {
+                                NameServerConfigGroup::from_ips_clear(&upstream.ips, upstream.port)
+                            }
+                            UpstreamKind::Https(tls_name) => NameServerConfigGroup::from_ips_tls(
+                                &upstream.ips,
+                                upstream.port,
+                                tls_name,
+                            ),
+                        },
+                    ),
+                    opts,
+                )
+                .compat()
+                .await?,
+            );
+        }
+        Ok(r)
     }
 
-    pub async fn insert_upstream(&mut self, upstream: Upstream) -> Result<()> {
-        let mut opts = ResolverOpts::default();
-        opts.cache_size = upstream.cache_size;
-        opts.timeout = Duration::from_secs(upstream.timeout);
-
-        self.resolvers.insert(
-            upstream.name,
-            TokioAsyncResolver::tokio(
-                ResolverConfig::from_parts(
-                    None,
-                    vec![],
-                    match upstream.method {
-                        UpstreamKind::Tls(tls_name) => NameServerConfigGroup::from_ips_tls(
-                            &upstream.ips,
-                            upstream.port,
-                            tls_name,
-                        ),
-                        UpstreamKind::Udp => {
-                            NameServerConfigGroup::from_ips_clear(&upstream.ips, upstream.port)
-                        }
-                        UpstreamKind::Https(tls_name) => NameServerConfigGroup::from_ips_tls(
-                            &upstream.ips,
-                            upstream.port,
-                            tls_name,
-                        ),
-                    },
-                ),
-                opts,
-            )
-            .compat()
-            .await?,
-        );
-        Ok(())
-    }
-
-    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr, i32, LevelFilter)> {
-        let mut filter = Self::new();
+    pub async fn new(data: &str) -> Result<(Self, SocketAddr, u32, LevelFilter)> {
         let p: Parsed = serde_json::from_str(data)?;
-        for u in p.upstreams {
-            filter.insert_upstream(u).await?;
-        }
-        // Check before inserting
-        Filter::check(&filter, &p.rules, &p.default)?;
-        for r in p.rules {
-            filter.insert_rule(r).await?;
-        }
-        filter.default_name = p.default;
-        filter.disable_ipv6 = p.disable_ipv6;
+        let (matcher, dsts) = Filter::insert_rules(p.rules).await?;
+        let filter = Filter {
+            matcher,
+            resolvers: Filter::insert_upstreams(p.upstreams).await?,
+            default_tag: p.default_tag,
+            disable_ipv6: p.disable_ipv6,
+            dsts,
+        };
+        filter.check(filter.default_tag)?;
         Ok((filter, p.address, p.workers, p.verbosity))
     }
 
-    fn check(filter: &Self, rules: &[Rule], default: &str) -> Result<()> {
-        for r in rules {
-            filter
-                .resolvers
-                .get(&r.dst)
-                .ok_or_else(|| anyhow!("Missing resolver: {}", &r.dst))?;
+    pub fn check(&self, default: u32) -> Result<()> {
+        for dst in &self.dsts {
+            self.resolvers
+                .get(&dst)
+                .ok_or_else(|| anyhow!("Missing resolver: {}", dst))?;
         }
-        filter
-            .resolvers
-            .get(default)
+        self.resolvers
+            .get(&default)
             .ok_or_else(|| anyhow!("Missing default resolver: {}", default))?;
         Ok(())
     }
@@ -108,15 +110,15 @@ impl Filter {
             Some(u) => {
                 info!("Routed via {}", u);
                 self.resolvers
-                    .get(u)
+                    .get(&u)
                     .ok_or_else(|| anyhow!("Missing resolver: {}", &u))?
                 // These won't be reached unless it is unchecked.
             }
             None => {
-                info!("Routed via default: {}", &self.default_name);
+                info!("Routed via default: {}", &self.default_tag);
                 self.resolvers
-                    .get(&self.default_name)
-                    .ok_or_else(|| anyhow!("Missing default resolver: {}", &self.default_name))?
+                    .get(&self.default_tag)
+                    .ok_or_else(|| anyhow!("Missing default resolver: {}", &self.default_tag))?
             }
         })
     }
@@ -161,10 +163,30 @@ impl Filter {
 #[cfg(test)]
 mod tests {
     use super::Filter;
-    use futures::executor::block_on;
+    use tokio_test::block_on;
 
     #[test]
     fn parse() {
-        block_on(Filter::from_json(include_str!("./config.json"))).unwrap();
+        assert_eq!(
+            block_on(Filter::new(include_str!("../configs/default.json"))).is_ok(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_fail_rule() {
+        // Notice that data dir is relative to cargo test path.
+        assert_eq!(
+            block_on(Filter::new(include_str!("../configs/fail_rule.json"))).is_err(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_fail_default() {
+        assert_eq!(
+            block_on(Filter::new(include_str!("../configs/fail_default.json"))).is_err(),
+            true
+        );
     }
 }

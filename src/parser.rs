@@ -4,7 +4,7 @@ use std::net::{IpAddr, SocketAddr};
 
 #[derive(Serialize, Deserialize)]
 pub struct Rule {
-    pub dst: String,
+    pub dst: u32,
     pub path: String,
 }
 
@@ -28,7 +28,7 @@ pub enum UpstreamKind {
 
 #[derive(Serialize, Deserialize)]
 pub struct Upstream {
-    pub name: String,
+    pub tag: u32,
     pub method: UpstreamKind,
     pub port: u16,
     pub ips: Vec<IpAddr>,
@@ -40,9 +40,9 @@ pub struct Upstream {
 pub struct Parsed {
     pub rules: Vec<Rule>,
     pub upstreams: Vec<Upstream>,
-    pub default: String,
+    pub default_tag: u32,
     pub address: SocketAddr,
-    pub workers: i32,
+    pub workers: u32,
     pub disable_ipv6: bool,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,

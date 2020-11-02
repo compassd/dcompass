@@ -6,7 +6,7 @@ use tokio::net::UdpSocket;
 use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
-pub async fn worker(filter: Arc<Filter>, socket: Arc<UdpSocket>, i: i32) -> Result<()> {
+pub async fn worker(filter: Arc<Filter>, socket: Arc<UdpSocket>, i: u32) -> Result<()> {
     info!("[Worker {}] started.", i);
 
     let mut buf = [0; 512];

@@ -25,9 +25,9 @@ async fn main() -> Result<()> {
             let mut file = File::open(c).await?;
             let mut config = String::new();
             file.read_to_string(&mut config).await?;
-            Filter::from_json(&config).await?
+            Filter::new(&config).await?
         }
-        None => Filter::from_json(include_str!("./config.json")).await?,
+        None => Filter::new(include_str!("../configs/default.json")).await?,
     };
 
     SimpleLogger::new().with_level(verbosity).init()?;
