@@ -26,10 +26,8 @@ impl Filter {
         let mut matcher = Dmatcher::new();
         let mut v = vec![];
         for r in rules {
-            println!("here!");
             let mut file = File::open(r.path).await?;
             let mut data = String::new();
-
             file.read_to_string(&mut data).await?;
             matcher.insert_lines(data, r.dst)?;
             v.push(r.dst);
