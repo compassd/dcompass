@@ -20,27 +20,17 @@ async fn main() -> Result<()> {
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
-    SimpleLogger::new()
-        .with_level(match m.occurrences_of("verbose") {
-            0 => LevelFilter::Warn,
-            1 => LevelFilter::Info,
-            2 => LevelFilter::Debug,
-            _ => LevelFilter::Trace,
-        })
-        .init()?;
-
-    let (filter, addr, num) = match m.value_of("config") {
+    let (filter, addr, num, verbosity) = match m.value_of("config") {
         Some(c) => {
             let mut file = File::open(c).await?;
             let mut config = String::new();
             file.read_to_string(&mut config).await?;
             Filter::from_json(&config).await?
         }
-        None => {
-            warn!("No config file provided, using built-in config.");
-            Filter::from_json(include_str!("./config.json")).await?
-        }
+        None => Filter::from_json(include_str!("./config.json")).await?,
     };
+
+    SimpleLogger::new().with_level(verbosity).init()?;
 
     let filter = Arc::new(filter);
     // Bind an UDP socket

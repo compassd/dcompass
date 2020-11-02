@@ -8,6 +8,8 @@ use std::time::Duration;
 use tokio::fs::File;
 use tokio::prelude::*;
 use tokio_compat_02::FutureExt;
+use trust_dns_proto::op::response_code::ResponseCode;
+use trust_dns_proto::op::Message;
 use trust_dns_proto::{
     rr::{Record, RecordType},
     xfer::dns_request::DnsRequestOptions,
@@ -17,15 +19,17 @@ use trust_dns_resolver::{config::*, TokioAsyncResolver};
 pub struct Filter {
     resolvers: HashMap<String, TokioAsyncResolver>,
     default_name: String,
+    disable_ipv6: bool,
     matcher: Dmatcher,
 }
 
 impl Filter {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             resolvers: HashMap::new(),
             matcher: Dmatcher::new(),
             default_name: String::new(),
+            disable_ipv6: false,
         }
     }
 
@@ -72,7 +76,7 @@ impl Filter {
         Ok(())
     }
 
-    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr, i32)> {
+    pub async fn from_json(data: &str) -> Result<(Self, SocketAddr, i32, LevelFilter)> {
         let mut filter = Self::new();
         let p: Parsed = serde_json::from_str(data)?;
         for u in p.upstreams {
@@ -84,7 +88,8 @@ impl Filter {
             filter.insert_rule(r).await?;
         }
         filter.default_name = p.default;
-        Ok((filter, p.address, p.workers))
+        filter.disable_ipv6 = p.disable_ipv6;
+        Ok((filter, p.address, p.workers, p.verbosity))
     }
 
     fn check(filter: &Self, rules: &[Rule]) -> Result<()> {
@@ -97,32 +102,52 @@ impl Filter {
         Ok(())
     }
 
-    pub async fn resolve(&self, domain: String, qtype: RecordType) -> Result<Vec<Record>> {
-        Ok((match self.matcher.matches(domain.as_str())? {
-            Some(u) => {
-                info!("Routed via {}", u);
-                self.resolvers
-                    .get(u)
-                    .ok_or_else(|| anyhow!("Missing resolver: {}", &u))? // These won't be reached unless it is unchecked.
-            }
-            None => {
-                info!("Routed via default: {}", &self.default_name);
-                self.resolvers
-                    .get(&self.default_name)
-                    .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
+    pub async fn resolve(
+        &self,
+        domain: String,
+        qtype: RecordType,
+        mut req: Message,
+    ) -> Result<Message> {
+        Ok(if (qtype == RecordType::AAAA) && (self.disable_ipv6) {
+            // If `disable_ipv6` has been set, return immediately NXDomain.
+            Message::error_msg(req.id(), req.op_code(), ResponseCode::NXDomain)
+        } else {
+            // Get the corresponding resolver
+            match (match self.matcher.matches(domain.as_str())? {
+                Some(u) => {
+                    info!("Routed via {}", u);
+                    self.resolvers
+                        .get(u)
+                        .ok_or_else(|| anyhow!("Missing resolver: {}", &u))?
+                    // These won't be reached unless it is unchecked.
+                }
+                None => {
+                    info!("Routed via default: {}", &self.default_name);
+                    self.resolvers
+                        .get(&self.default_name)
+                        .ok_or_else(|| anyhow!("Missing resolver: {}", &self.default_name))?
+                }
+            })
+            .lookup(
+                domain,
+                qtype,
+                DnsRequestOptions {
+                    expects_multiple_responses: false,
+                },
+            )
+            .compat()
+            .await
+            {
+                Err(e) => {
+                    warn!("Resolve failed: {}", e);
+                    // TODO: We should specify different errors and return them back respectively.
+                    Message::error_msg(req.id(), req.op_code(), ResponseCode::NXDomain)
+                }
+                Ok(r) => {
+                    req.add_answers(r.record_iter().cloned().collect::<Vec<Record>>());
+                    req
+                }
             }
         })
-        .lookup(
-            domain,
-            qtype,
-            DnsRequestOptions {
-                expects_multiple_responses: false,
-            },
-        )
-        .compat()
-        .await?
-        .record_iter()
-        .cloned()
-        .collect())
     }
 }

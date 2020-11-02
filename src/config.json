@@ -1,22 +1,24 @@
 {
-  "upstreams":[
-    {
-      "name":"secure",
-      "method":{
-        "Tls":"dns.quad9.net"
-      },
-      "port":853,
-      "ips":[
-        "9.9.9.9"
-      ],
-      "cache_size":4096,
-      "timeout":2
-    }
-  ],
-  "rules":[
+    "upstreams":[
+	{
+	    "name":"secure",
+	    "method":{
+		"Tls":"dns.quad9.net"
+	    },
+	    "port":853,
+	    "ips":[
+		"9.9.9.9"
+	    ],
+	    "cache_size":4096,
+	    "timeout":2,
+	}
+    ],
+    "rules":[
 
-  ],
-  "default":"secure",
-  "address":"0.0.0.0:2053",
-  "workers":10
+    ],
+    "default":"secure",
+    "address":"0.0.0.0:2053",
+    "workers":10,
+    "verbosity": "Info",
+    "disable_ipv6": true
 }

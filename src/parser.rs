@@ -1,3 +1,4 @@
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, SocketAddr};
 
@@ -5,6 +6,17 @@ use std::net::{IpAddr, SocketAddr};
 pub struct Rule {
     pub dst: String,
     pub path: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "LevelFilter")]
+enum LevelFilterDef {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,4 +43,7 @@ pub struct Parsed {
     pub default: String,
     pub address: SocketAddr,
     pub workers: i32,
+    pub disable_ipv6: bool,
+    #[serde(with = "LevelFilterDef")]
+    pub verbosity: LevelFilter,
 }

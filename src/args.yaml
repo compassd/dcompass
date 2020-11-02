@@ -12,7 +12,3 @@ args:
         long: config
         multiple: false
         takes_value: true
-    - verbose:
-        short: v
-        multiple: true
-        help: Sets the level of verbosity
