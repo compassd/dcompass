@@ -47,6 +47,7 @@ impl Filter {
             for upstream in upstreams.clone() {
                 let mut opts = ResolverOpts::default();
                 opts.cache_size = upstream.cache_size;
+                opts.attempts = 1;
                 opts.num_concurrent_reqs = upstream.num_conn;
                 opts.timeout = Duration::from_secs(upstream.timeout);
 
