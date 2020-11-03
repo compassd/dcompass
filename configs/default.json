@@ -20,6 +20,7 @@
     "default_tag":1,
     "address":"0.0.0.0:2053",
     "workers":10,
+    "pools":5,
     "verbosity": "Info",
     "disable_ipv6": true
 }

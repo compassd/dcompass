@@ -2,13 +2,13 @@ use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, SocketAddr};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Rule {
-    pub dst: u32,
+    pub dst: usize,
     pub path: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(remote = "LevelFilter")]
 enum LevelFilterDef {
     Off,
@@ -19,16 +19,16 @@ enum LevelFilterDef {
     Trace,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
     Https(String),
     Tls(String),
     Udp,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Upstream {
-    pub tag: u32,
+    pub tag: usize,
     pub method: UpstreamKind,
     pub port: u16,
     pub ips: Vec<IpAddr>,
@@ -37,13 +37,14 @@ pub struct Upstream {
     pub num_conn: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Parsed {
     pub rules: Vec<Rule>,
     pub upstreams: Vec<Upstream>,
-    pub default_tag: u32,
+    pub default_tag: usize,
     pub address: SocketAddr,
-    pub workers: u32,
+    pub workers: usize,
+    pub pools: usize,
     pub disable_ipv6: bool,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,

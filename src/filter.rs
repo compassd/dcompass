@@ -14,15 +14,16 @@ use trust_dns_proto::{
 use trust_dns_resolver::{config::*, TokioAsyncResolver};
 
 pub struct Filter {
-    resolvers: HashMap<u32, TokioAsyncResolver>,
-    default_tag: u32,
+    pools: Vec<HashMap<usize, TokioAsyncResolver>>,
+    default_tag: usize,
     disable_ipv6: bool,
-    matcher: Dmatcher<u32>,
-    dsts: Vec<u32>,
+    matcher: Dmatcher<usize>,
+    workers: usize,
+    dsts: Vec<usize>,
 }
 
 impl Filter {
-    async fn insert_rules(rules: Vec<Rule>) -> Result<(Dmatcher<u32>, Vec<u32>)> {
+    async fn insert_rules(rules: Vec<Rule>) -> Result<(Dmatcher<usize>, Vec<usize>)> {
         let mut matcher = Dmatcher::new();
         let mut v = vec![];
         for r in rules {
@@ -37,87 +38,123 @@ impl Filter {
 
     async fn insert_upstreams(
         upstreams: Vec<Upstream>,
-    ) -> Result<HashMap<u32, TokioAsyncResolver>> {
-        let mut r = HashMap::new();
+        num: usize,
+    ) -> Result<Vec<HashMap<usize, TokioAsyncResolver>>> {
+        let mut v = Vec::new();
+        for _ in 1..=num {
+            let mut r = HashMap::new();
 
-        for upstream in upstreams {
-            let mut opts = ResolverOpts::default();
-            opts.cache_size = upstream.cache_size;
-            opts.num_concurrent_reqs = upstream.num_conn;
-            opts.timeout = Duration::from_secs(upstream.timeout);
+            for upstream in upstreams.clone() {
+                let mut opts = ResolverOpts::default();
+                opts.cache_size = upstream.cache_size;
+                opts.num_concurrent_reqs = upstream.num_conn;
+                opts.timeout = Duration::from_secs(upstream.timeout);
 
-            opts.distrust_nx_responses = false; // This slows down resolution and does no good.
-            opts.preserve_intermediates = true;
+                opts.distrust_nx_responses = false; // This slows down resolution and does no good.
+                opts.preserve_intermediates = true;
 
-            r.insert(
-                upstream.tag,
-                TokioAsyncResolver::tokio(
-                    ResolverConfig::from_parts(
-                        None,
-                        vec![],
-                        match upstream.method {
-                            UpstreamKind::Tls(tls_name) => NameServerConfigGroup::from_ips_tls(
-                                &upstream.ips,
-                                upstream.port,
-                                tls_name,
-                            ),
-                            UpstreamKind::Udp => {
-                                NameServerConfigGroup::from_ips_clear(&upstream.ips, upstream.port)
-                            }
-                            UpstreamKind::Https(tls_name) => NameServerConfigGroup::from_ips_tls(
-                                &upstream.ips,
-                                upstream.port,
-                                tls_name,
-                            ),
-                        },
-                    ),
-                    opts,
-                )
-                .compat()
-                .await?,
-            );
+                r.insert(
+                    upstream.tag,
+                    TokioAsyncResolver::tokio(
+                        ResolverConfig::from_parts(
+                            None,
+                            vec![],
+                            match upstream.method {
+                                UpstreamKind::Tls(tls_name) => NameServerConfigGroup::from_ips_tls(
+                                    &upstream.ips,
+                                    upstream.port,
+                                    tls_name,
+                                ),
+                                UpstreamKind::Udp => NameServerConfigGroup::from_ips_clear(
+                                    &upstream.ips,
+                                    upstream.port,
+                                ),
+                                UpstreamKind::Https(tls_name) => {
+                                    NameServerConfigGroup::from_ips_tls(
+                                        &upstream.ips,
+                                        upstream.port,
+                                        tls_name,
+                                    )
+                                }
+                            },
+                        ),
+                        opts,
+                    )
+                    .compat()
+                    .await?,
+                );
+            }
+            v.push(r);
         }
-        Ok(r)
+        Ok(v)
     }
 
-    pub async fn new(data: &str) -> Result<(Self, SocketAddr, u32, LevelFilter)> {
+    pub async fn new(data: &str) -> Result<(Self, SocketAddr, usize, LevelFilter)> {
         let p: Parsed = serde_json::from_str(data)?;
+
+        if p.workers < 1 {
+            return Err(anyhow!(
+                "Cannot have number of workers less than 1: {}",
+                p.workers
+            ));
+        }
+        if p.pools < 1 {
+            return Err(anyhow!(
+                "Cannot have number of pools less than 1: {}",
+                p.pools
+            ));
+        }
+
         let (matcher, dsts) = Filter::insert_rules(p.rules).await?;
         let filter = Filter {
             matcher,
-            resolvers: Filter::insert_upstreams(p.upstreams).await?,
+            pools: Filter::insert_upstreams(p.upstreams, p.pools).await?,
             default_tag: p.default_tag,
             disable_ipv6: p.disable_ipv6,
+            workers: p.workers,
             dsts,
         };
         filter.check(filter.default_tag)?;
         Ok((filter, p.address, p.workers, p.verbosity))
     }
 
-    pub fn check(&self, default: u32) -> Result<()> {
+    pub fn check(&self, default: usize) -> Result<()> {
+        // All pools are same for each element in vector.
         for dst in &self.dsts {
-            self.resolvers
+            self.pools[0]
                 .get(&dst)
                 .ok_or_else(|| anyhow!("Missing resolver: {}", dst))?;
         }
-        self.resolvers
+        self.pools[0]
             .get(&default)
             .ok_or_else(|| anyhow!("Missing default resolver: {}", default))?;
         Ok(())
     }
 
-    fn get_resolver(&self, domain: &str) -> Result<&TokioAsyncResolver> {
+    fn get_resolver(&self, domain: &str, worker_id: usize) -> Result<&TokioAsyncResolver> {
+        // This ensures that the generated pool_id is in [0, pools.len()). pool_id starts from 0
+        let pool_id = worker_id * (self.pools.len() - 1) / self.workers;
         Ok(match self.matcher.matches(domain)? {
             Some(u) => {
-                info!("Routed via {}", u);
-                self.resolvers
+                info!(
+                    "[Worker {}] Routed via upstream with tag {} in pool {}",
+                    worker_id,
+                    u,
+                    pool_id + 1
+                );
+                self.pools[pool_id]
                     .get(&u)
                     .ok_or_else(|| anyhow!("Missing resolver: {}", &u))?
                 // These won't be reached unless it is unchecked.
             }
             None => {
-                info!("Routed via default: {}", &self.default_tag);
-                self.resolvers
+                info!(
+                    "[Worker {}] Routed via default upstream with tag {} in pool {}",
+                    worker_id,
+                    &self.default_tag,
+                    pool_id + 1
+                );
+                self.pools[pool_id]
                     .get(&self.default_tag)
                     .ok_or_else(|| anyhow!("Missing default resolver: {}", &self.default_tag))?
             }
@@ -129,6 +166,7 @@ impl Filter {
         domain: String,
         qtype: RecordType,
         mut req: Message,
+        worker_id: usize,
     ) -> Result<Message> {
         Ok(if (qtype == RecordType::AAAA) && (self.disable_ipv6) {
             // If `disable_ipv6` has been set, return immediately NXDomain.
@@ -136,7 +174,7 @@ impl Filter {
         } else {
             // Get the corresponding resolver
             match self
-                .get_resolver(domain.as_str())?
+                .get_resolver(domain.as_str(), worker_id)?
                 .lookup(
                     domain,
                     qtype,
