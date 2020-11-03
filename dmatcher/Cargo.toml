@@ -1,0 +1,21 @@
+[package]
+name = "dmatcher"
+version = "0.1.10"
+authors = ["Harry Ying <lexugeyky@outlook.com>"]
+edition = "2018"
+description = "A simple domain matching algorithm, intended to be fast."
+repository = "https://github.com/LEXUGE/dmatcher"
+license = "GPL-3.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hashbrown = "^0.9"
+trust-dns-proto = { version = "^0.19", default-features = false }
+
+[dev-dependencies]
+criterion = "^0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

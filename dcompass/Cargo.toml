@@ -1,0 +1,23 @@
+[package]
+name = "dcompass"
+version = "0.1.0"
+authors = ["Harry Ying <lexugeyky@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+trust-dns-resolver = { version = "^0.19", features = ["dns-over-https-rustls"] }
+tokio-compat-02 = "^0.1"
+futures = "^0.3"
+tokio = { version = "^0.3", features = ["full"]}
+hashbrown = "^0.9"
+trust-dns-proto = "^0.19"
+dmatcher = {version = "^0.1", path = "../dmatcher"}
+simple_logger = "^1.11"
+clap = { version = "^2.0", features = ["yaml"] }
+log = "^0.4"
+serde = { version = "^1.0", features = ["derive"] }
+serde_json = "^1.0"
+anyhow = "^1.0"
+
+[dev-dependencies]
+tokio-test = "^0.3"
