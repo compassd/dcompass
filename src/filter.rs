@@ -18,7 +18,7 @@ pub struct Filter {
     default_tag: usize,
     disable_ipv6: bool,
     matcher: Dmatcher<usize>,
-    workers: usize,
+    num_workers: usize,
     dsts: Vec<usize>,
 }
 
@@ -38,10 +38,10 @@ impl Filter {
 
     async fn insert_upstreams(
         upstreams: Vec<Upstream>,
-        num: usize,
+        num_pools: usize,
     ) -> Result<Vec<HashMap<usize, TokioAsyncResolver>>> {
         let mut v = Vec::new();
-        for _ in 1..=num {
+        for _ in 1..=num_pools {
             let mut r = HashMap::new();
 
             for upstream in upstreams.clone() {
@@ -111,7 +111,7 @@ impl Filter {
             pools: Filter::insert_upstreams(p.upstreams, p.pools).await?,
             default_tag: p.default_tag,
             disable_ipv6: p.disable_ipv6,
-            workers: p.workers,
+            num_workers: p.workers,
             dsts,
         };
         filter.check(filter.default_tag)?;
@@ -133,14 +133,12 @@ impl Filter {
 
     fn get_resolver(&self, domain: &str, worker_id: usize) -> Result<&TokioAsyncResolver> {
         // This ensures that the generated pool_id is in [0, pools.len()). pool_id starts from 0
-        let pool_id = worker_id * (self.pools.len() - 1) / self.workers;
+        let pool_id = (worker_id + 1) * (self.pools.len() - 1) / self.num_workers;
         Ok(match self.matcher.matches(domain)? {
             Some(u) => {
                 info!(
                     "[Worker {}] Routed via upstream with tag {} in pool {}",
-                    worker_id,
-                    u,
-                    pool_id + 1
+                    worker_id, u, pool_id
                 );
                 self.pools[pool_id]
                     .get(&u)
@@ -150,9 +148,7 @@ impl Filter {
             None => {
                 info!(
                     "[Worker {}] Routed via default upstream with tag {} in pool {}",
-                    worker_id,
-                    &self.default_tag,
-                    pool_id + 1
+                    worker_id, &self.default_tag, pool_id
                 );
                 self.pools[pool_id]
                     .get(&self.default_tag)

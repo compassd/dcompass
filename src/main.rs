@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
-    let (filter, addr, num, verbosity) = match m.value_of("config") {
+    let (filter, addr, num_workers, verbosity) = match m.value_of("config") {
         Some(c) => {
             let mut file = File::open(c).await?;
             let mut config = String::new();
@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
     let mut handles = vec![];
 
-    for i in 1..=num {
+    for i in 1..=num_workers {
         let socket = socket.clone();
         let filter = filter.clone();
 
@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
                 let socket = socket.clone();
                 let filter = filter.clone();
 
-                match worker(filter, socket, i).await {
+                match worker(filter, socket, i - 1).await {
                     Ok(_) => (),
                     Err(e) => warn!("Handling query failed: {}", e),
                 }
