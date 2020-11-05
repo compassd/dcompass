@@ -13,9 +13,10 @@ license = "GPL-3.0"
 trust-dns-client = { version = "^0.19", default-features = false }
 trust-dns-https = "^0.19"
 trust-dns-proto = "^0.19"
-rustls = "^0.17"
+rustls = {version = "^0.17", features = ["dangerous_configuration"]}
 async-trait = "^0.1"
 webpki-roots = "^0.20"
+webpki = "^0.21"
 futures = "^0.3"
 tokio = { version = "^0.2", features = ["full"]}
 hashbrown = "^0.9"

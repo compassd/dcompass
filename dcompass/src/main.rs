@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
             Filter::new(&config).compat().await?
         }
         None => {
-            Filter::new(include_str!("../../droute/configs/default.json"))
+            Filter::new(include_str!("../../configs/default.json"))
                 .compat()
                 .await?
         }

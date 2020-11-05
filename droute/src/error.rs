@@ -24,4 +24,7 @@ pub enum DrouteError {
 
     #[error(transparent)]
     ParseError(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    TimeError(#[from] tokio::time::Elapsed),
 }

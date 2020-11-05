@@ -1,9 +1,13 @@
 use crate::error::Result;
+use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::time::timeout;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_client::op::Message;
+use trust_dns_client::op::ResponseCode;
 use trust_dns_client::udp::UdpClientStream;
 use trust_dns_https::HttpsClientStreamBuilder;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
@@ -12,7 +16,11 @@ const ALPN_H2: &[u8] = b"h2";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
-    Https { name: String, addr: SocketAddr },
+    Https {
+        name: String,
+        addr: SocketAddr,
+        no_sni: bool,
+    },
     // Drop TLS support until we figure out how to do without OpenSSL
     // Tls(String, SocketAddr),
     Udp(SocketAddr),
@@ -28,21 +36,27 @@ pub struct Upstream {
 
 impl Upstream {
     pub async fn resolve(&self, msg: Message) -> Result<Message> {
+        let id = msg.id();
+        let op_code = msg.op_code();
         Ok(match self.method.clone() {
             UpstreamKind::Udp(s) => {
-                let id = msg.id();
                 let stream = UdpClientStream::<UdpSocket>::new(s);
                 let (mut client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp = Message::from(client.send(msg).await?);
+                let mut resp =
+                    match timeout(Duration::from_secs(self.timeout), client.send(msg)).await {
+                        Ok(m) => Message::from(m?),
+                        Err(_) => {
+                            warn!("Timeout reached!");
+                            Message::error_msg(id, op_code, ResponseCode::ServFail)
+                        }
+                    };
                 resp.set_id(id);
                 resp
             }
-            UpstreamKind::Https { name, addr } => {
+            UpstreamKind::Https { name, addr, no_sni } => {
                 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
                 use std::sync::Arc;
-
-                let id = msg.id();
 
                 let mut root_store = RootCertStore::empty();
                 root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
@@ -53,6 +67,9 @@ impl Upstream {
                 client_config.versions = versions;
                 client_config.alpn_protocols.push(ALPN_H2.to_vec());
                 client_config.key_log = Arc::new(KeyLogFile::new());
+                if no_sni {
+                    client_config.enable_sni = false;
+                }
 
                 let client_config = Arc::new(client_config);
 
@@ -60,7 +77,14 @@ impl Upstream {
                     HttpsClientStreamBuilder::with_client_config(client_config).build(addr, name);
                 let (mut client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp = Message::from(client.send(msg).await?);
+                let mut resp =
+                    match timeout(Duration::from_secs(self.timeout), client.send(msg)).await {
+                        Ok(m) => Message::from(m?),
+                        Err(_) => {
+                            warn!("Timeout reached!");
+                            Message::error_msg(id, op_code, ResponseCode::ServFail)
+                        }
+                    };
                 resp.set_id(id);
                 resp
             }

@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn parse() {
         assert_eq!(
-            block_on(Filter::new(include_str!("../configs/default.json"))).is_ok(),
+            block_on(Filter::new(include_str!("../../configs/default.json"))).is_ok(),
             true
         );
     }
@@ -146,7 +146,7 @@ mod tests {
     fn check_fail_rule() {
         // Notice that data dir is relative to cargo test path.
         assert_eq!(
-            match block_on(Filter::new(include_str!("../configs/fail_rule.json")))
+            match block_on(Filter::new(include_str!("../../configs/fail_rule.json")))
                 .err()
                 .unwrap()
             {
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn check_fail_default() {
         assert_eq!(
-            match block_on(Filter::new(include_str!("../configs/fail_default.json")))
+            match block_on(Filter::new(include_str!("../../configs/fail_default.json")))
                 .err()
                 .unwrap()
             {

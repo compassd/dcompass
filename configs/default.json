@@ -3,7 +3,7 @@
 	{
 	    "tag":1,
 	    "method":{
-		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net" }
+		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net", "no_sni": false }
 	    },
 	    "cache_size":4096,
 	    "timeout":2
