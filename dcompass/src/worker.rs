@@ -1,8 +1,9 @@
-use crate::filter::Filter;
 use anyhow::Result;
+use droute::filter::Filter;
 use log::*;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
+use tokio_compat_02::FutureExt;
 use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
@@ -14,24 +15,16 @@ pub async fn worker(filter: Arc<Filter>, socket: Arc<UdpSocket>, i: usize) -> Re
 
     let request = Message::from_vec(&buf)?;
 
-    for q in request.queries() {
-        info!("[Worker {}] Received query: {:?}", i, q);
+    info!("[Worker {}] Received message: {:?}", i, request);
 
-        socket
-            .send_to(
-                &filter
-                    .resolve(q.name().to_utf8(), q.query_type(), request.clone(), i)
-                    .await?
-                    .to_vec()?,
-                src,
-            )
-            .await?;
+    socket
+        .send_to(&filter.resolve(request).compat().await?.to_vec()?, src)
+        .await?;
 
-        info!(
-            "[Worker {}] Response completed. Sent back to {} successfully.",
-            i, src
-        );
-    }
+    info!(
+        "[Worker {}] Response completed. Sent back to {} successfully.",
+        i, src
+    );
 
     Ok(())
 }

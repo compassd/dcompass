@@ -3,4 +3,5 @@
 members = [
     "dcompass",
     "dmatcher",
+    "droute",
 ]

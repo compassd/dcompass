@@ -1,10 +1,8 @@
-mod filter;
-mod parser;
 mod worker;
 
-use crate::filter::Filter;
 use crate::worker::worker;
 use anyhow::Result;
+use droute::filter::Filter;
 use futures::future::join_all;
 use log::*;
 use simple_logger::SimpleLogger;
@@ -12,6 +10,7 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
+use tokio_compat_02::FutureExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,9 +24,13 @@ async fn main() -> Result<()> {
             let mut file = File::open(c).await?;
             let mut config = String::new();
             file.read_to_string(&mut config).await?;
-            Filter::new(&config).await?
+            Filter::new(&config).compat().await?
         }
-        None => Filter::new(include_str!("../configs/default.json")).await?,
+        None => {
+            Filter::new(include_str!("../../droute/configs/default.json"))
+                .compat()
+                .await?
+        }
     };
 
     SimpleLogger::new().with_level(verbosity).init()?;

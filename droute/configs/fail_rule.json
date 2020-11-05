@@ -1,0 +1,31 @@
+{
+    "upstreams": [
+	{
+	    "tag" : 3,
+	    "method":{
+		"Udp":"114.114.114.114:53"
+	    },
+	    "cache_size": 4096,
+	    "timeout": 1
+	},
+	{
+	    "tag":1,
+	    "method":{
+		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net" }
+	    },
+	    "cache_size":4096,
+	    "timeout":2
+	}
+    ],
+    "rules": [
+	{
+	    "dst": 2,
+	    "path": "./data/china.txt"
+	}
+    ],
+    "default_tag":3,
+    "address":"0.0.0.0:2053",
+    "workers":10,
+    "verbosity": "Info",
+    "disable_ipv6": true
+}

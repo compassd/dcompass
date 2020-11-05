@@ -9,5 +9,6 @@ in
       clang # needed for bindgen
       latest.rustChannels.stable.rust
       pkgconfig
+      cargo-flamegraph
     ];
 }

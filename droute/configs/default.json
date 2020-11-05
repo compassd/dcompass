@@ -3,15 +3,10 @@
 	{
 	    "tag":1,
 	    "method":{
-		"Tls":"dns.quad9.net"
+		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net" }
 	    },
-	    "port":853,
-	    "ips":[
-		"9.9.9.9"
-	    ],
 	    "cache_size":4096,
-	    "timeout":2,
-	    "num_conn":1
+	    "timeout":2
 	}
     ],
     "rules":[
@@ -20,7 +15,6 @@
     "default_tag":1,
     "address":"0.0.0.0:2053",
     "workers":10,
-    "pools":5,
     "verbosity": "Info",
     "disable_ipv6": true
 }
