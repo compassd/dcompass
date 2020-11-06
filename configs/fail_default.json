@@ -25,7 +25,6 @@
     ],
     "default_tag":5,
     "address":"0.0.0.0:2053",
-    "workers":10,
     "verbosity": "Info",
     "disable_ipv6": true
 }

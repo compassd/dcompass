@@ -3,7 +3,6 @@ mod worker;
 use crate::worker::worker;
 use anyhow::Result;
 use droute::filter::Filter;
-use futures::future::join_all;
 use log::*;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
@@ -19,7 +18,7 @@ async fn main() -> Result<()> {
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
-    let (filter, addr, num_workers, verbosity) = match m.value_of("config") {
+    let (filter, addr, verbosity) = match m.value_of("config") {
         Some(c) => {
             let mut file = File::open(c).await?;
             let mut config = String::new();
@@ -39,26 +38,17 @@ async fn main() -> Result<()> {
     // Bind an UDP socket
     let socket = Arc::new(UdpSocket::bind(addr).await?);
 
-    let mut handles = vec![];
+    loop {
+        let mut buf = [0; 512];
+        let (_, src) = socket.recv_from(&mut buf).await?;
 
-    for i in 1..=num_workers {
-        let socket = socket.clone();
         let filter = filter.clone();
-
-        handles.push(tokio::spawn(async move {
-            loop {
-                let socket = socket.clone();
-                let filter = filter.clone();
-
-                match worker(filter, socket, i - 1).await {
-                    Ok(_) => (),
-                    Err(e) => warn!("Handling query failed: {}", e),
-                }
+        let socket = socket.clone();
+        tokio::spawn(async move {
+            match worker(filter, socket, &buf, src).await {
+                Ok(_) => (),
+                Err(e) => warn!("Handling query failed: {}", e),
             }
-        }));
+        });
     }
-
-    join_all(handles).await;
-
-    Ok(())
 }
