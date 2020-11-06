@@ -2,7 +2,7 @@ mod worker;
 
 use crate::worker::worker;
 use anyhow::Result;
-use droute::filter::Filter;
+use droute::router::Router;
 use log::*;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
@@ -18,23 +18,25 @@ async fn main() -> Result<()> {
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
-    let (filter, addr, verbosity) = match m.value_of("config") {
+    let router = match m.value_of("config") {
         Some(c) => {
             let mut file = File::open(c).await?;
             let mut config = String::new();
             file.read_to_string(&mut config).await?;
-            Filter::new(&config).compat().await?
+            Router::new(&config).compat().await?
         }
         None => {
-            Filter::new(include_str!("../../configs/default.json"))
+            Router::new(include_str!("../../configs/default.json"))
                 .compat()
                 .await?
         }
     };
 
+    let (addr, verbosity) = (router.addr(), router.verbosity());
+
     SimpleLogger::new().with_level(verbosity).init()?;
 
-    let filter = Arc::new(filter);
+    let router = Arc::new(router);
     // Bind an UDP socket
     let socket = Arc::new(UdpSocket::bind(addr).await?);
 
@@ -42,10 +44,10 @@ async fn main() -> Result<()> {
         let mut buf = [0; 512];
         let (_, src) = socket.recv_from(&mut buf).await?;
 
-        let filter = filter.clone();
+        let router = router.clone();
         let socket = socket.clone();
         tokio::spawn(async move {
-            match worker(filter, socket, &buf, src).await {
+            match worker(router, socket, &buf, src).await {
                 Ok(_) => (),
                 Err(e) => warn!("Handling query failed: {}", e),
             }

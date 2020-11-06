@@ -1,5 +1,5 @@
 use anyhow::Result;
-use droute::filter::Filter;
+use droute::router::Router;
 use log::*;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
 pub async fn worker(
-    filter: Arc<Filter>,
+    router: Arc<Router>,
     socket: Arc<UdpSocket>,
     buf: &[u8],
     src: SocketAddr,
@@ -18,7 +18,7 @@ pub async fn worker(
 
     info!("Received message: {:?}", request);
     socket
-        .send_to(&filter.resolve(request).compat().await?.to_vec()?, src)
+        .send_to(&router.resolve(request).compat().await?.to_vec()?, src)
         .await?;
 
     info!("Response completed. Sent back to {} successfully.", src);

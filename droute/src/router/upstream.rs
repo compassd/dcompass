@@ -1,4 +1,6 @@
+use crate::error::DrouteError;
 use crate::error::Result;
+use hashbrown::HashMap;
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -26,31 +28,47 @@ pub enum UpstreamKind {
     Udp(SocketAddr),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Upstream {
-    pub tag: usize,
-    pub method: UpstreamKind,
-    pub cache_size: usize,
-    pub timeout: u64,
+pub struct Upstreams {
+    upstreams: HashMap<usize, Upstream>,
 }
 
-impl Upstream {
-    pub async fn resolve(&self, msg: Message) -> Result<Message> {
+impl Upstreams {
+    pub fn new(upstreams: Vec<Upstream>) -> Self {
+        let mut r = HashMap::new();
+        for u in upstreams {
+            r.insert(u.tag, u);
+        }
+        Self { upstreams: r }
+    }
+
+    pub fn exists(&self, tag: usize) -> Result<bool> {
+        if self.upstreams.contains_key(&tag) {
+            Ok(true)
+        } else {
+            Err(DrouteError::MissingTag(tag))
+        }
+    }
+
+    pub async fn resolve(&self, tag: usize, msg: Message) -> Result<Message> {
         let id = msg.id();
         let op_code = msg.op_code();
-        Ok(match self.method.clone() {
+        let u = self
+            .upstreams
+            .get(&tag)
+            .ok_or_else(|| DrouteError::MissingTag(tag))?;
+        Ok(match u.method.clone() {
             UpstreamKind::Udp(s) => {
                 let stream = UdpClientStream::<UdpSocket>::new(s);
                 let (mut client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp =
-                    match timeout(Duration::from_secs(self.timeout), client.send(msg)).await {
-                        Ok(m) => Message::from(m?),
-                        Err(_) => {
-                            warn!("Timeout reached!");
-                            Message::error_msg(id, op_code, ResponseCode::ServFail)
-                        }
-                    };
+                let mut resp = match timeout(Duration::from_secs(u.timeout), client.send(msg)).await
+                {
+                    Ok(m) => Message::from(m?),
+                    Err(_) => {
+                        warn!("Timeout reached!");
+                        Message::error_msg(id, op_code, ResponseCode::ServFail)
+                    }
+                };
                 resp.set_id(id);
                 resp
             }
@@ -77,17 +95,25 @@ impl Upstream {
                     HttpsClientStreamBuilder::with_client_config(client_config).build(addr, name);
                 let (mut client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp =
-                    match timeout(Duration::from_secs(self.timeout), client.send(msg)).await {
-                        Ok(m) => Message::from(m?),
-                        Err(_) => {
-                            warn!("Timeout reached!");
-                            Message::error_msg(id, op_code, ResponseCode::ServFail)
-                        }
-                    };
+                let mut resp = match timeout(Duration::from_secs(u.timeout), client.send(msg)).await
+                {
+                    Ok(m) => Message::from(m?),
+                    Err(_) => {
+                        warn!("Timeout reached!");
+                        Message::error_msg(id, op_code, ResponseCode::ServFail)
+                    }
+                };
                 resp.set_id(id);
                 resp
             }
         })
     }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Upstream {
+    pub tag: usize,
+    pub method: UpstreamKind,
+    pub cache_size: usize,
+    pub timeout: u64,
 }

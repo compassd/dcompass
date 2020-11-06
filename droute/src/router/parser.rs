@@ -1,4 +1,4 @@
-use crate::upstream::Upstream;
+use super::upstream::Upstream;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
