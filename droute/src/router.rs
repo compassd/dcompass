@@ -48,45 +48,37 @@ impl Router {
     }
 
     pub fn check(&self) -> Result<bool> {
-        // All pools are same for each element in vector.
+        self.upstreams.hybrid_check()?;
         for dst in &self.dsts {
-            self.upstreams.exists(*dst)?;
+            self.upstreams.exists(dst)?;
         }
-        self.upstreams.exists(self.filter.default_tag())?;
+        self.upstreams.exists(&self.filter.default_tag())?;
         Ok(true)
     }
 
     pub async fn resolve(&self, msg: Message) -> Result<Message> {
-        Ok(
-            // Get the corresponding resolver
-            if msg.query_count() == 1 {
+        let (id, op_code) = (msg.id(), msg.op_code());
+        Ok(match self.upstreams.resolve(if msg.query_count() == 1 {
                 let q = msg.queries().iter().next().unwrap();
                 if (q.query_type() == RecordType::AAAA) && (self.disable_ipv6) {
                     // If `disable_ipv6` has been set, return immediately NXDomain.
-                    Message::error_msg(msg.id(), msg.op_code(), ResponseCode::NXDomain)
-                } else {
-                    self.upstreams
-                        .resolve(
-                            self.filter.get_upstream(
-                                msg.queries()
-                                    .iter()
-                                    .next()
-                                    .unwrap()
-                                    .name()
-                                    .to_utf8()
-                                    .as_str(),
-                            )?,
-                            msg,
-                        )
-                        .await?
-                }
+                    return Ok(Message::error_msg(
+                        msg.id(),
+                        msg.op_code(),
+                        ResponseCode::NXDomain,
+                    ));
+                } else {self.filter.get_upstream(q.name().to_utf8().as_str())?}
             } else {
                 warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
-                self.upstreams
-                    .resolve(self.filter.default_tag(), msg)
-                    .await?
-            },
-        )
+                self.filter.default_tag()
+        }, msg).await {
+	    Ok(m) => m,
+	    Err(e) => {
+		// Catch all server failure here and return server fail
+		warn!("Upstream encountered error: {}, returning SERVFAIL", e);
+		Message::error_msg(id, op_code, ResponseCode::ServFail)
+	    },
+	})
     }
 }
 

@@ -1,23 +1,27 @@
 use crate::error::DrouteError;
 use crate::error::Result;
+use futures::future::select_ok;
+use futures::future::FutureExt;
+use futures::Future;
 use hashbrown::HashMap;
-use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
-use trust_dns_client::client::AsyncClient;
-use trust_dns_client::op::Message;
-use trust_dns_client::op::ResponseCode;
-use trust_dns_client::udp::UdpClientStream;
+use trust_dns_client::{
+    client::AsyncClient,
+    op::{DnsResponse, Message},
+    udp::UdpClientStream,
+};
 use trust_dns_https::HttpsClientStreamBuilder;
-use trust_dns_proto::xfer::dns_handle::DnsHandle;
+use trust_dns_proto::{error::ProtoError, xfer::dns_handle::DnsHandle};
 
 const ALPN_H2: &[u8] = b"h2";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
+    Hybrid(Vec<usize>),
     Https {
         name: String,
         addr: SocketAddr,
@@ -41,36 +45,49 @@ impl Upstreams {
         Self { upstreams: r }
     }
 
-    pub fn exists(&self, tag: usize) -> Result<bool> {
-        if self.upstreams.contains_key(&tag) {
+    pub fn hybrid_check(&self) -> Result<bool> {
+        for (tag, u) in self.upstreams.iter() {
+            if let UpstreamKind::Hybrid(v) = &u.method {
+                if v.is_empty() {
+                    return Err(DrouteError::EmptyHybrid(*tag));
+                }
+                if let Some(t) = v.iter().find(|tag| self.exists(*tag).is_err()) {
+                    return Err(DrouteError::MissingTag(*t));
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    pub fn exists(&self, tag: &usize) -> Result<bool> {
+        if self.upstreams.contains_key(tag) {
             Ok(true)
         } else {
-            Err(DrouteError::MissingTag(tag))
+            Err(DrouteError::MissingTag(*tag))
         }
     }
 
-    pub async fn resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+    async fn query<R>(t: u64, mut client: AsyncClient<R>, msg: Message) -> Result<Message>
+    where
+        R: Future<Output = std::result::Result<DnsResponse, ProtoError>> + 'static + Send + Unpin,
+    {
         let id = msg.id();
-        let op_code = msg.op_code();
+        let mut resp = Message::from(timeout(Duration::from_secs(t), client.send(msg)).await??);
+        resp.set_id(id);
+        Ok(resp)
+    }
+
+    async fn final_resolve(&self, tag: usize, msg: Message) -> Result<Message> {
         let u = self
             .upstreams
             .get(&tag)
             .ok_or_else(|| DrouteError::MissingTag(tag))?;
-        Ok(match u.method.clone() {
+        Ok(match &u.method {
             UpstreamKind::Udp(s) => {
-                let stream = UdpClientStream::<UdpSocket>::new(s);
-                let (mut client, bg) = AsyncClient::connect(stream).await?;
+                let stream = UdpClientStream::<UdpSocket>::new(*s);
+                let (client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp = match timeout(Duration::from_secs(u.timeout), client.send(msg)).await
-                {
-                    Ok(m) => Message::from(m?),
-                    Err(_) => {
-                        warn!("Timeout reached!");
-                        Message::error_msg(id, op_code, ResponseCode::ServFail)
-                    }
-                };
-                resp.set_id(id);
-                resp
+                Self::query(u.timeout, client, msg).await?
             }
             UpstreamKind::Https { name, addr, no_sni } => {
                 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
@@ -85,27 +102,35 @@ impl Upstreams {
                 client_config.versions = versions;
                 client_config.alpn_protocols.push(ALPN_H2.to_vec());
                 client_config.key_log = Arc::new(KeyLogFile::new());
-                if no_sni {
-                    client_config.enable_sni = false;
-                }
+                client_config.enable_sni = !no_sni;
 
                 let client_config = Arc::new(client_config);
 
-                let stream =
-                    HttpsClientStreamBuilder::with_client_config(client_config).build(addr, name);
-                let (mut client, bg) = AsyncClient::connect(stream).await?;
+                let stream = HttpsClientStreamBuilder::with_client_config(client_config)
+                    .build(*addr, name.to_string());
+                let (client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                let mut resp = match timeout(Duration::from_secs(u.timeout), client.send(msg)).await
-                {
-                    Ok(m) => Message::from(m?),
-                    Err(_) => {
-                        warn!("Timeout reached!");
-                        Message::error_msg(id, op_code, ResponseCode::ServFail)
-                    }
-                };
-                resp.set_id(id);
+                Self::query(u.timeout, client, msg).await?
+            }
+            // final_resolve should not be used on another `hybrid` upstream
+            _ => return Err(DrouteError::HybridRecursion),
+        })
+    }
+
+    pub async fn resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+        let u = self
+            .upstreams
+            .get(&tag)
+            .ok_or_else(|| DrouteError::MissingTag(tag))?;
+        Ok(match &u.method {
+            UpstreamKind::Hybrid(v) => {
+                let v = v
+                    .iter()
+                    .map(|u| self.final_resolve(*u, msg.clone()).boxed());
+                let (resp, _) = timeout(Duration::from_secs(u.timeout), select_ok(v)).await??;
                 resp
             }
+            _ => self.final_resolve(tag, msg).await?,
         })
     }
 }

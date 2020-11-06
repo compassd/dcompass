@@ -10,6 +10,12 @@ pub enum DrouteError {
     #[error("No upstream with tag {0} found")]
     MissingTag(usize),
 
+    #[error("Currently you cannot recursively use `hybrid` upstream method")]
+    HybridRecursion,
+
+    #[error("`hybrid` upstream method with tag {0} contains no upstreams to race")]
+    EmptyHybrid(usize),
+
     #[error("Cannot have number of workers less than 1: {0}")]
     InvalidWorker(usize),
 
