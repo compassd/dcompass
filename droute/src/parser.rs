@@ -1,4 +1,4 @@
-use crate::upstream::Upstream;
+use crate::upstream::UpstreamInfo;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -23,7 +23,7 @@ enum LevelFilterDef {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Parsed {
     pub rules: Vec<Rule>,
-    pub upstreams: Vec<Upstream>,
+    pub upstreams: Vec<UpstreamInfo>,
     pub default_tag: usize,
     pub address: SocketAddr,
     pub workers: usize,

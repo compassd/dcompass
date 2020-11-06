@@ -1,7 +1,7 @@
 use crate::error::DrouteError;
 use crate::error::Result;
 use crate::parser::{Parsed, Rule};
-use crate::upstream::Upstream;
+use crate::upstream::{Upstream, UpstreamInfo};
 use dmatcher::Dmatcher;
 use hashbrown::HashMap;
 use log::*;
@@ -34,10 +34,10 @@ impl Filter {
         Ok((matcher, v))
     }
 
-    async fn insert_upstreams(upstreams: Vec<Upstream>) -> Result<HashMap<usize, Upstream>> {
+    async fn insert_upstreams(upstreams: Vec<UpstreamInfo>) -> Result<HashMap<usize, Upstream>> {
         let mut r = HashMap::new();
         for u in upstreams {
-            r.insert(u.tag, u);
+            r.insert(u.tag, Upstream::new(u).await?);
         }
         Ok(r)
     }
@@ -154,6 +154,14 @@ mod tests {
                 e => panic!("Not the right error type: {}", e),
             },
             2
+        );
+    }
+
+    #[test]
+    fn check_success_rule() {
+        assert_eq!(
+            block_on(Filter::new(include_str!("../../configs/success_rule.json"))).is_ok(),
+            true
         );
     }
 
