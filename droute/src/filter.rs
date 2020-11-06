@@ -13,7 +13,7 @@ use trust_dns_client::rr::RecordType;
 // use tokio_compat_02::FutureExt;
 
 pub struct Filter {
-    upstreams: HashMap<usize, Upstream>,
+    upstreams: HashMap<usize, UpstreamInfo>,
     default_tag: usize,
     disable_ipv6: bool,
     matcher: Dmatcher<usize>,
@@ -34,10 +34,10 @@ impl Filter {
         Ok((matcher, v))
     }
 
-    async fn insert_upstreams(upstreams: Vec<UpstreamInfo>) -> Result<HashMap<usize, Upstream>> {
+    fn insert_upstreams(upstreams: Vec<UpstreamInfo>) -> Result<HashMap<usize, UpstreamInfo>> {
         let mut r = HashMap::new();
         for u in upstreams {
-            r.insert(u.tag, Upstream::new(u).await?);
+            r.insert(u.tag, u);
         }
         Ok(r)
     }
@@ -52,7 +52,7 @@ impl Filter {
         let (matcher, dsts) = Filter::insert_rules(p.rules).await?;
         let filter = Filter {
             matcher,
-            upstreams: Filter::insert_upstreams(p.upstreams).await?,
+            upstreams: Filter::insert_upstreams(p.upstreams)?,
             default_tag: p.default_tag,
             disable_ipv6: p.disable_ipv6,
             dsts,
@@ -74,13 +74,14 @@ impl Filter {
         Ok(())
     }
 
-    fn get_upstream(&self, domain: &str) -> Result<&Upstream> {
+    fn get_upstream(&self, domain: &str) -> Result<UpstreamInfo> {
         Ok(match self.matcher.matches(domain)? {
             Some(u) => {
                 info!("{} routed via upstream with tag {}", domain, u);
                 self.upstreams
                     .get(&u)
                     .ok_or_else(|| DrouteError::MissingTag(u))?
+                    .clone()
                 // These won't be reached unless it is unchecked.
             }
             None => {
@@ -91,6 +92,7 @@ impl Filter {
                 self.upstreams
                     .get(&self.default_tag)
                     .ok_or_else(|| DrouteError::MissingTag(self.default_tag))?
+                    .clone()
             }
         })
     }
@@ -104,25 +106,32 @@ impl Filter {
                     // If `disable_ipv6` has been set, return immediately NXDomain.
                     Message::error_msg(msg.id(), msg.op_code(), ResponseCode::NXDomain)
                 } else {
-                    self.get_upstream(
-                        msg.queries()
-                            .iter()
-                            .next()
-                            .unwrap()
-                            .name()
-                            .to_utf8()
-                            .as_str(),
-                    )?
+                    Upstream::new(
+                        self.get_upstream(
+                            msg.queries()
+                                .iter()
+                                .next()
+                                .unwrap()
+                                .name()
+                                .to_utf8()
+                                .as_str(),
+                        )?,
+                    )
+                    .await?
                     .resolve(msg)
                     .await?
                 }
             } else {
                 warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
-                self.upstreams
-                    .get(&self.default_tag)
-                    .ok_or_else(|| DrouteError::MissingTag(self.default_tag))?
-                    .resolve(msg)
-                    .await?
+                Upstream::new(
+                    self.upstreams
+                        .get(&self.default_tag)
+                        .ok_or_else(|| DrouteError::MissingTag(self.default_tag))?
+                        .clone(),
+                )
+                .await?
+                .resolve(msg)
+                .await?
             },
         )
     }
