@@ -4,20 +4,29 @@ use futures::future::select_ok;
 use futures::future::FutureExt;
 use futures::Future;
 use hashbrown::HashMap;
+use log::*;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 use trust_dns_client::{
     client::AsyncClient,
     op::{DnsResponse, Message},
     udp::UdpClientStream,
 };
-use trust_dns_https::HttpsClientStreamBuilder;
-use trust_dns_proto::{error::ProtoError, xfer::dns_handle::DnsHandle};
+use trust_dns_https::{HttpsClientResponse, HttpsClientStreamBuilder};
+use trust_dns_proto::{error::ProtoError, udp::UdpResponse, xfer::dns_handle::DnsHandle};
 
 const ALPN_H2: &[u8] = b"h2";
+
+#[derive(Clone)]
+enum ClientType {
+    Https(AsyncClient<HttpsClientResponse>),
+    Udp(AsyncClient<UdpResponse>),
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
@@ -34,6 +43,7 @@ pub enum UpstreamKind {
 
 pub struct Upstreams {
     upstreams: HashMap<usize, Upstream>,
+    clients: Mutex<HashMap<usize, VecDeque<ClientType>>>,
 }
 
 impl Upstreams {
@@ -42,7 +52,10 @@ impl Upstreams {
         for u in upstreams {
             r.insert(u.tag, u);
         }
-        Self { upstreams: r }
+        Self {
+            upstreams: r,
+            clients: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn hybrid_check(&self) -> Result<bool> {
@@ -77,7 +90,7 @@ impl Upstreams {
         Ok(resp)
     }
 
-    async fn final_resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+    async fn create_client(&self, tag: usize) -> Result<ClientType> {
         let u = self
             .upstreams
             .get(&tag)
@@ -87,7 +100,7 @@ impl Upstreams {
                 let stream = UdpClientStream::<UdpSocket>::new(*s);
                 let (client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                Self::query(u.timeout, client, msg).await?
+                ClientType::Udp(client)
             }
             UpstreamKind::Https { name, addr, no_sni } => {
                 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
@@ -110,11 +123,67 @@ impl Upstreams {
                     .build(*addr, name.to_string());
                 let (client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
-                Self::query(u.timeout, client, msg).await?
+                ClientType::Https(client)
+            }
+            // We don't create client for Hybrid
+            _ => return Err(DrouteError::HybridRecursion),
+        })
+    }
+
+    async fn final_resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+        let u = self
+            .upstreams
+            .get(&tag)
+            .ok_or_else(|| DrouteError::MissingTag(tag))?;
+        let client = {
+            let mut clients = self.clients.lock().await;
+            let queue = clients.entry(tag).or_insert(VecDeque::new());
+            if queue.is_empty() {
+                info!(
+                    "Client cache is empty for tag {}, creating new clients",
+                    tag
+                );
+                self.create_client(tag).await?
+            } else {
+                let c = queue.pop_front().unwrap();
+                info!(
+                    "Client cache hit for tag {}, remaining client in queue: {}",
+                    tag,
+                    queue.len()
+                );
+                c
+            }
+        };
+        let resp = match &u.method {
+            UpstreamKind::Udp(_) => {
+                if let ClientType::Udp(client) = client.clone() {
+                    Self::query(u.timeout, client, msg).await?
+                } else {
+                    unreachable!();
+                }
+            }
+            UpstreamKind::Https {
+                name: _,
+                addr: _,
+                no_sni: _,
+            } => {
+                if let ClientType::Https(client) = client.clone() {
+                    Self::query(u.timeout, client, msg).await?
+                } else {
+                    unreachable!();
+                }
             }
             // final_resolve should not be used on another `hybrid` upstream
             _ => return Err(DrouteError::HybridRecursion),
-        })
+        };
+        // If the response can be obtained sucessfully, we then push back the client to the queue
+        {
+            info!("Push back client cache for tag {}", tag);
+            let mut clients = self.clients.lock().await;
+            let queue = clients.entry(tag).or_insert(VecDeque::new());
+            queue.push_back(client);
+        }
+        Ok(resp)
     }
 
     pub async fn resolve(&self, tag: usize, msg: Message) -> Result<Message> {
