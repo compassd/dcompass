@@ -1,3 +1,6 @@
+mod client_cache;
+
+use self::client_cache::{ClientCache, ClientType};
 use crate::error::DrouteError;
 use crate::error::Result;
 use futures::future::select_ok;
@@ -6,27 +9,15 @@ use futures::Future;
 use hashbrown::HashMap;
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 use trust_dns_client::{
     client::AsyncClient,
     op::{DnsResponse, Message},
-    udp::UdpClientStream,
 };
-use trust_dns_https::{HttpsClientResponse, HttpsClientStreamBuilder};
-use trust_dns_proto::{error::ProtoError, udp::UdpResponse, xfer::dns_handle::DnsHandle};
-
-const ALPN_H2: &[u8] = b"h2";
-
-#[derive(Clone)]
-enum ClientType {
-    Https(AsyncClient<HttpsClientResponse>),
-    Udp(AsyncClient<UdpResponse>),
-}
+use trust_dns_proto::{error::ProtoError, xfer::dns_handle::DnsHandle};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
@@ -43,7 +34,7 @@ pub enum UpstreamKind {
 
 pub struct Upstreams {
     upstreams: HashMap<usize, Upstream>,
-    clients: Mutex<HashMap<usize, VecDeque<ClientType>>>,
+    clients: Mutex<HashMap<usize, ClientCache>>,
 }
 
 impl Upstreams {
@@ -90,46 +81,6 @@ impl Upstreams {
         Ok(resp)
     }
 
-    async fn create_client(&self, tag: usize) -> Result<ClientType> {
-        let u = self
-            .upstreams
-            .get(&tag)
-            .ok_or_else(|| DrouteError::MissingTag(tag))?;
-        Ok(match &u.method {
-            UpstreamKind::Udp(s) => {
-                let stream = UdpClientStream::<UdpSocket>::new(*s);
-                let (client, bg) = AsyncClient::connect(stream).await?;
-                tokio::spawn(bg);
-                ClientType::Udp(client)
-            }
-            UpstreamKind::Https { name, addr, no_sni } => {
-                use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
-                use std::sync::Arc;
-
-                let mut root_store = RootCertStore::empty();
-                root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-                let versions = vec![ProtocolVersion::TLSv1_2];
-
-                let mut client_config = ClientConfig::new();
-                client_config.root_store = root_store;
-                client_config.versions = versions;
-                client_config.alpn_protocols.push(ALPN_H2.to_vec());
-                client_config.key_log = Arc::new(KeyLogFile::new());
-                client_config.enable_sni = !no_sni;
-
-                let client_config = Arc::new(client_config);
-
-                let stream = HttpsClientStreamBuilder::with_client_config(client_config)
-                    .build(*addr, name.to_string());
-                let (client, bg) = AsyncClient::connect(stream).await?;
-                tokio::spawn(bg);
-                ClientType::Https(client)
-            }
-            // We don't create client for Hybrid
-            _ => return Err(DrouteError::HybridRecursion),
-        })
-    }
-
     async fn final_resolve(&self, tag: usize, msg: Message) -> Result<Message> {
         let u = self
             .upstreams
@@ -137,22 +88,8 @@ impl Upstreams {
             .ok_or_else(|| DrouteError::MissingTag(tag))?;
         let client = {
             let mut clients = self.clients.lock().await;
-            let queue = clients.entry(tag).or_insert(VecDeque::new());
-            if queue.is_empty() {
-                info!(
-                    "Client cache is empty for tag {}, creating new clients",
-                    tag
-                );
-                self.create_client(tag).await?
-            } else {
-                let c = queue.pop_front().unwrap();
-                info!(
-                    "Client cache hit for tag {}, remaining client in queue: {}",
-                    tag,
-                    queue.len()
-                );
-                c
-            }
+            let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
+            cache.get_client(u).await?
         };
         let resp = match &u.method {
             UpstreamKind::Udp(_) => {
@@ -180,8 +117,8 @@ impl Upstreams {
         {
             info!("Push back client cache for tag {}", tag);
             let mut clients = self.clients.lock().await;
-            let queue = clients.entry(tag).or_insert(VecDeque::new());
-            queue.push_back(client);
+            let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
+            cache.return_back(client);
         }
         Ok(resp)
     }
