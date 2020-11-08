@@ -89,27 +89,9 @@ impl Upstreams {
         let mut clients = self.clients.lock().await;
         let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
         let client = cache.get_client(u).await?;
-        let resp = match &u.method {
-            UpstreamKind::Udp(_) => {
-                if let ClientType::Udp(client) = client.clone() {
-                    Self::query(u.timeout, client, msg).await?
-                } else {
-                    unreachable!();
-                }
-            }
-            UpstreamKind::Https {
-                name: _,
-                addr: _,
-                no_sni: _,
-            } => {
-                if let ClientType::Https(client) = client.clone() {
-                    Self::query(u.timeout, client, msg).await?
-                } else {
-                    unreachable!();
-                }
-            }
-            // final_resolve should not be used on another `hybrid` upstream
-            _ => return Err(DrouteError::HybridRecursion),
+        let resp = match client.clone() {
+            ClientType::Udp(client) => Self::query(u.timeout, client, msg).await?,
+            ClientType::Https(client) => Self::query(u.timeout, client, msg).await?,
         };
         // If the response can be obtained sucessfully, we then push back the client to the queue
         info!("Push back client cache for tag {}", tag);
