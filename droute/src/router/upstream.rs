@@ -86,11 +86,9 @@ impl Upstreams {
             .upstreams
             .get(&tag)
             .ok_or_else(|| DrouteError::MissingTag(tag))?;
-        let client = {
-            let mut clients = self.clients.lock().await;
-            let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
-            cache.get_client(u).await?
-        };
+        let mut clients = self.clients.lock().await;
+        let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
+        let client = cache.get_client(u).await?;
         let resp = match &u.method {
             UpstreamKind::Udp(_) => {
                 if let ClientType::Udp(client) = client.clone() {
@@ -114,12 +112,8 @@ impl Upstreams {
             _ => return Err(DrouteError::HybridRecursion),
         };
         // If the response can be obtained sucessfully, we then push back the client to the queue
-        {
-            info!("Push back client cache for tag {}", tag);
-            let mut clients = self.clients.lock().await;
-            let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
-            cache.return_back(client);
-        }
+        info!("Push back client cache for tag {}", tag);
+        cache.return_back(client);
         Ok(resp)
     }
 
