@@ -1,3 +1,20 @@
+// Copyright 2020 LEXUGE
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Cache client to reuse client connections.
+
 use super::{Upstream, UpstreamKind};
 use crate::error::DrouteError;
 use crate::error::Result;
@@ -23,6 +40,7 @@ pub enum ClientCache {
 impl ClientCache {
     pub async fn new(u: &Upstream) -> Result<Self> {
         Ok(match &u.method {
+            // For UDP, we only use one client throughout the course.
             UpstreamKind::Udp(_) => Self::Udp(Self::create_client(u).await?),
             UpstreamKind::Https {
                 name: _,
@@ -41,6 +59,7 @@ impl ClientCache {
                 } else {
                     let mut q = q.lock().unwrap();
                     info!("HTTPS client cache hit");
+                    // queue is not empty
                     q.pop_front().unwrap()
                 }
             }
@@ -82,7 +101,7 @@ impl ClientCache {
                 client_config.versions = versions;
                 client_config.alpn_protocols.push(ALPN_H2.to_vec());
                 client_config.key_log = Arc::new(KeyLogFile::new());
-                client_config.enable_sni = !no_sni;
+                client_config.enable_sni = !no_sni; // Disable SNI on need.
 
                 let client_config = Arc::new(client_config);
 

@@ -82,7 +82,7 @@ impl Router {
     pub async fn resolve(&self, msg: Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         Ok(match self.upstreams.resolve(if msg.query_count() == 1 {
-                let q = msg.queries().iter().next().unwrap();
+                let q = msg.queries().iter().next().unwrap(); // Safe unwrap here because query_count == 1
                 if (q.query_type() == RecordType::AAAA) && (self.disable_ipv6) {
                     // If `disable_ipv6` has been set, return immediately NXDomain.
                     return Ok(Message::error_msg(
