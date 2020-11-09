@@ -82,14 +82,11 @@ impl Upstreams {
             .upstreams
             .get(&tag)
             .ok_or_else(|| DrouteError::MissingTag(tag))?;
-        let client = {
-            let cache = self.clients.get(&tag).unwrap();
-            cache.get_client(u).await?
-        };
+        let cache = self.clients.get(&tag).unwrap();
+        let client = cache.get_client(u).await?;
         let resp = Self::query(u.timeout, client.clone(), msg).await?;
         // If the response can be obtained sucessfully, we then push back the client to the queue
         info!("Push back client cache for tag {}", tag);
-        let cache = self.clients.get(&tag).unwrap();
         cache.return_back(client);
         Ok(resp)
     }

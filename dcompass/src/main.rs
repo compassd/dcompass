@@ -36,6 +36,8 @@ async fn main() -> Result<()> {
 
     SimpleLogger::new().with_level(verbosity).init()?;
 
+    info!("Dcompass ready!");
+
     let router = Arc::new(router);
     // Bind an UDP socket
     let socket = Arc::new(UdpSocket::bind(addr).await?);
