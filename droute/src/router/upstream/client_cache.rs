@@ -13,6 +13,7 @@ use trust_dns_proto::iocompat::AsyncIo02As03;
 const ALPN_H2: &[u8] = b"h2";
 
 pub enum ClientCache {
+    // We should use sync Mutex implementation here, else the channel seems to fail if lock is presented across querying in `final_resolve` in Upstreams.
     Https(Mutex<VecDeque<AsyncClient>>),
     Udp(AsyncClient),
     // Create a type placeholder (currently used by hybrid), which doesn't implement any method other than `new`
@@ -39,7 +40,7 @@ impl ClientCache {
                     Self::create_client(u).await?
                 } else {
                     let mut q = q.lock().unwrap();
-                    info!("Client cache hit");
+                    info!("HTTPS client cache hit");
                     q.pop_front().unwrap()
                 }
             }

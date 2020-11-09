@@ -42,12 +42,12 @@ impl Filter {
     pub fn get_upstream(&self, domain: &str) -> Result<usize> {
         Ok(match self.matcher.matches(domain)? {
             Some(u) => {
-                info!("{} routed via upstream with tag {}", domain, u);
+                info!("Domain {} routed via upstream with tag {}", domain, u);
                 u
             }
             None => {
                 info!(
-                    "{} routed via upstream with default tag {}",
+                    "Domain {} routed via upstream with default tag {}",
                     domain, self.default_tag
                 );
                 self.default_tag

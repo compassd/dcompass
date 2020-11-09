@@ -86,7 +86,7 @@ impl Upstreams {
         let client = cache.get_client(u).await?;
         let resp = Self::query(u.timeout, client.clone(), msg).await?;
         // If the response can be obtained sucessfully, we then push back the client to the queue
-        info!("Push back client cache for tag {}", tag);
+        info!("Pushing back client cache for tag {}", tag);
         cache.return_back(client);
         Ok(resp)
     }
