@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 tokio-compat-02 = "^0.1"
-trust-dns-proto = "^0.19"
+trust-dns-proto = { version = "0.20.0-alpha.3", default-features = false }
 droute = {version = "^0.1", path = "../droute"}
 futures = "^0.3"
 tokio = { version = "^0.3", features = ["full"]}

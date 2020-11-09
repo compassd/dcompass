@@ -10,10 +10,10 @@ license = "GPL-3.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-trust-dns-client = { version = "^0.19", default-features = false }
-trust-dns-https = "^0.19"
-trust-dns-proto = "^0.19"
-rustls = {version = "^0.17", features = ["dangerous_configuration"]}
+trust-dns-client = { version = "0.20.0-alpha.3", default-features = false }
+trust-dns-https = "0.20.0-alpha.3"
+trust-dns-proto = "0.20.0-alpha.3"
+rustls = {version = "^0.18", features = ["dangerous_configuration"] }
 async-trait = "^0.1"
 webpki-roots = "^0.20"
 webpki = "^0.21"

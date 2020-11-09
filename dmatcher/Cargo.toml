@@ -11,7 +11,7 @@ license = "GPL-3.0"
 
 [dependencies]
 hashbrown = "^0.9"
-trust-dns-proto = { version = "^0.19", default-features = false }
+trust-dns-proto = { version = "0.20.0-alpha.3", default-features = false }
 
 [dev-dependencies]
 criterion = "^0.3"

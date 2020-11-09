@@ -38,7 +38,7 @@ impl Router {
         let router = Self {
             disable_ipv6: p.disable_ipv6,
             dsts,
-            upstreams: Upstreams::new(p.upstreams),
+            upstreams: Upstreams::new(p.upstreams).await?,
             filter,
             addr: p.address,
             verbosity: p.verbosity,

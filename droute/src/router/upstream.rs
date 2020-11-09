@@ -1,23 +1,18 @@
 mod client_cache;
 
-use self::client_cache::{ClientCache, ClientType};
+use self::client_cache::ClientCache;
 use crate::error::DrouteError;
 use crate::error::Result;
 use futures::future::select_ok;
 use futures::future::FutureExt;
-use futures::Future;
 use hashbrown::HashMap;
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::sync::Mutex;
 use tokio::time::timeout;
-use trust_dns_client::{
-    client::AsyncClient,
-    op::{DnsResponse, Message},
-};
-use trust_dns_proto::{error::ProtoError, xfer::dns_handle::DnsHandle};
+use tokio::time::Duration;
+use trust_dns_client::{client::AsyncClient, op::Message};
+use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
@@ -34,19 +29,23 @@ pub enum UpstreamKind {
 
 pub struct Upstreams {
     upstreams: HashMap<usize, Upstream>,
-    clients: Mutex<HashMap<usize, ClientCache>>,
+    clients: HashMap<usize, ClientCache>,
 }
 
 impl Upstreams {
-    pub fn new(upstreams: Vec<Upstream>) -> Self {
+    pub async fn new(upstreams: Vec<Upstream>) -> Result<Self> {
         let mut r = HashMap::new();
+        let mut c = HashMap::new();
         for u in upstreams {
             r.insert(u.tag, u);
         }
-        Self {
-            upstreams: r,
-            clients: Mutex::new(HashMap::new()),
+        for (k, v) in r.iter() {
+            c.insert(*k, ClientCache::new(v).await?);
         }
+        Ok(Self {
+            upstreams: r,
+            clients: c,
+        })
     }
 
     pub fn hybrid_check(&self) -> Result<bool> {
@@ -71,10 +70,7 @@ impl Upstreams {
         }
     }
 
-    async fn query<R>(t: u64, mut client: AsyncClient<R>, msg: Message) -> Result<Message>
-    where
-        R: Future<Output = std::result::Result<DnsResponse, ProtoError>> + 'static + Send + Unpin,
-    {
+    async fn query(t: u64, mut client: AsyncClient, msg: Message) -> Result<Message> {
         let id = msg.id();
         let mut resp = Message::from(timeout(Duration::from_secs(t), client.send(msg)).await??);
         resp.set_id(id);
@@ -86,15 +82,14 @@ impl Upstreams {
             .upstreams
             .get(&tag)
             .ok_or_else(|| DrouteError::MissingTag(tag))?;
-        let mut clients = self.clients.lock().await;
-        let cache = clients.entry(tag).or_insert(ClientCache::new(u).await?);
-        let client = cache.get_client(u).await?;
-        let resp = match client.clone() {
-            ClientType::Udp(client) => Self::query(u.timeout, client, msg).await?,
-            ClientType::Https(client) => Self::query(u.timeout, client, msg).await?,
+        let client = {
+            let cache = self.clients.get(&tag).unwrap();
+            cache.get_client(u).await?
         };
+        let resp = Self::query(u.timeout, client.clone(), msg).await?;
         // If the response can be obtained sucessfully, we then push back the client to the queue
         info!("Push back client cache for tag {}", tag);
+        let cache = self.clients.get(&tag).unwrap();
         cache.return_back(client);
         Ok(resp)
     }
