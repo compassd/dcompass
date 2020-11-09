@@ -1,30 +1,34 @@
 {
-    "upstreams": [
-	{
-	    "tag" : 1,
-	    "method":{
-		"Udp":"114.114.114.114:53"
-	    },
-	    "cache_size": 4096,
-	    "timeout": 1
-	},
-	{
-	    "tag":2,
-	    "method":{
-		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net", "no_sni": false }
-	    },
-	    "cache_size":4096,
-	    "timeout":2
-	}
-    ],
-    "rules": [
-	{
-	    "dst": 1,
-	    "path": "./data/china.txt"
-	}
-    ],
-    "default_tag":2,
-    "address":"0.0.0.0:2053",
+    "disable_ipv6": true,
     "verbosity": "Off",
-    "disable_ipv6": true
+    "address": "0.0.0.0:2053",
+    "default_tag": 2,
+    "rules": [
+        {
+            "path": "./data/china.txt",
+            "dst": 1
+        }
+    ],
+    "upstreams": [
+        {
+            "timeout": 1,
+            "cache_size": 4096,
+            "method": {
+                "Udp": "114.114.114.114:53"
+            },
+            "tag": 1
+        },
+        {
+            "timeout": 2,
+            "cache_size": 4096,
+            "method": {
+                "Https": {
+                    "no_sni": false,
+                    "name": "dns.quad9.net",
+                    "addr": "9.9.9.9:443"
+                }
+            },
+            "tag": 2
+        }
+    ]
 }

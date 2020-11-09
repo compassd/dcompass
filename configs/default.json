@@ -1,19 +1,21 @@
 {
-    "upstreams":[
-	{
-	    "tag":1,
-	    "method":{
-		"Https": { "addr": "9.9.9.9:443", "name": "dns.quad9.net", "no_sni": false }
-	    },
-	    "cache_size":4096,
-	    "timeout":2
-	}
-    ],
-    "rules":[
-
-    ],
-    "default_tag":1,
-    "address":"0.0.0.0:2053",
+    "disable_ipv6": true,
     "verbosity": "Info",
-    "disable_ipv6": true
+    "address": "0.0.0.0:2053",
+    "default_tag": 1,
+    "rules": [],
+    "upstreams": [
+        {
+            "timeout": 2,
+            "cache_size": 4096,
+            "method": {
+                "Https": {
+                    "no_sni": false,
+                    "name": "dns.quad9.net",
+                    "addr": "9.9.9.9:443"
+                }
+            },
+            "tag": 1
+        }
+    ]
 }
