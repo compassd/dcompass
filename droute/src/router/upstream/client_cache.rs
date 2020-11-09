@@ -54,14 +54,18 @@ impl ClientCache {
     pub async fn get_client(&self, u: &Upstream) -> Result<AsyncClient> {
         Ok(match self {
             Self::Https(q) => {
-                if q.lock().unwrap().is_empty() {
-                    Self::create_client(u).await?
-                } else {
+                {
+                    // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
                     let mut q = q.lock().unwrap();
-                    info!("HTTPS client cache hit");
-                    // queue is not empty
-                    q.pop_front().unwrap()
+                    if q.is_empty() {
+                        None
+                    } else {
+                        info!("HTTPS client cache hit");
+                        // queue is not empty
+                        Some(q.pop_front().unwrap())
+                    }
                 }
+                .unwrap_or(Self::create_client(u).await?)
             }
             // For UDP connections, it is pointless for us to cache as every `send` query would create a new socket. If we cache and pop it out, there would be endless client creation, resulting in rather low performance. (It takes me two days to realize)
             Self::Udp(c) => c.clone(),
