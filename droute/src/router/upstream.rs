@@ -18,6 +18,7 @@ mod client_cache;
 use self::client_cache::ClientCache;
 use crate::error::DrouteError;
 use crate::error::Result;
+use dmatcher::Label;
 use futures::future::select_ok;
 use futures::future::FutureExt;
 use hashbrown::HashMap;
@@ -30,8 +31,15 @@ use trust_dns_client::{client::AsyncClient, op::Message};
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct Upstream {
+    pub tag: Label,
+    pub method: UpstreamKind,
+    pub timeout: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub enum UpstreamKind {
-    Hybrid(Vec<usize>),
+    Hybrid(Vec<Label>),
     Https {
         name: String,
         addr: SocketAddr,
@@ -43,19 +51,20 @@ pub enum UpstreamKind {
 }
 
 pub struct Upstreams {
-    upstreams: HashMap<usize, Upstream>,
-    clients: HashMap<usize, ClientCache>,
+    upstreams: HashMap<Label, Upstream>,
+    clients: HashMap<Label, ClientCache>,
 }
 
 impl Upstreams {
-    pub async fn new(upstreams: Vec<Upstream>) -> Result<Self> {
-        let mut r = HashMap::new();
+    // TODO: Implement response cache
+    pub async fn new(upstreams: Vec<Upstream>, _: usize) -> Result<Self> {
+        let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
         for u in upstreams {
-            r.insert(u.tag, u);
+            r.insert(u.tag.clone(), u);
         }
         for (k, v) in r.iter() {
-            c.insert(*k, ClientCache::new(v).await?);
+            c.insert(k.clone(), ClientCache::new(v).await?);
         }
         Ok(Self {
             upstreams: r,
@@ -67,21 +76,21 @@ impl Upstreams {
         for (tag, u) in self.upstreams.iter() {
             if let UpstreamKind::Hybrid(v) = &u.method {
                 if v.is_empty() {
-                    return Err(DrouteError::EmptyHybrid(*tag));
+                    return Err(DrouteError::EmptyHybrid(tag.clone()));
                 }
-                if let Some(t) = v.iter().find(|tag| self.exists(*tag).is_err()) {
-                    return Err(DrouteError::MissingTag(*t));
+                if let Some(t) = v.iter().find(|tag| self.exists(&tag).is_err()) {
+                    return Err(DrouteError::MissingTag(t.clone()));
                 }
             }
         }
         Ok(true)
     }
 
-    pub fn exists(&self, tag: &usize) -> Result<bool> {
+    pub fn exists(&self, tag: &Label) -> Result<bool> {
         if self.upstreams.contains_key(tag) {
             Ok(true)
         } else {
-            Err(DrouteError::MissingTag(*tag))
+            Err(DrouteError::MissingTag(tag.clone()))
         }
     }
 
@@ -92,11 +101,11 @@ impl Upstreams {
         Ok(resp)
     }
 
-    async fn final_resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+    async fn final_resolve(&self, tag: Label, msg: Message) -> Result<Message> {
         let u = self
             .upstreams
             .get(&tag)
-            .ok_or_else(|| DrouteError::MissingTag(tag))?;
+            .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
         // HashMap is created for every single upstream (including Hybrid) when `Upstreams` is created
         let cache = self.clients.get(&tag).unwrap();
         let client = cache.get_client(u).await?;
@@ -107,28 +116,20 @@ impl Upstreams {
         Ok(resp)
     }
 
-    pub async fn resolve(&self, tag: usize, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, tag: Label, msg: Message) -> Result<Message> {
         let u = self
             .upstreams
             .get(&tag)
-            .ok_or_else(|| DrouteError::MissingTag(tag))?;
+            .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
         Ok(match &u.method {
             UpstreamKind::Hybrid(v) => {
                 let v = v
                     .iter()
-                    .map(|u| self.final_resolve(*u, msg.clone()).boxed());
+                    .map(|t| self.final_resolve(t.clone(), msg.clone()).boxed());
                 let (resp, _) = timeout(Duration::from_secs(u.timeout), select_ok(v)).await??;
                 resp
             }
             _ => self.final_resolve(tag, msg).await?,
         })
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Upstream {
-    pub tag: usize,
-    pub method: UpstreamKind,
-    pub cache_size: usize,
-    pub timeout: u64,
 }

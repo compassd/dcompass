@@ -1,13 +1,13 @@
 {
     "disable_ipv6": true,
     "verbosity": "Info",
+    "cache_size": 4096,
     "address": "0.0.0.0:2053",
-    "default_tag": 1,
+    "default_tag": "secure",
     "rules": [],
     "upstreams": [
         {
-            "timeout": 2,
-            "cache_size": 4096,
+            "timeout": 4,
             "method": {
                 "Https": {
                     "no_sni": false,
@@ -15,7 +15,28 @@
                     "addr": "9.9.9.9:443"
                 }
             },
-            "tag": 1
+            "tag": "quad9"
+        },
+        {
+            "timeout": 4,
+            "method": {
+                "Https": {
+                    "no_sni": true,
+                    "name": "cloudflare-dns.com",
+                    "addr": "1.1.1.1:443"
+                }
+            },
+            "tag": "cloudflare"
+        },
+        {
+            "timeout": 5,
+            "method": {
+                "Hybrid": [
+                    "cloudflare",
+                    "quad9"
+                ]
+            },
+            "tag": "secure"
         }
     ]
 }

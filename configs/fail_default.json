@@ -1,26 +1,25 @@
 {
     "disable_ipv6": true,
     "verbosity": "Info",
+    "cache_size": 4096,
     "address": "0.0.0.0:2053",
-    "default_tag": 5,
+    "default_tag": "undefined",
     "rules": [
         {
             "path": "./data/china.txt",
-            "dst": 1
+            "dst": "domestic"
         }
     ],
     "upstreams": [
         {
             "timeout": 1,
-            "cache_size": 4096,
             "method": {
                 "Udp": "114.114.114.114:53"
             },
-            "tag": 3
+            "tag": "domestic"
         },
         {
             "timeout": 2,
-            "cache_size": 4096,
             "method": {
                 "Https": {
                     "no_sni": false,
@@ -28,7 +27,7 @@
                     "addr": "9.9.9.9:443"
                 }
             },
-            "tag": 1
+            "tag": "secure"
         }
     ]
 }

@@ -14,13 +14,14 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::upstream::Upstream;
+use dmatcher::Label;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Rule {
-    pub dst: usize,
+    pub dst: Label,
     pub path: String,
 }
 
@@ -39,9 +40,10 @@ enum LevelFilterDef {
 pub struct Parsed {
     pub rules: Vec<Rule>,
     pub upstreams: Vec<Upstream>,
-    pub default_tag: usize,
+    pub default_tag: Label,
     pub address: SocketAddr,
     pub disable_ipv6: bool,
+    pub cache_size: usize,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,
 }

@@ -28,8 +28,8 @@
 //! ```
 //! use dmatcher::Dmatcher;
 //! let mut matcher = Dmatcher::new();
-//! matcher.insert("apple.com", 1).unwrap();
-//! assert_eq!(matcher.matches("store.apple.com").unwrap(), Some(1));
+//! matcher.insert("apple.com", "global").unwrap();
+//! assert_eq!(matcher.matches("store.apple.com").unwrap(), Some("global".into()));
 //! ```
 
 use hashbrown::HashMap;
@@ -40,12 +40,12 @@ use trust_dns_proto::error::ProtoResult;
 pub type Label = Arc<str>;
 
 #[derive(Debug, PartialEq, Clone)]
-struct LevelNode<T: Copy> {
-    dst: Option<T>,
-    next_lvs: HashMap<Label, LevelNode<T>>,
+struct LevelNode {
+    dst: Option<Label>,
+    next_lvs: HashMap<Label, LevelNode>,
 }
 
-impl<T: Copy> LevelNode<T> {
+impl LevelNode {
     fn new() -> Self {
         Self {
             dst: None,
@@ -56,17 +56,17 @@ impl<T: Copy> LevelNode<T> {
 
 #[derive(Debug, Clone)]
 /// Dmatcher matcher algorithm
-pub struct Dmatcher<T: Copy> {
-    root: LevelNode<T>,
+pub struct Dmatcher {
+    root: LevelNode,
 }
 
-impl<T: Copy> Default for Dmatcher<T> {
+impl Default for Dmatcher {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Copy> Dmatcher<T> {
+impl Dmatcher {
     /// Create a matcher.
     pub fn new() -> Self {
         Self {
@@ -75,12 +75,12 @@ impl<T: Copy> Dmatcher<T> {
     }
 
     #[cfg(test)]
-    fn get_root(&self) -> &LevelNode<T> {
+    fn get_root(&self) -> &LevelNode {
         &self.root
     }
 
     /// Pass in a string containing `\n` and get all domains inserted.
-    pub fn insert_lines(&mut self, domain: String, dst: T) -> ProtoResult<()> {
+    pub fn insert_lines(&mut self, domain: String, dst: &str) -> ProtoResult<()> {
         let lvs: Vec<&str> = domain.split('\n').collect();
         for lv in lvs {
             self.insert(lv, dst)?;
@@ -89,7 +89,7 @@ impl<T: Copy> Dmatcher<T> {
     }
 
     /// Pass in a domain and insert it into the matcher.
-    pub fn insert(&mut self, domain: &str, dst: T) -> ProtoResult<()> {
+    pub fn insert(&mut self, domain: &str, dst: &str) -> ProtoResult<()> {
         let mut lvs: Vec<&str> = domain.split('.').collect();
         lvs.reverse();
         let mut ptr = &mut self.root;
@@ -103,12 +103,12 @@ impl<T: Copy> Dmatcher<T> {
                 .entry(Arc::from(lv))
                 .or_insert_with(LevelNode::new);
         }
-        ptr.dst = Some(dst);
+        ptr.dst = Some(Arc::from(dst));
         Ok(())
     }
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
-    pub fn matches(&self, domain: &str) -> ProtoResult<Option<T>> {
+    pub fn matches(&self, domain: &str) -> ProtoResult<Option<Label>> {
         let mut lvs: Vec<&str> = domain.split('.').collect();
         lvs.reverse();
         let mut ptr = &self.root;
@@ -126,7 +126,7 @@ impl<T: Copy> Dmatcher<T> {
                 None => return Ok(None),
             };
         }
-        Ok(ptr.dst)
+        Ok(ptr.dst.clone())
     }
 }
 
@@ -134,26 +134,28 @@ impl<T: Copy> Dmatcher<T> {
 mod tests {
     use super::{Dmatcher, Label, LevelNode};
     use hashbrown::HashMap;
-    use std::sync::Arc;
     use trust_dns_proto::error::ProtoResult;
 
     #[test]
     fn matches() -> ProtoResult<()> {
         let mut matcher = Dmatcher::new();
-        matcher.insert("apple.com", 1)?;
-        matcher.insert("apple.cn", 2)?;
-        assert_eq!(matcher.matches("store.apple.com")?, Some(1));
-        assert_eq!(matcher.matches("store.apple.com.")?, Some(1));
+        matcher.insert("apple.com", "global")?;
+        matcher.insert("apple.cn", "domestic")?;
+        assert_eq!(matcher.matches("store.apple.com")?, Some("global".into()));
+        assert_eq!(matcher.matches("store.apple.com.")?, Some("global".into()));
         assert_eq!(matcher.matches("baidu.com")?, None);
-        assert_eq!(matcher.matches("你好.store.www.apple.cn")?, Some(2));
+        assert_eq!(
+            matcher.matches("你好.store.www.apple.cn")?,
+            Some("domestic".into())
+        );
         Ok(())
     }
 
     #[test]
     fn insertion() -> ProtoResult<()> {
         let mut matcher = Dmatcher::new();
-        matcher.insert("apple.com", 1)?;
-        matcher.insert("apple.cn", 2)?;
+        matcher.insert("apple.com", "global")?;
+        matcher.insert("apple.cn", "domestic")?;
         println!("{:?}", matcher.get_root());
         assert_eq!(
             matcher.get_root(),
@@ -161,47 +163,47 @@ mod tests {
                 dst: None,
                 next_lvs: [
                     (
-                        Arc::from("cn"),
+                        "cn".into(),
                         LevelNode {
                             dst: None,
                             next_lvs: [(
-                                Arc::from("apple"),
+                                "apple".into(),
                                 LevelNode {
-                                    dst: Some(2),
+                                    dst: Some("domestic".into()),
                                     next_lvs: []
                                         .iter()
                                         .cloned()
-                                        .collect::<HashMap<Label, LevelNode<u32>>>()
+                                        .collect::<HashMap<Label, LevelNode>>()
                                 }
                             )]
                             .iter()
                             .cloned()
-                            .collect::<HashMap<Label, LevelNode<u32>>>()
+                            .collect::<HashMap<Label, LevelNode>>()
                         }
                     ),
                     (
-                        Arc::from("com"),
+                        "com".into(),
                         LevelNode {
                             dst: None,
                             next_lvs: [(
-                                Arc::from("apple"),
+                                "apple".into(),
                                 LevelNode {
-                                    dst: Some(1),
+                                    dst: Some("global".into()),
                                     next_lvs: []
                                         .iter()
                                         .cloned()
-                                        .collect::<HashMap<Label, LevelNode<u32>>>()
+                                        .collect::<HashMap<Label, LevelNode>>()
                                 }
                             )]
                             .iter()
                             .cloned()
-                            .collect::<HashMap<Label, LevelNode<u32>>>()
+                            .collect::<HashMap<Label, LevelNode>>()
                         }
                     )
                 ]
                 .iter()
                 .cloned()
-                .collect::<HashMap<Label, LevelNode<u32>>>()
+                .collect::<HashMap<Label, LevelNode>>()
             }
         );
         Ok(())

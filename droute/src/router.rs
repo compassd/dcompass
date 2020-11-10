@@ -23,6 +23,7 @@ use self::filter::Filter;
 use self::parser::Parsed;
 use self::upstream::Upstreams;
 use crate::error::Result;
+use dmatcher::Label;
 use log::LevelFilter;
 use log::*;
 use std::net::SocketAddr;
@@ -37,7 +38,7 @@ pub struct Router {
     upstreams: Upstreams,
     addr: SocketAddr,
     verbosity: LevelFilter,
-    dsts: Vec<usize>,
+    dsts: Vec<Label>,
 }
 
 impl Router {
@@ -59,7 +60,7 @@ impl Router {
         let router = Self {
             disable_ipv6: p.disable_ipv6,
             dsts,
-            upstreams: Upstreams::new(p.upstreams).await?,
+            upstreams: Upstreams::new(p.upstreams, p.cache_size).await?,
             filter,
             addr: p.address,
             verbosity: p.verbosity,
@@ -130,7 +131,7 @@ mod tests {
                 DrouteError::MissingTag(tag) => tag,
                 e => panic!("Not the right error type: {}", e),
             },
-            2
+            "undefined".into()
         );
     }
 
@@ -152,7 +153,7 @@ mod tests {
                 DrouteError::MissingTag(tag) => tag,
                 e => panic!("Not the right error type: {}", e),
             },
-            5
+            "undefined".into()
         );
     }
 }
