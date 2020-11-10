@@ -1,6 +1,6 @@
 [package]
 name = "dmatcher"
-version = "0.1.10"
+version = "0.1.11"
 authors = ["Harry Ying <lexugeyky@outlook.com>"]
 edition = "2018"
 description = "A simple domain matching algorithm, intended to be fast."

@@ -8,7 +8,7 @@ fn bench_match(c: &mut Criterion) {
     let mut contents = String::new();
     let mut matcher = Dmatcher::new();
     file.read_to_string(&mut contents).unwrap();
-    matcher.insert_lines(contents, 1).unwrap();
+    matcher.insert_lines(contents, "domestic").unwrap();
     c.bench_function("match", |b| {
         b.iter(|| {
             assert_eq!(
