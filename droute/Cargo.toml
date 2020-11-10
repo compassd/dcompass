@@ -23,6 +23,7 @@ hashbrown = "^0.9"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
 serde = { version = "^1.0", features = ["derive", "rc"] }
+lru = "^0.6"
 serde_json = "^1.0"
 thiserror = "^1.0"
 

@@ -14,8 +14,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 mod client_cache;
+mod resp_cache;
 
 use self::client_cache::ClientCache;
+use self::resp_cache::RespCache;
 use crate::error::DrouteError;
 use crate::error::Result;
 use dmatcher::Label;
@@ -27,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::time::timeout;
 use tokio::time::Duration;
-use trust_dns_client::{client::AsyncClient, op::Message};
+use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -52,12 +54,13 @@ pub enum UpstreamKind {
 
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
-    clients: HashMap<Label, ClientCache>,
+    client_cache: HashMap<Label, ClientCache>,
+    resp_cache: RespCache,
 }
 
 impl Upstreams {
     // TODO: Implement response cache
-    pub async fn new(upstreams: Vec<Upstream>, _: usize) -> Result<Self> {
+    pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
         let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
         for u in upstreams {
@@ -68,7 +71,8 @@ impl Upstreams {
         }
         Ok(Self {
             upstreams: r,
-            clients: c,
+            client_cache: c,
+            resp_cache: RespCache::new(size),
         })
     }
 
@@ -94,25 +98,30 @@ impl Upstreams {
         }
     }
 
-    async fn query(t: u64, mut client: AsyncClient, msg: Message) -> Result<Message> {
-        let id = msg.id();
-        let mut resp = Message::from(timeout(Duration::from_secs(t), client.send(msg)).await??);
-        resp.set_id(id);
-        Ok(resp)
-    }
-
     async fn final_resolve(&self, tag: Label, msg: Message) -> Result<Message> {
-        let u = self
-            .upstreams
-            .get(&tag)
-            .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
-        // HashMap is created for every single upstream (including Hybrid) when `Upstreams` is created
-        let cache = self.clients.get(&tag).unwrap();
-        let client = cache.get_client(u).await?;
-        let resp = Self::query(u.timeout, client.clone(), msg).await?;
-        // If the response can be obtained sucessfully, we then push back the client to the queue
-        info!("Pushing back client cache for tag {}", tag);
-        cache.return_back(client);
+        let id = msg.id();
+        // Check if cache exists
+        let mut resp = if let Some(resp) = self.resp_cache.get(&msg) {
+            resp
+        } else {
+            let u = self
+                .upstreams
+                .get(&tag)
+                .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
+            // HashMap is created for every single upstream (including Hybrid) when `Upstreams` is created
+            let client_cache = self.client_cache.get(&tag).unwrap();
+            let mut client = client_cache.get_client(u).await?;
+
+            let r =
+                Message::from(timeout(Duration::from_secs(u.timeout), client.send(msg)).await??);
+
+            // If the response can be obtained sucessfully, we then push back the client to the queue
+            info!("Pushing back client cache for tag {}", tag);
+            client_cache.return_back(client);
+            self.resp_cache.put(r.clone());
+            r
+        };
+        resp.set_id(id);
         Ok(resp)
     }
 
