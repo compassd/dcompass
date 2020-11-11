@@ -1,15 +1,18 @@
 [package]
 name = "dcompass"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Harry Ying <lexugeyky@outlook.com>"]
 edition = "2018"
+description = "Rule-based high performance DNS server with multi-upstreams, DoT and DoH supports."
+repository = "https://github.com/LEXUGE/dcompass"
+license = "GPL-3.0"
 
 [dependencies]
 tokio-compat-02 = "^0.1"
 trust-dns-proto = { version = "0.20.0-alpha.3", default-features = false }
-droute = {version = "^0.1", path = "../droute"}
+droute = {version = "0.1.0-alpha.1", path = "../droute"}
 futures = "^0.3"
-tokio = { version = "^0.3", features = ["full"]}
+tokio = { version = "^0.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 simple_logger = "^1.11"
 clap = { version = "^2.0", features = ["yaml"] }
 log = "^0.4"
