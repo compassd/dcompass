@@ -28,13 +28,12 @@
 //! ```
 //! use dmatcher::Dmatcher;
 //! let mut matcher = Dmatcher::new();
-//! matcher.insert("apple.com", "global").unwrap();
-//! assert_eq!(matcher.matches("store.apple.com").unwrap(), Some("global".into()));
+//! matcher.insert("apple.com", "global");
+//! assert_eq!(matcher.matches("store.apple.com"), Some("global".into()));
 //! ```
 
 use hashbrown::HashMap;
 use std::sync::Arc;
-use trust_dns_proto::error::ProtoResult;
 
 /// Type alias for Dmatcher internal usages. Exposed in case that you need it.
 pub type Label = Arc<str>;
@@ -80,16 +79,15 @@ impl Dmatcher {
     }
 
     /// Pass in a string containing `\n` and get all domains inserted.
-    pub fn insert_lines(&mut self, domain: String, dst: &str) -> ProtoResult<()> {
+    pub fn insert_lines(&mut self, domain: String, dst: &str) {
         let lvs: Vec<&str> = domain.split('\n').collect();
         for lv in lvs {
-            self.insert(lv, dst)?;
+            self.insert(lv, dst);
         }
-        Ok(())
     }
 
     /// Pass in a domain and insert it into the matcher.
-    pub fn insert(&mut self, domain: &str, dst: &str) -> ProtoResult<()> {
+    pub fn insert(&mut self, domain: &str, dst: &str) {
         let mut lvs: Vec<&str> = domain.split('.').collect();
         lvs.reverse();
         let mut ptr = &mut self.root;
@@ -104,11 +102,10 @@ impl Dmatcher {
                 .or_insert_with(LevelNode::new);
         }
         ptr.dst = Some(Arc::from(dst));
-        Ok(())
     }
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
-    pub fn matches(&self, domain: &str) -> ProtoResult<Option<Label>> {
+    pub fn matches(&self, domain: &str) -> Option<Label> {
         let mut lvs: Vec<&str> = domain.split('.').collect();
         lvs.reverse();
         let mut ptr = &self.root;
@@ -123,10 +120,10 @@ impl Dmatcher {
             // If not empty...
             ptr = match ptr.next_lvs.get(lv) {
                 Some(v) => v,
-                None => return Ok(None),
+                None => return None,
             };
         }
-        Ok(ptr.dst.clone())
+        ptr.dst.clone()
     }
 }
 
@@ -134,28 +131,26 @@ impl Dmatcher {
 mod tests {
     use super::{Dmatcher, Label, LevelNode};
     use hashbrown::HashMap;
-    use trust_dns_proto::error::ProtoResult;
 
     #[test]
-    fn matches() -> ProtoResult<()> {
+    fn matches() {
         let mut matcher = Dmatcher::new();
-        matcher.insert("apple.com", "global")?;
-        matcher.insert("apple.cn", "domestic")?;
-        assert_eq!(matcher.matches("store.apple.com")?, Some("global".into()));
-        assert_eq!(matcher.matches("store.apple.com.")?, Some("global".into()));
-        assert_eq!(matcher.matches("baidu.com")?, None);
+        matcher.insert("apple.com", "global");
+        matcher.insert("apple.cn", "domestic");
+        assert_eq!(matcher.matches("store.apple.com"), Some("global".into()));
+        assert_eq!(matcher.matches("store.apple.com."), Some("global".into()));
+        assert_eq!(matcher.matches("baidu.com"), None);
         assert_eq!(
-            matcher.matches("你好.store.www.apple.cn")?,
+            matcher.matches("你好.store.www.apple.cn"),
             Some("domestic".into())
         );
-        Ok(())
     }
 
     #[test]
-    fn insertion() -> ProtoResult<()> {
+    fn insertion() {
         let mut matcher = Dmatcher::new();
-        matcher.insert("apple.com", "global")?;
-        matcher.insert("apple.cn", "domestic")?;
+        matcher.insert("apple.com", "global");
+        matcher.insert("apple.cn", "domestic");
         println!("{:?}", matcher.get_root());
         assert_eq!(
             matcher.get_root(),
@@ -206,6 +201,5 @@ mod tests {
                 .collect::<HashMap<Label, LevelNode>>()
             }
         );
-        Ok(())
     }
 }

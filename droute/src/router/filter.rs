@@ -33,7 +33,7 @@ impl Filter {
             let mut file = File::open(r.path).await?;
             let mut data = String::new();
             file.read_to_string(&mut data).await?;
-            matcher.insert_lines(data, &r.dst)?;
+            matcher.insert_lines(data, &r.dst);
             v.push(r.dst);
         }
         Ok((matcher, v))
@@ -55,7 +55,7 @@ impl Filter {
     }
 
     pub fn get_upstream(&self, domain: &str) -> Result<Label> {
-        Ok(match self.matcher.matches(domain)? {
+        Ok(match self.matcher.matches(domain) {
             Some(u) => {
                 info!("Domain {} routed via upstream with tag {}", domain, u);
                 u
