@@ -20,6 +20,7 @@ use crate::error::DrouteError;
 use crate::error::Result;
 use log::*;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::net::UdpSocket;
@@ -29,9 +30,10 @@ use trust_dns_proto::iocompat::AsyncIo02As03;
 
 const ALPN_H2: &[u8] = b"h2";
 
+#[derive(Clone)]
 pub enum ClientCache {
     // We should use sync Mutex implementation here, else the channel seems to fail if lock is presented across querying in `final_resolve` in Upstreams.
-    Https(Mutex<VecDeque<AsyncClient>>),
+    Https(Arc<Mutex<VecDeque<AsyncClient>>>),
     Udp(AsyncClient),
     // Create a type placeholder (currently used by hybrid), which doesn't implement any method other than `new`
     Placeholder,
@@ -46,7 +48,7 @@ impl ClientCache {
                 name: _,
                 addr: _,
                 no_sni: _,
-            } => Self::Https(Mutex::new(VecDeque::new())),
+            } => Self::Https(Arc::new(Mutex::new(VecDeque::new()))),
             _ => Self::Placeholder,
         })
     }
@@ -94,7 +96,6 @@ impl ClientCache {
             }
             UpstreamKind::Https { name, addr, no_sni } => {
                 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
-                use std::sync::Arc;
 
                 let mut root_store = RootCertStore::empty();
                 root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);

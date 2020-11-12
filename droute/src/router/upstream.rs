@@ -17,14 +17,13 @@ mod client_cache;
 mod resp_cache;
 
 use self::client_cache::ClientCache;
-use self::resp_cache::RespCache;
+use self::resp_cache::{RecordStatus::*, RespCache};
 use crate::error::DrouteError;
 use crate::error::Result;
 use dmatcher::Label;
 use futures::future::select_ok;
 use futures::future::FutureExt;
 use hashbrown::HashMap;
-use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::time::timeout;
@@ -59,7 +58,6 @@ pub struct Upstreams {
 }
 
 impl Upstreams {
-    // TODO: Implement response cache
     pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
         let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
@@ -69,11 +67,13 @@ impl Upstreams {
         for (k, v) in r.iter() {
             c.insert(k.clone(), ClientCache::new(v).await?);
         }
-        Ok(Self {
+        let u = Self {
             upstreams: r,
             client_cache: c,
             resp_cache: RespCache::new(size),
-        })
+        };
+        u.hybrid_check()?;
+        Ok(u)
     }
 
     pub fn hybrid_check(&self) -> Result<bool> {
@@ -98,45 +98,65 @@ impl Upstreams {
         }
     }
 
+    // Send the query and handle caching schemes.
+    async fn query(
+        u: Upstream,
+        client_cache: ClientCache,
+        resp_cache: RespCache,
+        msg: Message,
+    ) -> Result<Message> {
+        let mut client = client_cache.get_client(&u).await?;
+        let r = Message::from(timeout(Duration::from_secs(u.timeout), client.send(msg)).await??);
+
+        // If the response can be obtained sucessfully, we then push back the client to the client cache
+        client_cache.return_back(client);
+        resp_cache.put(r.clone());
+        Ok(r)
+    }
+
     async fn final_resolve(&self, tag: Label, msg: Message) -> Result<Message> {
         let id = msg.id();
+
         // Check if cache exists
-        let mut resp = if let Some(resp) = self.resp_cache.get(&msg) {
-            resp
-        } else {
-            let u = self
-                .upstreams
-                .get(&tag)
-                .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
-            // HashMap is created for every single upstream (including Hybrid) when `Upstreams` is created
-            let client_cache = self.client_cache.get(&tag).unwrap();
-            let mut client = client_cache.get_client(u).await?;
-
-            let r =
-                Message::from(timeout(Duration::from_secs(u.timeout), client.send(msg)).await??);
-
-            // If the response can be obtained sucessfully, we then push back the client to the queue
-            info!("Pushing back client cache for tag {}", tag);
-            client_cache.return_back(client);
-            self.resp_cache.put(r.clone());
-            r
+        let mut r = match self.resp_cache.get(&msg) {
+            // Cache available within TTL constraints
+            Some(Alive(r)) => r,
+            Some(Expired(r)) => {
+                // Cache records exists, but TTL exceeded.
+                // We try to update the cache and return back the outdated value.
+                tokio::spawn(Self::query(
+                    self.upstreams.get(&tag).unwrap().clone(),
+                    self.client_cache.get(&tag).unwrap().clone(),
+                    self.resp_cache.clone(),
+                    msg.clone(),
+                ));
+                r
+            }
+            None => {
+                // No cache available, even without TTL constraints. Start a new query.
+                // HashMap is created for every single upstream (including Hybrid) when `Upstreams` is created
+                Self::query(
+                    self.upstreams.get(&tag).unwrap().clone(),
+                    self.client_cache.get(&tag).unwrap().clone(),
+                    self.resp_cache.clone(),
+                    msg.clone(),
+                )
+                .await?
+            }
         };
-        resp.set_id(id);
-        Ok(resp)
+        r.set_id(id);
+        Ok(r)
     }
 
     pub async fn resolve(&self, tag: Label, msg: Message) -> Result<Message> {
-        let u = self
-            .upstreams
-            .get(&tag)
-            .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?;
+        let u = self.upstreams.get(&tag).unwrap();
         Ok(match &u.method {
             UpstreamKind::Hybrid(v) => {
                 let v = v
                     .iter()
                     .map(|t| self.final_resolve(t.clone(), msg.clone()).boxed());
-                let (resp, _) = timeout(Duration::from_secs(u.timeout), select_ok(v)).await??;
-                resp
+                let (r, _) = select_ok(v.clone()).await?;
+                r
             }
             _ => self.final_resolve(tag, msg).await?,
         })

@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use self::RecordStatus::*;
 use log::*;
 use lru::LruCache;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use trust_dns_client::op::{Message, Query};
@@ -54,15 +56,21 @@ impl CacheRecord {
     }
 }
 
+pub enum RecordStatus {
+    Alive(Message),
+    Expired(Message),
+}
+
 // A LRU cache for responses
+#[derive(Clone)]
 pub struct RespCache {
-    cache: Mutex<LruCache<Vec<Query>, CacheRecord>>,
+    cache: Arc<Mutex<LruCache<Vec<Query>, CacheRecord>>>,
 }
 
 impl RespCache {
     pub fn new(size: usize) -> Self {
         Self {
-            cache: Mutex::new(LruCache::new(size)),
+            cache: Arc::new(Mutex::new(LruCache::new(size))),
         }
     }
 
@@ -73,21 +81,22 @@ impl RespCache {
             .put(msg.queries().to_vec(), CacheRecord::new(msg));
     }
 
-    pub fn get(&self, msg: &Message) -> Option<Message> {
+    pub fn get(&self, msg: &Message) -> Option<RecordStatus> {
         let queries: Vec<Query> = msg.queries().to_vec();
         let mut cache = self.cache.lock().unwrap();
         match cache.get(&queries) {
             Some(r) => {
+                // Get record only once.
+                let resp = r.get();
                 if r.validate() {
                     info!("Cache hit for queries: {:?}", queries);
-                    Some(r.get())
+                    Some(Alive(resp))
                 } else {
-                    info!("TTL passed, purging cache.");
-                    cache.pop(&queries);
-                    None
+                    info!("TTL passed, returning expired record.");
+                    Some(Expired(resp))
                 }
             }
-            None => None,
+            Option::None => Option::None,
         }
     }
 }
