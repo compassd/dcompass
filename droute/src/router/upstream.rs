@@ -79,12 +79,24 @@ impl Upstreams {
     pub fn hybrid_check(&self) -> Result<bool> {
         for (tag, u) in self.upstreams.iter() {
             if let UpstreamKind::Hybrid(v) = &u.method {
+                // Check if it is empty.
                 if v.is_empty() {
                     return Err(DrouteError::EmptyHybrid(tag.clone()));
                 }
+                // Check if tags are existed.
                 if let Some(t) = v.iter().find(|tag| self.exists(&tag).is_err()) {
                     return Err(DrouteError::MissingTag(t.clone()));
                 }
+                // Check if it is recursively defined.
+                if v.iter().any(|tag|
+                    // This unwrap is safe because all tags are existed according to above check.
+                    matches!(
+                        self.upstreams.get(tag).unwrap().method,
+                        UpstreamKind::Hybrid(_)
+                    ))
+                {
+                    return Err(DrouteError::HybridRecursion);
+                };
             }
         }
         Ok(true)
