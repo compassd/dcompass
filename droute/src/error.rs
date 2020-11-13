@@ -29,9 +29,9 @@ pub enum DrouteError {
     #[error("No upstream with tag {0} found")]
     MissingTag(Label),
 
-    /// Hybrid definition includes another hybrid upstream as a destination, whihc is currently prohibited. (May support in the future).
-    #[error("Currently you cannot recursively use `hybrid` upstream method")]
-    HybridRecursion,
+    /// Hybrid definition forms a chain, which is prohibited
+    #[error("You cannot recursively define `hybrid` method. The `hybrid` method that contains the destination to be recursively called: {0}")]
+    HybridRecursion(Label),
 
     /// There is no destinations in hybrid's destination list.
     #[error("`hybrid` upstream method with tag {0} contains no upstreams to race")]

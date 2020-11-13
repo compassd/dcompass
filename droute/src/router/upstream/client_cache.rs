@@ -16,14 +16,13 @@
 // Cache client to reuse client connections.
 
 use super::{Upstream, UpstreamKind};
-use crate::error::DrouteError;
 use crate::error::Result;
 use log::*;
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::sync::Mutex;
-use tokio::net::TcpStream as TokioTcpStream;
-use tokio::net::UdpSocket;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
+use tokio::net::{TcpStream as TokioTcpStream, UdpSocket};
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 use trust_dns_https::HttpsClientStreamBuilder;
 use trust_dns_proto::iocompat::AsyncIo02As03;
@@ -116,8 +115,7 @@ impl ClientCache {
                 tokio::spawn(bg);
                 client
             }
-            // We don't create client for Hybrid
-            _ => return Err(DrouteError::HybridRecursion),
+            _ => unreachable!(),
         })
     }
 }

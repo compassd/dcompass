@@ -1,0 +1,51 @@
+{
+    "disable_ipv6": true,
+    "verbosity": "Off",
+    "cache_size": 4096,
+    "address": "0.0.0.0:2053",
+    "default_tag": "secure",
+    "rules": [
+        {
+            "path": "./data/china.txt",
+            "dst": "domestic"
+        }
+    ],
+    "upstreams": [
+        {
+            "timeout": 1,
+            "method": {
+                "Udp": "114.114.114.114:53"
+            },
+            "tag": "114"
+        },
+        {
+            "timeout": 2,
+            "method": {
+                "Https": {
+                    "no_sni": false,
+                    "name": "dns.quad9.net",
+                    "addr": "9.9.9.9:443"
+                }
+            },
+            "tag": "quad9"
+        },
+        {
+            "method": {
+                "Hybrid": [
+                    "114",
+                    "secure"
+                ]
+            },
+            "tag": "domestic"
+        },
+        {
+            "method": {
+                "Hybrid": [
+                    "quad9",
+                    "domestic"
+                ]
+            },
+            "tag": "secure"
+        }
+    ]
+}

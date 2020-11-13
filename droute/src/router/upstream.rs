@@ -18,16 +18,13 @@ mod resp_cache;
 
 use self::client_cache::ClientCache;
 use self::resp_cache::{RecordStatus::*, RespCache};
-use crate::error::DrouteError;
-use crate::error::Result;
+use crate::error::{DrouteError, Result};
 use dmatcher::Label;
-use futures::future::select_ok;
-use futures::future::FutureExt;
-use hashbrown::HashMap;
+use futures::future::{select_ok, BoxFuture, FutureExt};
+use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use tokio::time::timeout;
-use tokio::time::Duration;
+use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
@@ -35,7 +32,13 @@ use trust_dns_proto::xfer::dns_handle::DnsHandle;
 pub struct Upstream {
     pub tag: Label,
     pub method: UpstreamKind,
+    #[serde(default = "default_timeout")]
     pub timeout: u64,
+}
+
+// Default value for timeout
+fn default_timeout() -> u64 {
+    5
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -76,28 +79,39 @@ impl Upstreams {
         Ok(u)
     }
 
-    pub fn hybrid_check(&self) -> Result<bool> {
-        for (tag, u) in self.upstreams.iter() {
-            if let UpstreamKind::Hybrid(v) = &u.method {
+    // Check any upstream types
+    // tag: current upstream node's tag
+    // l: visited tags
+    fn hybrid_search(&self, mut l: HashSet<Label>, tag: Label) -> Result<()> {
+        if l.contains(&tag) {
+            return Err(DrouteError::HybridRecursion(tag));
+        } else {
+            l.insert(tag.clone());
+
+            if let UpstreamKind::Hybrid(v) = &self
+                .upstreams
+                .get(&tag)
+                .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?
+                .method
+            {
                 // Check if it is empty.
                 if v.is_empty() {
                     return Err(DrouteError::EmptyHybrid(tag.clone()));
                 }
-                // Check if tags are existed.
-                if let Some(t) = v.iter().find(|tag| self.exists(&tag).is_err()) {
-                    return Err(DrouteError::MissingTag(t.clone()));
-                }
+
                 // Check if it is recursively defined.
-                if v.iter().any(|tag|
-                    // This unwrap is safe because all tags are existed according to above check.
-                    matches!(
-                        self.upstreams.get(tag).unwrap().method,
-                        UpstreamKind::Hybrid(_)
-                    ))
-                {
-                    return Err(DrouteError::HybridRecursion);
-                };
+                for t in v {
+                    self.hybrid_search(l.clone(), t.clone())?
+                }
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn hybrid_check(&self) -> Result<bool> {
+        for (tag, _) in self.upstreams.iter() {
+            self.hybrid_search(HashSet::new(), tag.clone())?
         }
         Ok(true)
     }
@@ -160,17 +174,19 @@ impl Upstreams {
         Ok(r)
     }
 
-    pub async fn resolve(&self, tag: Label, msg: Message) -> Result<Message> {
-        let u = self.upstreams.get(&tag).unwrap();
-        Ok(match &u.method {
-            UpstreamKind::Hybrid(v) => {
-                let v = v
-                    .iter()
-                    .map(|t| self.final_resolve(t.clone(), msg.clone()).boxed());
-                let (r, _) = select_ok(v.clone()).await?;
-                r
-            }
-            _ => self.final_resolve(tag, msg).await?,
-        })
+    // Write out in this way to allow recursion for async functions
+    pub fn resolve<'a>(&'a self, tag: Label, msg: Message) -> BoxFuture<'a, Result<Message>> {
+        async move {
+            let u = self.upstreams.get(&tag).unwrap();
+            Ok(match &u.method {
+                UpstreamKind::Hybrid(v) => {
+                    let v = v.iter().map(|t| self.resolve(t.clone(), msg.clone()));
+                    let (r, _) = select_ok(v.clone()).await?;
+                    r
+                }
+                _ => self.final_resolve(tag, msg).await?,
+            })
+        }
+        .boxed()
     }
 }

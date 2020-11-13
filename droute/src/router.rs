@@ -156,4 +156,17 @@ mod tests {
             "undefined".into()
         );
     }
+
+    #[test]
+    fn check_fail_recursion() {
+        match block_on(Router::new(include_str!(
+            "../../configs/fail_recursion.json"
+        )))
+        .err()
+        .unwrap()
+        {
+            DrouteError::HybridRecursion(_) => {}
+            e => panic!("Not the right error type: {}", e),
+        };
+    }
 }
