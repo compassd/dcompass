@@ -287,12 +287,16 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "clap",
+ "dmatcher",
  "droute",
  "futures",
  "log",
+ "serde",
+ "serde_json",
  "simple_logger",
  "tokio 0.3.3",
  "tokio-compat-02",
+ "tokio-test",
  "trust-dns-proto",
 ]
 
@@ -316,10 +320,8 @@ dependencies = [
  "lru",
  "rustls",
  "serde",
- "serde_json",
  "thiserror",
  "tokio 0.2.22",
- "tokio-test",
  "trust-dns-client",
  "trust-dns-https",
  "trust-dns-proto",

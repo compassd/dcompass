@@ -6,7 +6,7 @@
     "default_tag": "secure",
     "rules": [
         {
-            "path": "./data/china.txt",
+            "path": "../data/china.txt",
             "dst": "undefined"
         }
     ],

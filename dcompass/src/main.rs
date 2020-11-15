@@ -13,18 +13,40 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+mod parser;
 mod worker;
 
-use crate::worker::worker;
+use self::parser::Parsed;
+use self::worker::worker;
 use anyhow::Result;
-use droute::router::Router;
+use dmatcher::{domain::Domain, Label};
+use droute::{error::DrouteError, router::Router};
 use log::*;
 use simple_logger::SimpleLogger;
+use std::net::SocketAddr;
+use std::result::Result as StdResult;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
 use tokio_compat_02::FutureExt;
+
+async fn init(
+    p: Parsed<Label>,
+) -> StdResult<(Router<Label, Domain<Label>>, SocketAddr, LevelFilter), DrouteError<Label>> {
+    Ok((
+        Router::new(
+            p.upstreams,
+            p.disable_ipv6,
+            p.cache_size,
+            p.default_tag,
+            p.rules,
+        )
+        .await?,
+        p.address,
+        p.verbosity,
+    ))
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -33,21 +55,21 @@ async fn main() -> Result<()> {
     let yaml = load_yaml!("args.yaml");
     let m = App::from(yaml).get_matches();
 
-    let router = match m.value_of("config") {
+    let (router, addr, verbosity) = match m.value_of("config") {
         Some(c) => {
             let mut file = File::open(c).await?;
             let mut config = String::new();
             file.read_to_string(&mut config).await?;
-            Router::new(&config).compat().await?
+            init(serde_json::from_str(&config)?).compat().await?
         }
         None => {
-            Router::new(include_str!("../../configs/default.json"))
-                .compat()
-                .await?
+            init(serde_json::from_str(include_str!(
+                "../../configs/default.json"
+            ))?)
+            .compat()
+            .await?
         }
     };
-
-    let (addr, verbosity) = (router.addr(), router.verbosity());
 
     SimpleLogger::new().with_level(verbosity).init()?;
 
@@ -69,5 +91,80 @@ async fn main() -> Result<()> {
                 Err(e) => warn!("Handling query failed: {}", e),
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::init;
+    use droute::error::DrouteError;
+    use tokio_test::block_on;
+
+    #[test]
+    fn parse() {
+        assert_eq!(
+            block_on(init(
+                serde_json::from_str(include_str!("../../configs/default.json")).unwrap()
+            ))
+            .is_ok(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_fail_rule() {
+        // Notice that data dir is relative to cargo test path.
+        assert_eq!(
+            match block_on(init(
+                serde_json::from_str(include_str!("../../configs/fail_rule.json")).unwrap()
+            ))
+            .err()
+            .unwrap()
+            {
+                DrouteError::MissingTag(tag) => tag,
+                e => panic!("Not the right error type: {}", e),
+            },
+            "undefined".into()
+        );
+    }
+
+    #[test]
+    fn check_success_rule() {
+        assert_eq!(
+            block_on(init(
+                serde_json::from_str(include_str!("../../configs/success_rule.json")).unwrap()
+            ))
+            .is_ok(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_fail_default() {
+        assert_eq!(
+            match block_on(init(
+                serde_json::from_str(include_str!("../../configs/fail_default.json")).unwrap()
+            ))
+            .err()
+            .unwrap()
+            {
+                DrouteError::MissingTag(tag) => tag,
+                e => panic!("Not the right error type: {}", e),
+            },
+            "undefined".into()
+        );
+    }
+
+    #[test]
+    fn check_fail_recursion() {
+        match block_on(init(
+            serde_json::from_str(include_str!("../../configs/fail_recursion.json")).unwrap(),
+        ))
+        .err()
+        .unwrap()
+        {
+            DrouteError::HybridRecursion(_) => {}
+            e => panic!("Not the right error type: {}", e),
+        };
     }
 }

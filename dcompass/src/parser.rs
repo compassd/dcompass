@@ -13,19 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::upstream::Upstream;
-use dmatcher::Label;
+use droute::router::{filter::Rule, upstream::Upstream};
 use log::LevelFilter;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::SocketAddr;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Rule {
-    pub dst: Label,
-    pub path: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Deserialize, Clone)]
 #[serde(remote = "LevelFilter")]
 enum LevelFilterDef {
     Off,
@@ -36,11 +29,11 @@ enum LevelFilterDef {
     Trace,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Parsed {
-    pub rules: Vec<Rule>,
-    pub upstreams: Vec<Upstream>,
-    pub default_tag: Label,
+#[derive(Deserialize, Clone)]
+pub struct Parsed<L> {
+    pub rules: Vec<Rule<L>>,
+    pub upstreams: Vec<Upstream<L>>,
+    pub default_tag: L,
     pub address: SocketAddr,
     pub disable_ipv6: bool,
     pub cache_size: usize,

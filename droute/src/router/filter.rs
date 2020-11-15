@@ -13,52 +13,57 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::parser::Rule;
+use super::matcher::Matcher;
 use crate::error::Result;
-use dmatcher::{Dmatcher, Label};
 use log::*;
+use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Display};
 use tokio::{fs::File, prelude::*};
-// use tokio_compat_02::FutureExt;
 
-pub struct Filter {
-    default_tag: Label,
-    matcher: Dmatcher,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Rule<L> {
+    pub dst: L,
+    pub path: String,
 }
 
-impl Filter {
-    async fn insert_rules(rules: Vec<Rule>) -> Result<(Dmatcher, Vec<Label>)> {
-        let mut matcher = Dmatcher::new();
-        let mut v = vec![];
+pub(crate) struct Filter<L, M> {
+    default_tag: L,
+    matcher: M,
+    dsts: Vec<L>,
+}
+
+impl<L: Display + Debug + Clone, M: Matcher<Label = L>> Filter<L, M> {
+    pub async fn new(default_tag: L, rules: Vec<Rule<L>>) -> Result<L, Self> {
+        let mut matcher = M::new();
+        let mut dsts = vec![];
         for r in rules {
             let mut file = File::open(r.path).await?;
             let mut data = String::new();
             file.read_to_string(&mut data).await?;
-            matcher.insert_lines(data, &r.dst);
-            v.push(r.dst);
+            matcher.insert_multi(&data, &r.dst);
+            dsts.push(r.dst);
         }
-        Ok((matcher, v))
-    }
 
-    pub async fn new(default_tag: Label, rules: Vec<Rule>) -> Result<(Self, Vec<Label>)> {
-        let (matcher, dsts) = Self::insert_rules(rules).await?;
-        Ok((
-            Self {
-                default_tag,
-                matcher,
-            },
+        Ok(Self {
+            default_tag,
+            matcher,
             dsts,
-        ))
+        })
     }
 
-    pub fn default_tag(&self) -> Label {
-        self.default_tag.clone()
+    pub fn get_dsts(&self) -> &[L] {
+        &self.dsts
     }
 
-    pub fn get_upstream(&self, domain: &str) -> Result<Label> {
-        Ok(match self.matcher.matches(domain) {
+    pub fn default_tag(&self) -> &L {
+        &self.default_tag
+    }
+
+    pub fn get_upstream(&self, domain: &str) -> &L {
+        match self.matcher.matches(domain) {
             Some(u) => {
                 info!("Domain {} routed via upstream with tag {}", domain, u);
-                u
+                &u
             }
             None => {
                 info!(
@@ -68,6 +73,6 @@ impl Filter {
                 );
                 self.default_tag()
             }
-        })
+        }
     }
 }

@@ -14,8 +14,11 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use droute::router::matcher::Matcher;
 use droute::router::Router;
 use log::*;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -23,12 +26,15 @@ use tokio_compat_02::FutureExt;
 use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
-pub async fn worker(
-    router: Arc<Router>,
+pub async fn worker<L, M: Matcher<Label = L>>(
+    router: Arc<Router<L, M>>,
     socket: Arc<UdpSocket>,
     buf: &[u8],
     src: SocketAddr,
-) -> Result<()> {
+) -> Result<()>
+where
+    L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync,
+{
     let request = Message::from_vec(buf)?;
 
     info!("Received message: {:?}", request);

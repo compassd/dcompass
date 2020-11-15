@@ -15,64 +15,58 @@
 
 //! Router is the core concept of `droute`.
 
-mod filter;
-mod parser;
-mod upstream;
+pub mod filter;
+pub mod matcher;
+pub mod upstream;
 
 use self::filter::Filter;
-use self::parser::Parsed;
-use self::upstream::Upstreams;
+use self::filter::Rule;
+use self::matcher::Matcher;
+use self::upstream::{Upstream, Upstreams};
 use crate::error::Result;
-use dmatcher::Label;
-use log::LevelFilter;
 use log::*;
-use std::net::SocketAddr;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 use trust_dns_client::op::Message;
 use trust_dns_client::op::ResponseCode;
 use trust_dns_client::rr::RecordType;
 
 /// Router implementation.
-pub struct Router {
-    filter: Filter,
+/// `'static + Send + Sync` is required for async usages.
+/// `Display + Debug` is required for Error formatting implementation (It is intuitive for you to have your label readable).
+/// `Eq + Clone + Hash` is required for internal design.
+pub struct Router<L, M> {
+    filter: Filter<L, M>,
     disable_ipv6: bool,
-    upstreams: Upstreams,
-    addr: SocketAddr,
-    verbosity: LevelFilter,
-    dsts: Vec<Label>,
+    upstreams: Upstreams<L>,
 }
 
-impl Router {
-    /// Get the verbosity defined in the configuration file.
-    pub fn verbosity(&self) -> LevelFilter {
-        self.verbosity
-    }
-
-    /// Get the address to bind as it is defined in the configuration file.
-    pub fn addr(&self) -> SocketAddr {
-        self.addr
-    }
-
+impl<L, M: Matcher<Label = L>> Router<L, M>
+where
+    L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync,
+{
     /// Create a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
-    pub async fn new(data: &str) -> Result<Self> {
-        let p: Parsed = serde_json::from_str(data)?;
-
-        let (filter, dsts) = Filter::new(p.default_tag, p.rules).await?;
+    pub async fn new(
+        upstreams: Vec<Upstream<L>>,
+        disable_ipv6: bool,
+        cache_size: usize,
+        default_tag: L,
+        rules: Vec<Rule<L>>,
+    ) -> Result<L, Self> {
+        let filter = Filter::new(default_tag, rules).await?;
         let router = Self {
-            disable_ipv6: p.disable_ipv6,
-            dsts,
-            upstreams: Upstreams::new(p.upstreams, p.cache_size).await?,
+            disable_ipv6,
+            upstreams: Upstreams::new(upstreams, cache_size).await?,
             filter,
-            addr: p.address,
-            verbosity: p.verbosity,
         };
         router.check()?;
         Ok(router)
     }
 
     /// Validate the internal rules defined. This is automatically performed by `new` method.
-    pub fn check(&self) -> Result<bool> {
+    pub fn check(&self) -> Result<L, bool> {
         self.upstreams.hybrid_check()?;
-        for dst in &self.dsts {
+        for dst in self.filter.get_dsts() {
             self.upstreams.exists(dst)?;
         }
         self.upstreams.exists(&self.filter.default_tag())?;
@@ -80,7 +74,7 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, msg: Message) -> Result<L, Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         Ok(match self.upstreams.resolve(if msg.query_count() == 1 {
                 let q = msg.queries().iter().next().unwrap(); // Safe unwrap here because query_count == 1
@@ -91,11 +85,12 @@ impl Router {
                         msg.op_code(),
                         ResponseCode::NXDomain,
                     ));
-                } else {self.filter.get_upstream(q.name().to_utf8().as_str())?}
+		    // TODO Remove clone somehow
+                } else {self.filter.get_upstream(q.name().to_utf8().as_str())}
             } else {
                 warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
                 self.filter.default_tag()
-        }, msg).await {
+        }, &msg).await {
 	    Ok(m) => m,
 	    Err(e) => {
 		// Catch all server failure here and return server fail
@@ -103,70 +98,5 @@ impl Router {
 		Message::error_msg(id, op_code, ResponseCode::ServFail)
 	    },
 	})
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Router;
-    use crate::error::DrouteError;
-    use tokio_test::block_on;
-
-    #[test]
-    fn parse() {
-        assert_eq!(
-            block_on(Router::new(include_str!("../../configs/default.json"))).is_ok(),
-            true
-        );
-    }
-
-    #[test]
-    fn check_fail_rule() {
-        // Notice that data dir is relative to cargo test path.
-        assert_eq!(
-            match block_on(Router::new(include_str!("../../configs/fail_rule.json")))
-                .err()
-                .unwrap()
-            {
-                DrouteError::MissingTag(tag) => tag,
-                e => panic!("Not the right error type: {}", e),
-            },
-            "undefined".into()
-        );
-    }
-
-    #[test]
-    fn check_success_rule() {
-        assert_eq!(
-            block_on(Router::new(include_str!("../../configs/success_rule.json"))).is_ok(),
-            true
-        );
-    }
-
-    #[test]
-    fn check_fail_default() {
-        assert_eq!(
-            match block_on(Router::new(include_str!("../../configs/fail_default.json")))
-                .err()
-                .unwrap()
-            {
-                DrouteError::MissingTag(tag) => tag,
-                e => panic!("Not the right error type: {}", e),
-            },
-            "undefined".into()
-        );
-    }
-
-    #[test]
-    fn check_fail_recursion() {
-        match block_on(Router::new(include_str!(
-            "../../configs/fail_recursion.json"
-        )))
-        .err()
-        .unwrap()
-        {
-            DrouteError::HybridRecursion(_) => {}
-            e => panic!("Not the right error type: {}", e),
-        };
     }
 }

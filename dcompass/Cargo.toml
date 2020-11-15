@@ -17,3 +17,9 @@ simple_logger = "^1.11"
 clap = { version = "^2.0", features = ["yaml"] }
 log = "^0.4"
 anyhow = "^1.0"
+serde = { version = "^1.0", features = ["derive", "rc"] }
+serde_json = "^1.0"
+dmatcher = {version = "^0.1", path = "../dmatcher"}
+
+[dev-dependencies]
+tokio-test = "^0.2"

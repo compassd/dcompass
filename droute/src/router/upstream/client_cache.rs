@@ -18,6 +18,8 @@
 use super::{Upstream, UpstreamKind};
 use crate::error::Result;
 use log::*;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
@@ -39,7 +41,10 @@ pub enum ClientCache {
 }
 
 impl ClientCache {
-    pub async fn new(u: &Upstream) -> Result<Self> {
+    pub async fn new<L>(u: &Upstream<L>) -> Result<L, Self>
+    where
+        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
+    {
         Ok(match &u.method {
             // For UDP, we only use one client throughout the course.
             UpstreamKind::Udp(_) => Self::Udp(Self::create_client(u).await?),
@@ -52,7 +57,10 @@ impl ClientCache {
         })
     }
 
-    pub async fn get_client(&self, u: &Upstream) -> Result<AsyncClient> {
+    pub async fn get_client<L>(&self, u: &Upstream<L>) -> Result<L, AsyncClient>
+    where
+        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
+    {
         Ok(match self {
             Self::Https(q) => {
                 {
@@ -85,7 +93,10 @@ impl ClientCache {
         }
     }
 
-    async fn create_client(u: &Upstream) -> Result<AsyncClient> {
+    async fn create_client<L>(u: &Upstream<L>) -> Result<L, AsyncClient>
+    where
+        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
+    {
         Ok(match &u.method {
             UpstreamKind::Udp(s) => {
                 let stream = UdpClientStream::<UdpSocket>::new(*s);

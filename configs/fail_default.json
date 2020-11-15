@@ -6,7 +6,7 @@
     "default_tag": "undefined",
     "rules": [
         {
-            "path": "./data/china.txt",
+            "path": "../data/china.txt",
             "dst": "domestic"
         }
     ],
