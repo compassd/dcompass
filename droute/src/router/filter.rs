@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Rules and other related concepts.
+
 use super::matcher::Matcher;
 use crate::error::Result;
 use log::*;
@@ -20,9 +22,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 use tokio::{fs::File, prelude::*};
 
+/// Input struct for `Filter`. Each `Rule<L>` defines a rule file where `dst` is the destination of queries matching the rule and `path` is the path to where the rule file is located.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Rule<L> {
+    /// Destination of queries matching the rule.
     pub dst: L,
+    /// Path to the rule file.
     pub path: String,
 }
 

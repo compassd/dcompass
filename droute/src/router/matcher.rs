@@ -13,16 +13,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Trait of a matcher.
+
 use dmatcher::domain::Domain;
 use std::hash::Hash;
 
+/// A matcher is a matching algorithm that matches input `&str` to `&Self::Label`.
 pub trait Matcher {
+    /// Type of the "label" the matcher supports.
     type Label;
 
+    /// Create a new matcher.
     fn new() -> Self;
-    // TODO: change to ref style.
+    /// Given a specific input, return back the corresponding label for its destination.
     fn matches(&self, input: &str) -> Option<&Self::Label>;
+    /// Insert an (input, tag) pair where and `tag` is a label for destination.
     fn insert(&mut self, input: &str, tag: &Self::Label);
+    /// Insert a set of input with a single tag. Input can be splitted with `\n` with each line a legal `input` for `insert()` method above.
     fn insert_multi(&mut self, input: &str, tag: &Self::Label);
 }
 

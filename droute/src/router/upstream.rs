@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Upstream defines how droute resolves queries ultimately.
+
 mod client_cache;
 mod resp_cache;
 
@@ -31,9 +33,13 @@ use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 #[derive(Serialize, Deserialize, Clone)]
+/// Information needed for an upstream.
 pub struct Upstream<L> {
+    /// The destination (tag) associated with the upstream.
     pub tag: L,
+    /// Querying method.
     pub method: UpstreamKind<L>,
+    /// How long to timeout.
     #[serde(default = "default_timeout")]
     pub timeout: u64,
 }
@@ -58,7 +64,7 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstream<L>
         Ok(r)
     }
 
-    pub async fn resolve(
+    pub(self) async fn resolve(
         &self,
         resp_cache: &RespCache,
         client_cache: &ClientCache,
@@ -94,15 +100,22 @@ fn default_timeout() -> u64 {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+/// The methods of querying
 pub enum UpstreamKind<L> {
+    /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
     Hybrid(Vec<L>),
+    /// DNS over HTTPS (DoH).
     Https {
+        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
         name: String,
+        /// The address of the server. e.g. `1.1.1.1:443` for Cloudflare DNS.
         addr: SocketAddr,
+        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
         no_sni: bool,
     },
     // Drop TLS support until we figure out how to do without OpenSSL
     // Tls(String, SocketAddr),
+    /// UDP connection.
     Udp(SocketAddr),
 }
 
