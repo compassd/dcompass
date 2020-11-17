@@ -28,7 +28,6 @@ use lazy_static::lazy_static;
 use log::warn;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::ops::Deref;
 use trust_dns_client::op::Message;
 use trust_dns_client::op::ResponseCode;
 use trust_dns_client::rr::{
@@ -104,8 +103,7 @@ where
             if (q.query_type() == RecordType::AAAA) && (self.disable_ipv6) {
                 // If `disable_ipv6` has been set, return immediately SOA.
                 return Ok({
-                    let r =
-                        Record::from_rdata(q.name().clone(), MAX_TTL, SOA_RDATA.deref().clone());
+                    let r = Record::from_rdata(q.name().clone(), MAX_TTL, SOA_RDATA.clone());
                     // We can't add record to authority section but somehow it works
                     msg.add_additional(r);
                     msg
