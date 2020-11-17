@@ -30,3 +30,4 @@ log = "^0.4"
 serde = { version = "^1.0", features = ["derive", "rc"] }
 lru = "^0.6"
 thiserror = "^1.0"
+lazy_static = "^1.0"

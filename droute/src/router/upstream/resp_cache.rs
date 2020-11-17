@@ -14,16 +14,13 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use self::RecordStatus::*;
+use super::super::MAX_TTL;
 use log::*;
 use lru::LruCache;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use trust_dns_client::op::{Message, Query};
-
-// Maximum TTL as defined in https://tools.ietf.org/html/rfc2181, 2147483647
-//   Setting this to a value of 1 day, in seconds
-pub const MAX_TTL: u32 = 86400_u32;
 
 struct CacheRecord {
     created_instant: Instant,

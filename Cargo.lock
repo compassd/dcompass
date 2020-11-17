@@ -316,6 +316,7 @@ dependencies = [
  "dmatcher",
  "futures",
  "hashbrown",
+ "lazy_static",
  "log",
  "lru",
  "rustls",

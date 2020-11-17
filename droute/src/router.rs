@@ -24,12 +24,35 @@ use self::filter::Rule;
 use self::matcher::Matcher;
 use self::upstream::{Upstream, Upstreams};
 use crate::error::Result;
-use log::*;
+use lazy_static::lazy_static;
+use log::warn;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::ops::Deref;
 use trust_dns_client::op::Message;
 use trust_dns_client::op::ResponseCode;
-use trust_dns_client::rr::RecordType;
+use trust_dns_client::rr::{
+    rdata::soa::SOA, record_data::RData, resource::Record, Name, RecordType,
+};
+
+// Maximum TTL as defined in https://tools.ietf.org/html/rfc2181, 2147483647
+//   Setting this to a value of 1 day, in seconds
+pub(self) const MAX_TTL: u32 = 86400_u32;
+
+// Data from smartdns. https://github.com/pymumu/smartdns/blob/42b3e98b2a3ca90ea548f8cb5ed19a3da6011b74/src/dns_server.c#L651
+lazy_static! {
+    static ref SOA_RDATA: RData = {
+        RData::SOA(SOA::new(
+            Name::from_utf8("a.gtld-servers.net").unwrap(),
+            Name::from_utf8("nstld.verisign-grs.com").unwrap(),
+            1800,
+            1800,
+            900,
+            604800,
+            86400,
+        ))
+    };
+}
 
 /// Router implementation.
 /// `'static + Send + Sync` is required for async usages.
@@ -74,29 +97,33 @@ where
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: Message) -> Result<L, Message> {
+    pub async fn resolve(&self, mut msg: Message) -> Result<L, Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
-        Ok(match self.upstreams.resolve(if msg.query_count() == 1 {
-                let q = msg.queries().iter().next().unwrap(); // Safe unwrap here because query_count == 1
-                if (q.query_type() == RecordType::AAAA) && (self.disable_ipv6) {
-                    // If `disable_ipv6` has been set, return immediately NXDomain.
-                    return Ok(Message::error_msg(
-                        msg.id(),
-                        msg.op_code(),
-                        ResponseCode::NXDomain,
-                    ));
-		    // TODO Remove clone somehow
-                } else {self.filter.get_upstream(q.name().to_utf8().as_str())}
+        let tag = if msg.query_count() == 1 {
+            let q = msg.queries().iter().next().unwrap(); // Safe unwrap here because query_count == 1
+            if (q.query_type() == RecordType::AAAA) && (self.disable_ipv6) {
+                // If `disable_ipv6` has been set, return immediately SOA.
+                return Ok({
+                    let r =
+                        Record::from_rdata(q.name().clone(), MAX_TTL, SOA_RDATA.deref().clone());
+                    // We can't add record to authority section but somehow it works
+                    msg.add_additional(r);
+                    msg
+                });
             } else {
-                warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
-                self.filter.default_tag()
-        }, &msg).await {
-	    Ok(m) => m,
-	    Err(e) => {
-		// Catch all server failure here and return server fail
-		warn!("Upstream encountered error: {}, returning SERVFAIL", e);
-		Message::error_msg(id, op_code, ResponseCode::ServFail)
-	    },
-	})
+                self.filter.get_upstream(q.name().to_utf8().as_str())
+            }
+        } else {
+            warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
+            self.filter.default_tag()
+        };
+        Ok(match self.upstreams.resolve(tag, &msg).await {
+            Ok(m) => m,
+            Err(e) => {
+                // Catch all server failure here and return server fail
+                warn!("Upstream encountered error: {}, returning SERVFAIL", e);
+                Message::error_msg(id, op_code, ResponseCode::ServFail)
+            }
+        })
     }
 }
