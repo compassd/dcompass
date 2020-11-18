@@ -24,12 +24,25 @@ use droute::{error::DrouteError, router::Router};
 use log::*;
 use simple_logger::SimpleLogger;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use structopt::StructOpt;
 use tokio::fs::File;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
 use tokio_compat_02::FutureExt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "dcompass",
+    about = "High-performance DNS server with rule matching/DoT/DoH functionalities built-in."
+)]
+struct DcompassOpts {
+    ///Path to configuration file. Use built-in if not provided.
+    #[structopt(short, long, parse(from_os_str))]
+    config: Option<PathBuf>,
+}
 
 async fn init(
     p: Parsed<Label>,
@@ -50,26 +63,17 @@ async fn init(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    use clap::{load_yaml, App};
+    let args: DcompassOpts = DcompassOpts::from_args();
 
-    let yaml = load_yaml!("args.yaml");
-    let m = App::from(yaml).get_matches();
-
-    let (router, addr, verbosity) = match m.value_of("config") {
-        Some(c) => {
-            let mut file = File::open(c).await?;
-            let mut config = String::new();
-            file.read_to_string(&mut config).await?;
-            init(serde_json::from_str(&config)?).compat().await?
-        }
-        None => {
-            init(serde_json::from_str(include_str!(
-                "../../configs/default.json"
-            ))?)
-            .compat()
-            .await?
-        }
+    let config = if let Some(config_path) = dbg!(args).config {
+        let mut file = File::open(config_path).await?;
+        let mut config = String::new();
+        file.read_to_string(&mut config).await?;
+        config
+    } else {
+        include_str!("../../configs/default.json").to_owned()
     };
+    let (router, addr, verbosity) = init(serde_json::from_str(&config)?).compat().await?;
 
     SimpleLogger::new().with_level(verbosity).init()?;
 
