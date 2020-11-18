@@ -19,10 +19,4 @@ let
   };
 in with nixpkgs;
 
-mkShell {
-  buildInputs = [
-    clang # needed for bindgen
-    rustEnv
-    pkgconfig
-  ];
-}
+mkShell { buildInputs = [ rustEnv ]; }
