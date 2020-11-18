@@ -16,21 +16,15 @@
 mod parser;
 mod worker;
 
-use self::parser::Parsed;
-use self::worker::worker;
+use self::{parser::Parsed, worker::worker};
 use anyhow::Result;
 use dmatcher::{domain::Domain, Label};
 use droute::{error::DrouteError, router::Router};
 use log::*;
 use simple_logger::SimpleLogger;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::result::Result as StdResult;
-use std::sync::Arc;
+use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc};
 use structopt::StructOpt;
-use tokio::fs::File;
-use tokio::net::UdpSocket;
-use tokio::prelude::*;
+use tokio::{fs::File, net::UdpSocket, prelude::*};
 use tokio_compat_02::FutureExt;
 
 #[derive(Debug, StructOpt)]

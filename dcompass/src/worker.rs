@@ -14,13 +14,14 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use droute::router::matcher::Matcher;
-use droute::router::Router;
+use droute::router::{matcher::Matcher, Router};
 use log::*;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    net::SocketAddr,
+    sync::Arc,
+};
 use tokio::net::UdpSocket;
 use tokio_compat_02::FutureExt;
 use trust_dns_proto::op::Message;

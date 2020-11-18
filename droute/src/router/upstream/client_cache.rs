@@ -18,10 +18,10 @@
 use super::{Upstream, UpstreamKind};
 use crate::error::Result;
 use log::*;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
 use std::{
     collections::VecDeque,
+    fmt::{Debug, Display},
+    hash::Hash,
     sync::{Arc, Mutex},
 };
 use tokio::net::{TcpStream as TokioTcpStream, UdpSocket};

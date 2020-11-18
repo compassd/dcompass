@@ -17,9 +17,10 @@ use self::RecordStatus::*;
 use super::super::MAX_TTL;
 use log::*;
 use lru::LruCache;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 use trust_dns_client::op::{Message, Query};
 
 struct CacheRecord {

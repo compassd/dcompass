@@ -30,8 +30,7 @@
 //! ```
 
 use hashbrown::HashMap;
-use std::hash::Hash;
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
 #[derive(Debug, PartialEq, Clone)]
 struct LevelNode<L> {
