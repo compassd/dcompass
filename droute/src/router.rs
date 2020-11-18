@@ -19,19 +19,21 @@ pub mod filter;
 pub mod matcher;
 pub mod upstream;
 
-use self::filter::Filter;
-use self::filter::Rule;
-use self::matcher::Matcher;
-use self::upstream::{Upstream, Upstreams};
+use self::{
+    filter::{Filter, Rule},
+    matcher::Matcher,
+    upstream::{Upstream, Upstreams},
+};
 use crate::error::Result;
 use lazy_static::lazy_static;
 use log::warn;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
-use trust_dns_client::op::Message;
-use trust_dns_client::op::ResponseCode;
-use trust_dns_client::rr::{
-    rdata::soa::SOA, record_data::RData, resource::Record, Name, RecordType,
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+};
+use trust_dns_client::{
+    op::{Message, ResponseCode},
+    rr::{rdata::soa::SOA, record_data::RData, resource::Record, Name, RecordType},
 };
 
 // Maximum TTL as defined in https://tools.ietf.org/html/rfc2181, 2147483647

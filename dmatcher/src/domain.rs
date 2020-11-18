@@ -30,8 +30,7 @@
 //! ```
 
 use hashbrown::HashMap;
-use std::hash::Hash;
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
 #[derive(Debug, PartialEq, Clone)]
 struct LevelNode<L> {
@@ -83,11 +82,10 @@ impl<L: Eq + Hash + Clone> Domain<L> {
 
     /// Pass in a domain and insert it into the matcher.
     pub fn insert(&mut self, domain: &str, dst: &L) {
-        let mut lvs: Vec<&str> = domain.split('.').collect();
-        lvs.reverse();
+        let lvs: Vec<&str> = domain.split('.').rev().collect();
         let mut ptr = &mut self.root;
         for lv in lvs {
-            if lv == "" {
+            if lv.is_empty() {
                 // We should not include sub-levels like ""
                 continue;
             }
@@ -101,11 +99,10 @@ impl<L: Eq + Hash + Clone> Domain<L> {
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
     pub fn matches(&self, domain: &str) -> Option<&L> {
-        let mut lvs: Vec<&str> = domain.split('.').collect();
-        lvs.reverse();
+        let lvs: Vec<&str> = domain.split('.').rev().collect();
         let mut ptr = &self.root;
         for lv in lvs {
-            if lv == "" {
+            if lv.is_empty() {
                 // We should not include sub-levels like ""
                 continue;
             }

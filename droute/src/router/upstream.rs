@@ -18,16 +18,20 @@
 mod client_cache;
 mod resp_cache;
 
-use self::client_cache::ClientCache;
-use self::resp_cache::{RecordStatus::*, RespCache};
+use self::{
+    client_cache::ClientCache,
+    resp_cache::{RecordStatus::*, RespCache},
+};
 use crate::error::{DrouteError, Result};
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
-use std::net::SocketAddr;
+use std::{
+    borrow::Borrow,
+    fmt::{Debug, Display},
+    hash::Hash,
+    net::SocketAddr,
+};
 use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;

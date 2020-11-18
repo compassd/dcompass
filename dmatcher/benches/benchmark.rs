@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use dmatcher::{domain::Domain, Label};
-use std::fs::File;
-use std::io::Read;
+use std::{fs::File, io::Read};
 
 fn bench_match(c: &mut Criterion) {
     let mut file = File::open("./benches/sample.txt").unwrap();
