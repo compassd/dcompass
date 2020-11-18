@@ -19,9 +19,12 @@ Here is a simple configuration file with different fields:
 - `address`: The address to bind on.
 - `default_tag`: The tag of the upstream to route when no rules match.
 - `rules`: A set of filtering rules that each has a `path` to the rule list (currently only domain lists are supported) and `dst` which is the tag of the upstream to route if it matches this rule. If one domain appears on multiple lists, the latter list and its corresponding `dst` would override the former ones.
-- `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream.
+- `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
+
+Different querying methods:
 - `Https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
 - `Udp`: Typical UDP querying method. `addr` is the remote server address.
+- `Hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `Hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 ```json
 {
     "disable_ipv6": true,
@@ -100,6 +103,14 @@ Here is a simple configuration file with different fields:
 - if `disable_ipv6` is set to `true`, a SOA message would be sent back every time we receive an `AAAA` query.
 - if one incoming DNS message contains more than one DNS query (which is impossible in wild), `default_tag` would be used to send the query.
 - If a cache record is expired, we return back the expired cache and start a background query to update the cache, if which failed, the expired cache would be still returned back and background query would start again for next query on the same domain. The cache only gets purged if the internal LRU cache system purges it. This ensures cache is always available while dcompass complies TTL.
+
+# Usages
+```
+dcompass -c path/to/config.json
+```
+
+# Packages
+Currently, only NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
 
 # Benchmark
 Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.
