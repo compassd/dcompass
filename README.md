@@ -5,7 +5,7 @@ Your DNS supercharged! A high-performance DNS server with rule matching/DoT/DoH 
 - Fast (~760 qps)
 - Fearless hot switch between network environments
 - Freestyle routing rules that are easy to compose and maintain
-- DoH/UDP supports (DoT is on the way!)
+- DoH/DoT/UDP supports
 - "Always-on" cache mechanism to ensure DNS quality under severe network environments.
 - Option to send no SNI indication to better counter censorship
 - Option to disable AAAA query for those having network with incomplete IPv6 supports
@@ -23,6 +23,7 @@ Here is a simple configuration file with different fields:
 
 Different querying methods:
 - `Https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
+- `Tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
 - `Udp`: Typical UDP querying method. `addr` is the remote server address.
 - `Hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `Hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 ```json
