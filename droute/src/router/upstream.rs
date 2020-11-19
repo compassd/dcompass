@@ -117,8 +117,15 @@ pub enum UpstreamKind<L> {
         /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
         no_sni: bool,
     },
-    // Drop TLS support until we figure out how to do without OpenSSL
-    // Tls(String, SocketAddr),
+    /// DNS over TLS (DoT).
+    Tls {
+        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
+        name: String,
+        /// The address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
+        addr: SocketAddr,
+        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
+        no_sni: bool,
+    },
     /// UDP connection.
     Udp(SocketAddr),
 }

@@ -33,7 +33,7 @@ use tokio_compat_02::FutureExt;
     about = "High-performance DNS server with rule matching/DoT/DoH functionalities built-in."
 )]
 struct DcompassOpts {
-    ///Path to configuration file. Use built-in if not provided.
+    // Path to configuration file. Use built-in if not provided.
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
 }
@@ -59,7 +59,7 @@ async fn init(
 async fn main() -> Result<()> {
     let args: DcompassOpts = DcompassOpts::from_args();
 
-    let config = if let Some(config_path) = dbg!(args).config {
+    let config = if let Some(config_path) = args.config {
         let mut file = File::open(config_path).await?;
         let mut config = String::new();
         file.read_to_string(&mut config).await?;

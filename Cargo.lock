@@ -325,6 +325,7 @@ dependencies = [
  "trust-dns-client",
  "trust-dns-https",
  "trust-dns-proto",
+ "trust-dns-rustls",
  "webpki",
  "webpki-roots",
 ]

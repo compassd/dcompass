@@ -6,16 +6,16 @@
     "default_tag": "secure",
     "rules": [],
     "upstreams": [
-        {
+	{
             "timeout": 4,
             "method": {
-                "Https": {
-                    "no_sni": false,
+                "Tls": {
+                    "no_sni": true,
                     "name": "dns.quad9.net",
-                    "addr": "9.9.9.9:443"
+                    "addr": "9.9.9.9:853"
                 }
             },
-            "tag": "quad9"
+            "tag": "quad9-tls"
         },
         {
             "timeout": 4,
@@ -29,11 +29,10 @@
             "tag": "cloudflare"
         },
         {
-            "timeout": 5,
             "method": {
                 "Hybrid": [
                     "cloudflare",
-                    "quad9"
+		    "quad9-tls"
                 ]
             },
             "tag": "secure"
