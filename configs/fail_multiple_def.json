@@ -1,0 +1,33 @@
+{
+    "disable_ipv6": true,
+    "verbosity": "Info",
+    "cache_size": 4096,
+    "address": "0.0.0.0:2053",
+    "default_tag": "domestic",
+    "rules": [
+        {
+            "path": "../data/china.txt",
+            "dst": "domestic"
+        }
+    ],
+    "upstreams": [
+        {
+            "timeout": 1,
+            "method": {
+                "Udp": "114.114.114.114:53"
+            },
+            "tag": "domestic"
+        },
+        {
+            "timeout": 2,
+            "method": {
+                "Https": {
+                    "no_sni": false,
+                    "name": "dns.quad9.net",
+                    "addr": "9.9.9.9:443"
+                }
+            },
+            "tag": "domestic"
+        }
+    ]
+}

@@ -165,4 +165,17 @@ mod tests {
             e => panic!("Not the right error type: {}", e),
         };
     }
+
+    #[test]
+    fn check_fail_multiple_def() {
+        match block_on(init(
+            serde_json::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap(),
+        ))
+        .err()
+        .unwrap()
+        {
+            DrouteError::MultipleDef(_) => {}
+            e => panic!("Not the right error type: {}", e),
+        };
+    }
 }

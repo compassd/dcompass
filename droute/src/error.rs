@@ -29,12 +29,18 @@ pub enum DrouteError<L: Display + Debug> {
     #[error("No upstream with tag {0} found")]
     MissingTag(L),
 
+    /// There are multiple definitions of rules of the same destination or upstreams of the same tag name.
+    #[error(
+        "Multiple defintions found for tag/dst `{0}` either in `rules` or `upstreams` sections"
+    )]
+    MultipleDef(L),
+
     /// Hybrid definition forms a chain, which is prohibited
-    #[error("You cannot recursively define `hybrid` method. The `hybrid` method that contains the destination to be recursively called: {0}")]
+    #[error("You cannot recursively define `Hybrid` method. The `Hybrid` method that contains the destination to be recursively called: {0}")]
     HybridRecursion(L),
 
     /// There is no destinations in hybrid's destination list.
-    #[error("`hybrid` upstream method with tag {0} contains no upstreams to race")]
+    #[error("`Hybrid` upstream method with tag {0} contains no upstreams to race")]
     EmptyHybrid(L),
 
     /// Error forwarded from `trust-dns-client`.

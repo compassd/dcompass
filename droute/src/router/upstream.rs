@@ -141,10 +141,14 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstreams<L
         let mut r: HashMap<L, Upstream<L>> = HashMap::new();
         let mut c = HashMap::new();
         for u in upstreams {
-            r.insert(u.tag.clone(), u);
-        }
-        for (k, v) in r.iter() {
-            c.insert(k.clone(), ClientCache::new(v).await?);
+            // Check if there is multiple definitions being passed in.
+            match r.get(&u.tag) {
+                Some(_) => return Err(DrouteError::MultipleDef(u.tag)),
+                None => {
+                    c.insert(u.tag.clone(), ClientCache::new(&u).await?);
+                    r.insert(u.tag.clone(), u);
+                }
+            };
         }
         let u = Self {
             upstreams: r,
