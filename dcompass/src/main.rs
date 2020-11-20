@@ -17,7 +17,7 @@ mod parser;
 mod worker;
 
 use self::{parser::Parsed, worker::worker};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dmatcher::{domain::Domain, Label};
 use droute::{error::DrouteError, router::Router};
 use log::*;
@@ -60,14 +60,24 @@ async fn main() -> Result<()> {
     let args: DcompassOpts = DcompassOpts::from_args();
 
     let config = if let Some(config_path) = args.config {
-        let mut file = File::open(config_path).await?;
+        let display_path = config_path.as_path().display();
+        let mut file = File::open(config_path.clone())
+            .await
+            .with_context(|| format!("Failed to open the file: {}", display_path))?;
         let mut config = String::new();
-        file.read_to_string(&mut config).await?;
+        file.read_to_string(&mut config)
+            .await
+            .with_context(|| format!("Failed to read from the file: {}", display_path))?;
         config
     } else {
         include_str!("../../configs/default.json").to_owned()
     };
-    let (router, addr, verbosity) = init(serde_json::from_str(&config)?).compat().await?;
+    let (router, addr, verbosity) = init(
+        serde_json::from_str(&config)
+            .with_context(|| "Failed to parse the configuration file".to_string())?,
+    )
+    .compat()
+    .await?;
 
     SimpleLogger::new().with_level(verbosity).init()?;
 
@@ -75,7 +85,11 @@ async fn main() -> Result<()> {
 
     let router = Arc::new(router);
     // Bind an UDP socket
-    let socket = Arc::new(UdpSocket::bind(addr).await?);
+    let socket = Arc::new(
+        UdpSocket::bind(addr)
+            .await
+            .with_context(|| format!("Failed to bind to {}", addr))?,
+    );
 
     loop {
         let mut buf = [0; 512];

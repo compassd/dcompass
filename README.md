@@ -11,6 +11,15 @@ Your DNS supercharged! A high-performance DNS server with rule matching/DoT/DoH 
 - Option to disable AAAA query for those having network with incomplete IPv6 supports
 - Written in pure Rust
 
+# Usages
+```
+dcompass -c path/to/config.json
+```
+
+# Packages
+1. GitHub Action periodic build is set up for target `linux-x86_64`, `linux-armv7`, `windows-x86_64`, `macos-x86_64`, running once a week. You can download artifacts at [here](https://github.com/LEXUGE/dcompass/actions?query=workflow%3A%22Build+dcompass+on+various+targets%22).
+2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+
 # Configuration
 Here is a simple configuration file with different fields:
 - `disable_ipv6`: Send back SOA response directly back for any AAAA queries
@@ -104,14 +113,6 @@ Different querying methods:
 - if `disable_ipv6` is set to `true`, a SOA message would be sent back every time we receive an `AAAA` query.
 - if one incoming DNS message contains more than one DNS query (which is impossible in wild), `default_tag` would be used to send the query.
 - If a cache record is expired, we return back the expired cache and start a background query to update the cache, if which failed, the expired cache would be still returned back and background query would start again for next query on the same domain. The cache only gets purged if the internal LRU cache system purges it. This ensures cache is always available while dcompass complies TTL.
-
-# Usages
-```
-dcompass -c path/to/config.json
-```
-
-# Packages
-Currently, only NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
 
 # Benchmark
 Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.

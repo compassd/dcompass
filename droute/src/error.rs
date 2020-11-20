@@ -48,7 +48,7 @@ pub enum DrouteError<L: Display + Debug> {
     ClientError(#[from] ClientError),
 
     /// Error forwarded from `std::io::Error`.
-    #[error(transparent)]
+    #[error("An I/O error encountered. Check files provided in configuration to ensure they exist and have the right permissions.")]
     IOError(#[from] std::io::Error),
 
     /// Error forwarded from `trust-dns-proto`.

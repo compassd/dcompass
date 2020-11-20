@@ -1,9 +1,14 @@
-on: [push, pull_request]
+on:
+  push:
+    tags-ignore:
+      - v*
+  pull_request:
 
 name: Check, test, and bench
 
 jobs:
   check:
+    if: ${{ !startsWith(github.event.head_commit.message, 'build:') }}
     name: Check
     runs-on: ubuntu-latest
     steps:
@@ -18,6 +23,7 @@ jobs:
           command: check
 
   test:
+    if: ${{ !startsWith(github.event.head_commit.message, 'build:') }}
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
@@ -32,6 +38,7 @@ jobs:
           command: test
 
   bench:
+    if: ${{ !startsWith(github.event.head_commit.message, 'build:') }}
     name: Benchmark
     runs-on: ubuntu-latest
     steps:
@@ -44,8 +51,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: bench
+          args: --no-run
 
   clippy:
+    if: ${{ !startsWith(github.event.head_commit.message, 'build:') }}
     name: Clippy
     runs-on: ubuntu-latest
     steps:
