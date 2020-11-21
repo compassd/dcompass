@@ -17,7 +17,7 @@ dcompass -c path/to/config.json
 ```
 
 # Packages
-1. GitHub Action periodic build is set up for target `linux-x86_64`, `linux-armv7`, `windows-x86_64`, `macos-x86_64`, running once a week. You can download artifacts at [here](https://github.com/LEXUGE/dcompass/actions?query=workflow%3A%22Build+dcompass+on+various+targets%22).
+1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl`. You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases). Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`).
 2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
 
 # Configuration
