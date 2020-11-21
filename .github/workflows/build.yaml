@@ -31,6 +31,14 @@ jobs:
       if: contains(matrix.target, 'musl')
       run: sudo apt-get install musl-tools
 
+    - name: Install aarch64 tools
+      if: contains(matrix.target, 'aarch64')
+      run: sudo apt-get install binutils-aarch64-linux-gnu
+
+    - name: Install arm tools
+      if: contains(matrix.target, 'arm')
+      run: sudo apt-get install binutils-arm-linux-gnueabihf
+
     - uses: actions/cache@v2
       with:
         path: |
@@ -54,8 +62,8 @@ jobs:
     - name: Build
       run: cross build --release --locked --target ${{ matrix.target }}
 
-    - name: Strip
-      if: ${{ !contains(matrix.target, 'arm') }}
+    - name: Strip x86
+      if: contains(matrix.target, 'x86')
       shell: bash
       run: |
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
@@ -64,6 +72,16 @@ jobs:
         else
           strip ./target/${{ matrix.target }}/release/dcompass
         fi
+
+    - name: Strip arm
+      if: contains(matrix.target, 'arm')
+      shell: bash
+      run: arm-linux-gnueabihf-strip ./target/${{ matrix.target }}/release/dcompass
+
+    - name: Strip aarch64
+      if: contains(matrix.target, 'aarch64')
+      shell: bash
+      run: aarch64-linux-gnu-strip ./target/${{ matrix.target }}/release/dcompass
 
     - name: Package
       shell: bash
