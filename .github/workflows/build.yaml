@@ -1,16 +1,46 @@
 name: "Build dcompass on various targets"
 on:
   push:
-    tags:
-      - v*
+  schedule:
+    - cron: '30 1 * * */3'
+
 jobs:
-  release:
+  create-release:
+    if: (startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.current_time_dashes.outputs.formattedTime }}
+    steps:
+      - name: Get current time
+        uses: 1466587594/get-current-time@v2
+        id: current_time_dashes
+        with:
+          format: YYYY-MM-DD
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: build-${{ steps.current_time_dashes.outputs.formattedTime }}
+          release_name: Automated build ${{ steps.current_time_dashes.outputs.formattedTime }}
+
+  build-release:
+    name: Build dcompass for ${{ matrix.os }}
+    if: (startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, mips-unknown-linux-musl, mipsel-unknown-linux-musl]
         include:
           - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: mips-unknown-linux-musl
+            os: ubuntu-latest
+          - target: mipsel-unknown-linux-musl
             os: ubuntu-latest
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
@@ -22,6 +52,7 @@ jobs:
             os: ubuntu-latest
           - target: x86_64-apple-darwin
             os: macos-latest
+
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout
@@ -38,6 +69,14 @@ jobs:
     - name: Install arm tools
       if: contains(matrix.target, 'arm')
       run: sudo apt-get install binutils-arm-linux-gnueabihf
+
+    - name: Install mips tools
+      if: contains(matrix.target, 'mips')
+      run: sudo apt-get install binutils-mips-linux-gnu
+
+    - name: Install mipsel tools
+      if: contains(matrix.target, 'mipsel')
+      run: sudo apt-get install binutils-mipsel-linux-gnu
 
     - uses: actions/cache@v2
       with:
@@ -83,6 +122,16 @@ jobs:
       shell: bash
       run: aarch64-linux-gnu-strip ./target/${{ matrix.target }}/release/dcompass
 
+    - name: Strip mips
+      if: contains(matrix.target, 'mips')
+      shell: bash
+      run: mips-linux-gnu-strip ./target/${{ matrix.target }}/release/dcompass
+
+    - name: Strip mipsel
+      if: contains(matrix.target, 'mipsel')
+      shell: bash
+      run: mipsel-linux-gnu-strip ./target/${{ matrix.target }}/release/dcompass
+
     - name: Package
       shell: bash
       run: |
@@ -97,5 +146,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'
+        tag_name: build-${{ needs.create-release.outputs.date }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
