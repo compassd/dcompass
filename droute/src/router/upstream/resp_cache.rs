@@ -21,7 +21,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use trust_dns_client::op::{Message, Query};
+use trust_dns_client::op::{Message, Query, ResponseCode};
 
 struct CacheRecord {
     created_instant: Instant,
@@ -73,10 +73,14 @@ impl RespCache {
     }
 
     pub fn put(&self, msg: Message) {
-        self.cache
-            .lock()
-            .unwrap()
-            .put(msg.queries().to_vec(), CacheRecord::new(msg));
+        if msg.response_code() == ResponseCode::NoError {
+            self.cache
+                .lock()
+                .unwrap()
+                .put(msg.queries().to_vec(), CacheRecord::new(msg));
+        } else {
+            warn!("Not caching erroneous upstream response.");
+        };
     }
 
     pub fn get(&self, msg: &Message) -> Option<RecordStatus> {
