@@ -10,13 +10,13 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     outputs:
-      date: ${{ steps.current_time_dashes.outputs.formattedTime }}
+      date: ${{ steps.current_time.outputs.formattedTime }}
     steps:
       - name: Get current time
         uses: 1466587594/get-current-time@v2
-        id: current_time_dashes
+        id: current_time
         with:
-          format: YYYY-MM-DD
+          format: YYYYMMDDHH
 
       - name: Create release
         id: create_release
@@ -24,8 +24,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: build-${{ steps.current_time_dashes.outputs.formattedTime }}
-          release_name: Automated build ${{ steps.current_time_dashes.outputs.formattedTime }}
+          tag_name: build-${{ steps.current_time.outputs.formattedTime }}
+          release_name: Automated build ${{ steps.current_time.outputs.formattedTime }}
 
   build-release:
     name: Build dcompass for ${{ matrix.target }}

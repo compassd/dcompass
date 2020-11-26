@@ -16,14 +16,10 @@
 //! Rules and other related concepts.
 
 use super::matcher::Matcher;
-use crate::error::{DrouteError, Result};
-use hashbrown::HashSet;
+use crate::error::Result;
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{Debug, Display},
-    hash::Hash,
-};
+use std::fmt::{Debug, Display};
 use tokio::{fs::File, prelude::*};
 
 /// Input struct for `Filter`. Each `Rule<L>` defines a rule file where `dst` is the destination of queries matching the rule and `path` is the path to where the rule file is located.
@@ -38,22 +34,19 @@ pub struct Rule<L> {
 pub(crate) struct Filter<L, M> {
     default_tag: L,
     matcher: M,
-    dsts: HashSet<L>,
+    dsts: Vec<L>,
 }
 
-impl<L: Display + Debug + Clone + Eq + Hash, M: Matcher<Label = L>> Filter<L, M> {
+impl<L: Display + Debug + Clone, M: Matcher<Label = L>> Filter<L, M> {
     pub async fn new(default_tag: L, rules: Vec<Rule<L>>) -> Result<L, Self> {
         let mut matcher = M::new();
-        let mut dsts = HashSet::new();
+        let mut dsts = vec![];
         for r in rules {
             let mut file = File::open(r.path).await?;
             let mut data = String::new();
             file.read_to_string(&mut data).await?;
             matcher.insert_multi(&data, &r.dst);
-            match dsts.get(&r.dst) {
-                Some(_) => return Err(DrouteError::MultipleDef(r.dst)),
-                None => dsts.insert(r.dst),
-            };
+            dsts.push(r.dst);
         }
 
         Ok(Self {
@@ -63,8 +56,8 @@ impl<L: Display + Debug + Clone + Eq + Hash, M: Matcher<Label = L>> Filter<L, M>
         })
     }
 
-    pub fn get_dsts(&self) -> impl Iterator<Item = &L> {
-        self.dsts.iter()
+    pub fn get_dsts(&self) -> &[L] {
+        &self.dsts
     }
 
     pub fn default_tag(&self) -> &L {

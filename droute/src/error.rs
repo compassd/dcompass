@@ -30,9 +30,7 @@ pub enum DrouteError<L: Display + Debug> {
     MissingTag(L),
 
     /// There are multiple definitions of rules of the same destination or upstreams of the same tag name.
-    #[error(
-        "Multiple defintions found for tag/dst `{0}` either in `rules` or `upstreams` sections"
-    )]
+    #[error("Multiple defintions found for tag/dst `{0}` in `rules`")]
     MultipleDef(L),
 
     /// Hybrid definition forms a chain, which is prohibited
