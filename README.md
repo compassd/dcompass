@@ -1,4 +1,5 @@
 # dcompass
+![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)
 Your DNS supercharged! A high-performance DNS server with rule matching/DoT/DoH functionality built-in.
 
 # Features
