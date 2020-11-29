@@ -28,7 +28,7 @@ use std::{
 use tokio::net::{TcpStream as TokioTcpStream, UdpSocket};
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 use trust_dns_https::HttpsClientStreamBuilder;
-use trust_dns_proto::iocompat::AsyncIo02As03;
+use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
 const ALPN_H2: &[u8] = b"h2";
@@ -139,7 +139,7 @@ impl ClientCache {
                 let stream = HttpsClientStreamBuilder::with_client_config(
                     Self::create_client_config(no_sni),
                 )
-                .build::<AsyncIo02As03<TokioTcpStream>>(*addr, name.to_string());
+                .build::<AsyncIoTokioAsStd<TokioTcpStream>>(*addr, name.to_string());
                 let (client, bg) = AsyncClient::connect(stream).await?;
                 tokio::spawn(bg);
                 client

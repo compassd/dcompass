@@ -25,7 +25,6 @@ use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc};
 use structopt::StructOpt;
 use tokio::{fs::File, net::UdpSocket, prelude::*};
-use tokio_compat_02::FutureExt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -76,7 +75,6 @@ async fn main() -> Result<()> {
         serde_json::from_str(&config)
             .with_context(|| "Failed to parse the configuration file".to_string())?,
     )
-    .compat()
     .await?;
 
     SimpleLogger::new().with_level(verbosity).init()?;

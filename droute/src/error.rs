@@ -17,6 +17,7 @@
 
 use std::fmt::{Debug, Display};
 use thiserror::Error;
+use tokio::time::error::Elapsed;
 use trust_dns_client::error::ClientError;
 use trust_dns_proto::error::ProtoError;
 
@@ -53,7 +54,7 @@ pub enum DrouteError<L: Display + Debug> {
     #[error(transparent)]
     ProtoError(#[from] ProtoError),
 
-    /// Error forwarded from `tokio::time`. This indicates a timeout probably.
+    /// Error forwarded from `tokio::time::error`. This indicates a timeout probably.
     #[error(transparent)]
-    TimeError(#[from] tokio::time::Elapsed),
+    TimeError(#[from] Elapsed),
 }

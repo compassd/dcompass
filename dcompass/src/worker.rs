@@ -23,7 +23,6 @@ use std::{
     sync::Arc,
 };
 use tokio::net::UdpSocket;
-use tokio_compat_02::FutureExt;
 use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
@@ -40,7 +39,7 @@ where
 
     info!("Received message: {:?}", request);
     socket
-        .send_to(&router.resolve(request).compat().await?.to_vec()?, src)
+        .send_to(&router.resolve(request).await?.to_vec()?, src)
         .await?;
 
     info!("Response completed. Sent back to {} successfully.", src);

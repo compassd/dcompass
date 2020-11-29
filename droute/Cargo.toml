@@ -15,14 +15,14 @@ trust-dns-client = { version = "0.20.0-alpha.3", default-features = false }
 trust-dns-https = "0.20.0-alpha.3"
 trust-dns-proto = "0.20.0-alpha.3"
 trust-dns-rustls = "0.20.0-alpha.3"
-rustls = {version = "^0.18", features = ["dangerous_configuration"] }
+rustls = {version = "^0.19", features = ["dangerous_configuration"] }
 async-trait = "^0.1"
 webpki-roots = "^0.20"
 webpki = "^0.21"
 
 # Async-aware dependencies
 futures = "^0.3"
-tokio = { version = "^0.2", features = ["rt-threaded", "udp", "tcp", "fs"]}
+tokio = { version = "^0.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
 # Logic-needed dependencies
 hashbrown = "^0.9"
