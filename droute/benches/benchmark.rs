@@ -14,6 +14,21 @@ use trust_dns_proto::{
     rr::{record_type::RecordType, Name},
 };
 
+const BUILD: fn(usize) -> Router<Label, Domain<Label>> = |c| {
+    block_on(Router::new(
+        vec![Upstream {
+            timeout: 2,
+            method: Udp("127.0.0.1:53533".parse().unwrap()),
+            tag: "mock".into(),
+        }],
+        true,
+        c,
+        "mock".into(),
+        vec![],
+    ))
+    .unwrap()
+};
+
 lazy_static! {
     static ref DUMMY_MSG: Vec<u8> = Message::new().to_vec().unwrap();
     static ref QUERY: Message = {
@@ -55,7 +70,7 @@ impl Server {
     }
 }
 
-fn bench_match(c: &mut Criterion) {
+fn bench_resolve(c: &mut Criterion) {
     let socket = block_on(UdpSocket::bind(&"127.0.0.1:53533")).unwrap();
     let server = Server {
         socket,
@@ -64,23 +79,18 @@ fn bench_match(c: &mut Criterion) {
     };
     thread::spawn(|| block_on(server.run()));
 
-    let router: Router<Label, Domain<Label>> = block_on(Router::new(
-        vec![Upstream {
-            timeout: 2,
-            method: Udp("127.0.0.1:53533".parse().unwrap()),
-            tag: "mock".into(),
-        }],
-        true,
-        4096,
-        "mock".into(),
-        vec![],
-    ))
-    .unwrap();
+    let router = BUILD(0);
 
-    c.bench_function("resolve", |b| {
+    let cached_router = BUILD(4096);
+
+    c.bench_function("non_cache_resolve", |b| {
         b.iter(|| assert_ok!(block_on(router.resolve(QUERY.clone()))))
+    });
+
+    c.bench_function("cached_resolve", |b| {
+        b.iter(|| assert_ok!(block_on(cached_router.resolve(QUERY.clone()))))
     });
 }
 
-criterion_group!(benches, bench_match);
+criterion_group!(benches, bench_resolve);
 criterion_main!(benches);

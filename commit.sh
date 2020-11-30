@@ -7,6 +7,7 @@ cargo fmt -- --check
 cargo build
 cargo test
 cargo clippy
+cargo bench --no-run
 
 echo -n "Adding to git..."
 git add --all
