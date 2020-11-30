@@ -19,6 +19,7 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 serde_json = "^1.0"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 structopt = "^0.3"
+ratelimit = "^0.4"
 
 [dev-dependencies]
 tokio-test = "^0.3"

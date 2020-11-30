@@ -114,7 +114,7 @@ where
                 self.filter.get_upstream(q.name().to_utf8().as_str())
             }
         } else {
-            warn!("DNS message contains multiple queries, using default_tag to route. IPv6 disable functionality is NOT taking effect.");
+            warn!("DNS message contains multiple/zero querie(s), using default_tag to route. IPv6 disable functionality is NOT taking effect.");
             self.filter.default_tag()
         };
         Ok(match self.upstreams.resolve(tag, &msg).await {

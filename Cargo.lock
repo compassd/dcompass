@@ -288,6 +288,7 @@ dependencies = [
  "droute",
  "futures",
  "log",
+ "ratelimit",
  "serde",
  "serde_json",
  "simple_logger",
@@ -310,6 +311,7 @@ name = "droute"
 version = "0.1.0-alpha.1"
 dependencies = [
  "async-trait",
+ "criterion",
  "dmatcher",
  "futures",
  "hashbrown",
@@ -320,6 +322,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
+ "tokio-test",
  "trust-dns-client",
  "trust-dns-https",
  "trust-dns-proto",
@@ -907,6 +910,12 @@ checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core",
 ]
+
+[[package]]
+name = "ratelimit"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c4777eb47471c2a42bee8b553b22b8e5c496f657dc6f8b8e29bd69662f31e7e"
 
 [[package]]
 name = "rayon"

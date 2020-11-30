@@ -22,7 +22,7 @@ use dmatcher::{domain::Domain, Label};
 use droute::{error::DrouteError, router::Router};
 use log::*;
 use simple_logger::SimpleLogger;
-use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
 use structopt::StructOpt;
 use tokio::{fs::File, net::UdpSocket, prelude::*};
 
@@ -39,7 +39,7 @@ struct DcompassOpts {
 
 async fn init(
     p: Parsed<Label>,
-) -> StdResult<(Router<Label, Domain<Label>>, SocketAddr, LevelFilter), DrouteError<Label>> {
+) -> StdResult<(Router<Label, Domain<Label>>, SocketAddr, LevelFilter, u32), DrouteError<Label>> {
     Ok((
         Router::new(
             p.upstreams,
@@ -51,6 +51,7 @@ async fn init(
         .await?,
         p.address,
         p.verbosity,
+        p.ratelimit,
     ))
 }
 
@@ -71,13 +72,19 @@ async fn main() -> Result<()> {
     } else {
         include_str!("../../configs/default.json").to_owned()
     };
-    let (router, addr, verbosity) = init(
+    let (router, addr, verbosity, ratelimit) = init(
         serde_json::from_str(&config)
             .with_context(|| "Failed to parse the configuration file".to_string())?,
     )
     .await?;
 
     SimpleLogger::new().with_level(verbosity).init()?;
+
+    let mut ratelimit = ratelimit::Builder::new()
+        .capacity(1500) // TODO: to be determined if this is a proper value
+        .quantum(ratelimit)
+        .interval(Duration::new(1, 0)) //add quantum tokens every 1 second
+        .build();
 
     info!("Dcompass ready!");
 
@@ -101,6 +108,8 @@ async fn main() -> Result<()> {
                 Err(e) => warn!("Handling query failed: {}", e),
             }
         });
+
+        ratelimit.wait();
     }
 }
 

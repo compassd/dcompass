@@ -32,3 +32,11 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 lru = "^0.6"
 thiserror = "^1.0"
 lazy_static = "^1.0"
+
+[dev-dependencies]
+tokio-test = "^0.3"
+criterion = "^0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

@@ -18,6 +18,8 @@ use log::LevelFilter;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
+pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;
+
 #[derive(Deserialize, Clone)]
 #[serde(remote = "LevelFilter")]
 enum LevelFilterDef {
@@ -39,4 +41,7 @@ pub struct Parsed<L> {
     pub cache_size: usize,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,
+    // Set default ratelimit to maximum, resulting in non-blocking (non-throttling) mode forever as the burst time is infinity.
+    #[serde(default = "GET_U32_MAX")]
+    pub ratelimit: u32,
 }
