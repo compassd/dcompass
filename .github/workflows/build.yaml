@@ -16,8 +16,8 @@ jobs:
         uses: 1466587594/get-current-time@v2
         id: current_time
         with:
-          format: YYYYMMDDHH
-
+          format: YYYYMMDD-HHmm
+          utcOffset: "+08:00"
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
