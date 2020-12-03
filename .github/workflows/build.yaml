@@ -34,10 +34,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-freebsd, x86_64-unknown-netbsd]
+        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd]
         include:
-          - target: x86_64-unknown-freebsd
-            os: ubuntu-latest
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl
