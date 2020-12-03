@@ -71,7 +71,10 @@ impl ClientCache {
     {
         Ok(match self {
             Self::Https(q) | Self::Tls(q) => {
-                {
+                // Using closed TCP socket seems to be an fatal issue on Windows, see https://github.com/LEXUGE/dcompass/issues/2.
+                (if cfg!(windows) {
+                    None
+                } else {
                     // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
                     let mut q = q.lock().unwrap();
                     if q.is_empty() {
@@ -81,7 +84,7 @@ impl ClientCache {
                         // queue is not empty
                         Some(q.pop_front().unwrap())
                     }
-                }
+                })
                 .unwrap_or(Self::create_client(u).await?)
             }
             // For UDP connections, it is pointless for us to cache as every `send` query would create a new socket. If we cache and pop it out, there would be endless client creation, resulting in rather low performance. (It takes me two days to realize)
@@ -93,8 +96,10 @@ impl ClientCache {
     pub fn return_back(&self, c: AsyncClient) {
         match self {
             Self::Https(q) | Self::Tls(q) => {
-                let mut q = q.lock().unwrap();
-                q.push_back(c);
+                if !cfg!(windows) {
+                    let mut q = q.lock().unwrap();
+                    q.push_back(c);
+                }
             }
             Self::Udp(_) => {}
             Self::Placeholder => unreachable!(),
