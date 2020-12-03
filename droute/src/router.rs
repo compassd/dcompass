@@ -127,3 +127,104 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        upstream::{Upstream, UpstreamKind::Udp},
+        Router,
+    };
+    use dmatcher::{domain::Domain, Label};
+    use lazy_static::lazy_static;
+    use std::net::SocketAddr;
+    use tokio::net::UdpSocket;
+    use trust_dns_client::op::Message;
+    use trust_dns_proto::{
+        op::{header::MessageType, query::Query},
+        rr::{record_data::RData, record_type::RecordType, resource::Record, Name},
+    };
+
+    lazy_static! {
+        static ref DUMMY_MSG: Message = {
+            let mut msg = Message::new();
+            msg.add_answer(Record::from_rdata(
+                Name::from_utf8("www.apple.com").unwrap(),
+                32,
+                RData::A("1.1.1.1".parse().unwrap()),
+            ));
+            msg.set_message_type(MessageType::Response);
+            msg
+        };
+        static ref QUERY: Message = {
+            let mut msg = Message::new();
+            msg.add_query(Query::query(
+                Name::from_utf8("www.apple.com").unwrap(),
+                RecordType::A,
+            ));
+            msg
+        };
+    }
+
+    struct Server {
+        socket: UdpSocket,
+        buf: Vec<u8>,
+        to_send: Option<SocketAddr>,
+    }
+
+    impl Server {
+        async fn run(self) -> Result<(), std::io::Error> {
+            let Server {
+                socket,
+                mut buf,
+                mut to_send,
+            } = self;
+
+            loop {
+                // First we check to see if there's a message we need to echo back.
+                // If so then we try to send it back to the original source, waiting
+                // until it's writable and we're able to do so.
+                if let Some(peer) = to_send {
+                    // ID is required to match for trust-dns-client to accept response
+                    let id = Message::from_vec(&buf).unwrap().id();
+                    socket
+                        .send_to(&DUMMY_MSG.clone().set_id(id).to_vec().unwrap(), &peer)
+                        .await?;
+                }
+
+                // If we're here then `to_send` is `None`, so we take a look for the
+                // next message we're going to echo back.
+                to_send = Some(socket.recv_from(&mut buf).await?.1);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve() {
+        let socket = UdpSocket::bind(&"127.0.0.1:53533").await.unwrap();
+        let server = Server {
+            socket,
+            buf: vec![0; 1024],
+            to_send: None,
+        };
+        tokio::spawn(server.run());
+
+        let router: Router<Label, Domain<Label>> = Router::new(
+            vec![Upstream {
+                timeout: 10,
+                method: Udp("127.0.0.1:53533".parse().unwrap()),
+                tag: "mock".into(),
+            }],
+            true,
+            0,
+            "mock".into(),
+            vec![],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            router.resolve(QUERY.clone()).await.unwrap().answers(),
+            DUMMY_MSG.answers()
+        );
+    }
+}

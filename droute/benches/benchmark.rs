@@ -1,3 +1,5 @@
+// TODO: Currently, criterion doesn't support async benchmark, which unables us to make actual connection.
+// Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
 use dmatcher::{domain::Domain, Label};
 use droute::router::{
