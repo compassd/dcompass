@@ -42,7 +42,7 @@ where
         .send_to(&router.resolve(request).await?.to_vec()?, src)
         .await
         .unwrap_or_else(|e| {
-            error!("Failed to send back response: {}", e);
+            warn!("Failed to send back response: {}", e);
             0
         });
 

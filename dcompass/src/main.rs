@@ -102,7 +102,7 @@ async fn main() -> Result<()> {
         let (_, src) = match socket.recv_from(&mut buf).await {
             Ok(r) => r,
             Err(e) => {
-                error!("Failed to receive query: {}", e);
+                warn!("Failed to receive query: {}", e);
                 continue;
             }
         };
