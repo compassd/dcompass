@@ -40,7 +40,11 @@ where
     info!("Received message: {:?}", request);
     socket
         .send_to(&router.resolve(request).await?.to_vec()?, src)
-        .await?;
+        .await
+        .unwrap_or_else(|e| {
+            error!("Failed to send back response: {}", e);
+            0
+        });
 
     info!("Response completed. Sent back to {} successfully.", src);
 

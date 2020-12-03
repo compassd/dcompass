@@ -98,7 +98,14 @@ async fn main() -> Result<()> {
 
     loop {
         let mut buf = [0; 512];
-        let (_, src) = socket.recv_from(&mut buf).await?;
+        // On windows, some applications may go away after they got their first response, resulting in a broken pipe, we should discard errors on receiving/sending messages.
+        let (_, src) = match socket.recv_from(&mut buf).await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Failed to receive query: {}", e);
+                continue;
+            }
+        };
 
         let router = router.clone();
         let socket = socket.clone();
