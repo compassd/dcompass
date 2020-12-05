@@ -42,14 +42,18 @@ pub enum TableError {
     ActionError(#[from] ActionError),
 
     /// Rules are defined recursively, which is prohibited.
-    #[error("The `rule` block with tag `{0}` is being recursively called in the `table` section.")]
+    #[error("The `rule` block with tag `{0}` is being recursively called in the `table` section")]
     RuleRecursion(Label),
 
     /// A rule is not found.
     #[error(
-        "Rule with tag `{0}` is not found in the `table` section. Note that tag `start` is required."
+        "Rule with tag `{0}` is not found in the `table` section. Note that tag `start` is required"
     )]
     UndefinedTag(Label),
+
+    /// Multiple rules with the same tag name have been found.
+    #[error("Multiple defintions found for tag `{0}` in the `rules` section")]
+    MultipleDef(Label),
 }
 
 pub struct State {
@@ -66,7 +70,10 @@ impl Table {
     pub async fn new(rules: Vec<ParsedRule>) -> Result<Self> {
         let mut table = HashMap::new();
         for r in rules {
-            table.insert(r.tag.clone(), Rule::new(r).await?);
+            match table.get(&r.tag) {
+                Some(_) => return Err(TableError::MultipleDef(r.tag)),
+                None => table.insert(r.tag.clone(), Rule::new(r).await?),
+            };
         }
         let mut used = HashSet::new();
         Self::traverse(&table, &mut HashSet::new(), &mut used, &"start".into())?;
@@ -144,6 +151,31 @@ mod tests {
         .unwrap()
         {
             TableError::RuleRecursion(_) => {}
+            e => panic!("Not the right error type: {}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn fail_multiple_defs() {
+        match Table::new(vec![
+            ParsedRule {
+                tag: "start".into(),
+                matcher: ParsedMatcher::Any,
+                on_match: (ActQuery("mock".into()), "end".into()),
+                no_match: (Skip, "end".into()),
+            },
+            ParsedRule {
+                tag: "start".into(),
+                matcher: ParsedMatcher::Any,
+                on_match: (ActQuery("mock".into()), "end".into()),
+                no_match: (Skip, "end".into()),
+            },
+        ])
+        .await
+        .err()
+        .unwrap()
+        {
+            TableError::MultipleDef(_) => {}
             e => panic!("Not the right error type: {}", e),
         }
     }

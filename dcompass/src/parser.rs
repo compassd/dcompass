@@ -21,6 +21,7 @@ use std::net::SocketAddr;
 pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;
 
 #[derive(Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 #[serde(remote = "LevelFilter")]
 enum LevelFilterDef {
     Off,

@@ -30,15 +30,15 @@ pub enum UpstreamError {
     MissingTag(Label),
 
     /// There are multiple definitions of rules of the same destination or upstreams of the same tag name.
-    #[error("Multiple defintions found for tag/dst `{0}` in `rules`")]
+    #[error("Multiple defintions found for tag `{0}` in the `upstreams`")]
     MultipleDef(Label),
 
     /// Hybrid definition forms a chain, which is prohibited
-    #[error("You cannot recursively define `Hybrid` method. The `Hybrid` method that contains the destination to be recursively called: {0}")]
+    #[error("You cannot recursively define `hybrid` method. The `hybrid` method that contains the destination to be recursively called: {0}")]
     HybridRecursion(Label),
 
     /// There is no destinations in hybrid's destination list.
-    #[error("`Hybrid` upstream method with tag {0} contains no upstreams to race")]
+    #[error("`hybrid` upstream method with tag {0} contains no upstreams to race")]
     EmptyHybrid(Label),
 
     /// Error forwarded from `trust-dns-client`.

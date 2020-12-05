@@ -1,9 +1,9 @@
 # dcompass
 ![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)  
-Your DNS supercharged! A high-performance DNS server with rule matching/DoT/DoH functionality built-in.
+Your DNS supercharged! A high-performance DNS server with freestyle routing scheme support, DoT/DoH functionalities built-in.
 
 # Features
-- Fast (~760 qps)
+- Fast (~2500 qps in wild where upstream perf is about the same)
 - Fearless hot switch between network environments
 - Freestyle routing rules that are easy to compose and maintain
 - DoH/DoT/UDP supports
@@ -12,72 +12,113 @@ Your DNS supercharged! A high-performance DNS server with rule matching/DoT/DoH 
 - Option to disable AAAA query for those having network with incomplete IPv6 supports
 - Written in pure Rust
 
+# Notice
+Breaking changes happened as new routing scheme has been adopted, see configuration section below to adapt.
+
 # Usages
 ```
 dcompass -c path/to/config.json
 ```
 
 # Packages
-1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl`. You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases). Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`).
+1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases). Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`).
 2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
 
 # Configuration
-Here is a simple configuration file with different fields:
-- `disable_ipv6`: Send back SOA response directly back for any AAAA queries
+Configuration file contains different fields:
 - `cache_size`: Size of the DNS cache system. Larger size implies higher cache capacity (use LRU algorithm as the backend).
-- `verbosity`: Log level filter. Possible values are `Trace`, `Debug`, `Info`, `Warn`, `Error`, `Off`.
+- `verbosity`: Log level filter. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
 - `address`: The address to bind on.
-- `default_tag`: The tag of the upstream to route when no rules match.
-- `rules`: A set of filtering rules that each has a `path` to the rule list (currently only domain lists are supported) and `dst` which is the tag of the upstream to route if it matches this rule. If one domain appears on multiple lists, the latter list and its corresponding `dst` would override the former ones.
+- `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`
 - `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
 
+Different actions:
+- `skip`: Do nothing.
+- `disable`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
+- `query(tag)`: Send query via upstream with specified tag.
+
+Different matchers: (More matchers to come, including `cidr`, `geoip`)
+- `any`: Matches anything.
+- `domain(list of file paths)`: Matches domain in specified domain lists
+- `qtype(list of record types)`: Matches record type specified.
+
 Different querying methods:
-- `Https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
-- `Tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
-- `Udp`: Typical UDP querying method. `addr` is the remote server address.
-- `Hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `Hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
+- `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
+- `tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
+- `udp`: Typical UDP querying method. `addr` is the remote server address.
+- `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
+
+Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching:
 ```json
 {
-    "disable_ipv6": true,
+    "verbosity": "info",
     "cache_size": 4096,
-    "verbosity": "Info",
-    "address": "0.0.0.0:53",
-    "default_tag": "secure",
-    "rules": [
+    "address": "0.0.0.0:2053",
+    "table": [
         {
-            "path": "PATH TO DOMAIN LIST",
-            "dst": "domestic"
+            "tag": "start",
+            "if": {
+                "qtype": [
+                    "AAAA"
+                ]
+            },
+            "then": [
+                "disable",
+                "end"
+            ],
+            "else": [
+                "skip",
+                "dispatch"
+            ]
+        },
+        {
+            "tag": "dispatch",
+            "if": {
+                "domain": [
+                    "PATH TO DOMAIN LIST"
+                ]
+            },
+            "then": [
+                {
+                    "query": "domestic"
+                },
+                "end"
+            ],
+            "else": [
+                {
+                    "query": "secure"
+                },
+                "end"
+            ]
         }
     ],
     "upstreams": [
         {
             "timeout": 2,
             "method": {
-                "Udp": "114.114.114.114:53"
+                "udp": "114.114.114.114:53"
             },
-            "tag": "114dns"
+            "tag": "114DNS"
         },
         {
             "timeout": 2,
             "method": {
-                "Udp": "223.5.5.5:53"
+                "udp": "223.6.6.6:53"
             },
-            "tag": "ali"
+            "tag": "Ali"
         },
         {
-            "timeout": 3,
             "method": {
-                "Hybrid": [
-                    "114dns",
-                    "ali"
+                "hybrid": [
+                    "114DNS",
+                    "Ali"
                 ]
             },
             "tag": "domestic"
         },
         {
-            "timeout": 4,
             "method": {
-                "Https": {
+                "https": {
                     "no_sni": true,
                     "name": "cloudflare-dns.com",
                     "addr": "1.1.1.1:443"
@@ -86,9 +127,8 @@ Different querying methods:
             "tag": "cloudflare"
         },
         {
-            "timeout": 4,
             "method": {
-                "Https": {
+                "https": {
                     "no_sni": true,
                     "name": "dns.quad9.net",
                     "addr": "9.9.9.9:443"
@@ -97,9 +137,8 @@ Different querying methods:
             "tag": "quad9"
         },
         {
-            "timeout": 5,
             "method": {
-                "Hybrid": [
+                "hybrid": [
                     "cloudflare",
                     "quad9"
                 ]
@@ -111,11 +150,29 @@ Different querying methods:
 ```
 
 # Behind the scene details
-- if `disable_ipv6` is set to `true`, a SOA message would be sent back every time we receive an `AAAA` query.
-- if one incoming DNS message contains more than one DNS query (which is impossible in wild), `default_tag` would be used to send the query.
+- if one incoming DNS message contains more than one DNS query (which is impossible in wild), matchers only care about the first one.
 - If a cache record is expired, we return back the expired cache and start a background query to update the cache, if which failed, the expired cache would be still returned back and background query would start again for next query on the same domain. The cache only gets purged if the internal LRU cache system purges it. This ensures cache is always available while dcompass complies TTL.
 
 # Benchmark
+Mocked benchmark:
+```
+non_cache_resolve       time:   [10.624 us 10.650 us 10.679 us]
+                        change: [-0.9733% -0.0478% +0.8159%] (p = 0.93 > 0.05)
+                        No change in performance detected.
+Found 12 outliers among 100 measurements (12.00%)
+  1 (1.00%) low mild
+  6 (6.00%) high mild
+  5 (5.00%) high severe
+
+cached_resolve          time:   [10.712 us 10.748 us 10.785 us]
+                        change: [-5.2060% -4.1827% -3.1967%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 10 outliers among 100 measurements (10.00%)
+  2 (2.00%) low mild
+  7 (7.00%) high mild
+  1 (1.00%) high severe
+```
+
 Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.
 - On `i7-10710U`, dnsperf gets out `~760 qps` with `0.12s avg latency` and `0.27% ServFail` rate for a test of `15004` queries.
 - As a reference SmartDNS gets `~640 qps` for the same test on the same hardware.
