@@ -13,8 +13,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-//! This is a library providing a set of domain and IP address matching algorithms.
+use super::{
+    super::super::{super::upstreams::Upstreams, parsed::ParsedAction, State},
+    Action, Result,
+};
+use crate::Label;
+use async_trait::async_trait;
 
-pub mod domain;
+pub(crate) struct Skip;
+
+impl Skip {
+    pub fn new(spec: ParsedAction) -> Self {
+        match spec {
+            ParsedAction::Skip => Self,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[async_trait]
+impl Action for Skip {
+    async fn act(&self, _: &mut State, _: &Upstreams) -> Result<()> {
+        Ok(())
+    }
+
+    fn used_upstream(&self) -> Option<Label> {
+        None
+    }
+}

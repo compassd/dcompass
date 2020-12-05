@@ -13,8 +13,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-//! This is a library providing a set of domain and IP address matching algorithms.
+pub mod disable;
+pub mod query;
+pub mod skip;
 
-pub mod domain;
+use super::super::{
+    super::upstreams::{error::UpstreamError, Upstreams},
+    State,
+};
+use crate::Label;
+use async_trait::async_trait;
+use std::fmt::Debug;
+use thiserror::Error;
+
+type Result<T> = std::result::Result<T, ActionError>;
+
+#[derive(Error, Debug)]
+pub enum ActionError {
+    /// Error forwarded from `std::io::Error`.
+    #[error(transparent)]
+    UpstreamError(#[from] UpstreamError),
+}
+
+#[async_trait]
+// Only visible in `table`.
+pub(in super::super) trait Action: Sync + Send {
+    async fn act(&self, state: &mut State, upstreams: &Upstreams) -> Result<()>;
+
+    fn used_upstream(&self) -> Option<Label>;
+}

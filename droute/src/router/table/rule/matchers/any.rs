@@ -13,8 +13,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-//! This is a library providing a set of domain and IP address matching algorithms.
+use super::Matcher;
+use trust_dns_proto::{op::query::Query, rr::resource::Record};
 
-pub mod domain;
+pub struct Any;
+
+impl Any {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Matcher for Any {
+    fn matches(&self, _: &[Query], _: &[Record]) -> bool {
+        true
+    }
+}

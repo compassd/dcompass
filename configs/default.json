@@ -1,15 +1,24 @@
 {
-    "disable_ipv6": true,
     "verbosity": "Info",
     "cache_size": 4096,
     "address": "0.0.0.0:2053",
-    "default_tag": "secure",
-    "rules": [],
+    "table": [
+        {
+            "tag": "start",
+            "if": "any",
+            "then": [
+                {
+                    "query": "secure"
+                },
+                "end"
+            ]
+        }
+    ],
     "upstreams": [
-	{
+        {
             "timeout": 4,
             "method": {
-                "Tls": {
+                "tls": {
                     "no_sni": true,
                     "name": "dns.quad9.net",
                     "addr": "9.9.9.9:853"
@@ -20,7 +29,7 @@
         {
             "timeout": 4,
             "method": {
-                "Https": {
+                "https": {
                     "no_sni": true,
                     "name": "cloudflare-dns.com",
                     "addr": "1.1.1.1:443"
@@ -30,9 +39,9 @@
         },
         {
             "method": {
-                "Hybrid": [
+                "hybrid": [
                     "cloudflare",
-		    "quad9-tls"
+                    "quad9-tls"
                 ]
             },
             "tag": "secure"

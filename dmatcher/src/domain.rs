@@ -23,25 +23,23 @@
 //! # Getting Started
 //!
 //! ```
-//! use dmatcher::{domain::Domain, Label};
-//! let mut matcher = Domain::<Label>::new();
-//! matcher.insert("apple.com", &"global".into());
-//! assert_eq!(matcher.matches("store.apple.com"), Some(&"global".into()));
+//! use dmatcher::domain::Domain;
+//! let mut matcher = Domain::new();
+//! matcher.insert("apple.com");
+//! assert_eq!(matcher.matches("store.apple.com"), true);
 //! ```
 
 use hashbrown::HashMap;
-use std::{hash::Hash, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Clone)]
-struct LevelNode<L> {
-    dst: Option<L>,
-    next_lvs: HashMap<Arc<str>, LevelNode<L>>,
+struct LevelNode {
+    next_lvs: HashMap<Arc<str>, LevelNode>,
 }
 
-impl<L> LevelNode<L> {
+impl LevelNode {
     fn new() -> Self {
         Self {
-            dst: None,
             next_lvs: HashMap::new(),
         }
     }
@@ -49,17 +47,17 @@ impl<L> LevelNode<L> {
 
 #[derive(Debug, Clone)]
 /// Domain matcher algorithm
-pub struct Domain<L> {
-    root: LevelNode<L>,
+pub struct Domain {
+    root: LevelNode,
 }
 
-impl<L: Eq + Hash + Clone> Default for Domain<L> {
+impl Default for Domain {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<L: Eq + Hash + Clone> Domain<L> {
+impl Domain {
     /// Create a matcher.
     pub fn new() -> Self {
         Self {
@@ -68,20 +66,20 @@ impl<L: Eq + Hash + Clone> Domain<L> {
     }
 
     #[cfg(test)]
-    fn get_root(&self) -> &LevelNode<L> {
+    fn get_root(&self) -> &LevelNode {
         &self.root
     }
 
     /// Pass in a string containing `\n` and get all domains inserted.
-    pub fn insert_multi(&mut self, domain: &str, dst: &L) {
+    pub fn insert_multi(&mut self, domain: &str) {
         let lvs: Vec<&str> = domain.split('\n').collect();
         for lv in lvs {
-            self.insert(lv, dst);
+            self.insert(lv);
         }
     }
 
     /// Pass in a domain and insert it into the matcher.
-    pub fn insert(&mut self, domain: &str, dst: &L) {
+    pub fn insert(&mut self, domain: &str) {
         let lvs: Vec<&str> = domain
             .split('.')
             .filter(|lv| !lv.is_empty())
@@ -94,11 +92,10 @@ impl<L: Eq + Hash + Clone> Domain<L> {
                 .entry(Arc::from(lv))
                 .or_insert_with(LevelNode::new);
         }
-        ptr.dst = Some(dst.clone());
     }
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
-    pub fn matches(&self, domain: &str) -> Option<&L> {
+    pub fn matches(&self, domain: &str) -> bool {
         let lvs: Vec<&str> = domain
             .split('.')
             .filter(|lv| !lv.is_empty())
@@ -112,86 +109,78 @@ impl<L: Eq + Hash + Clone> Domain<L> {
             // If not empty...
             ptr = match ptr.next_lvs.get(lv) {
                 Some(v) => v,
-                None => return None,
+                None => return false,
             };
         }
-        ptr.dst.as_ref()
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Domain, LevelNode};
-    use crate::Label;
     use hashbrown::HashMap;
+    use std::sync::Arc;
 
     #[test]
     fn matches() {
-        let mut matcher = Domain::<Label>::new();
-        matcher.insert("apple.com", &"global".into());
-        matcher.insert("apple.cn", &"domestic".into());
-        assert_eq!(matcher.matches("store.apple.com"), Some(&"global".into()));
-        assert_eq!(matcher.matches("store.apple.com."), Some(&"global".into()));
-        assert_eq!(matcher.matches("baidu.com"), None);
-        assert_eq!(
-            matcher.matches("你好.store.www.apple.cn"),
-            Some(&"domestic".into())
-        );
+        let mut matcher = Domain::new();
+        matcher.insert("apple.com");
+        matcher.insert("apple.cn");
+        assert_eq!(matcher.matches("store.apple.com"), true);
+        assert_eq!(matcher.matches("store.apple.com."), true);
+        assert_eq!(matcher.matches("baidu.com"), false);
+        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
     }
 
     #[test]
     fn insertion() {
         let mut matcher = Domain::new();
-        matcher.insert("apple.com", &"global".into());
-        matcher.insert("apple.cn", &"domestic".into());
+        matcher.insert("apple.com");
+        matcher.insert("apple.cn");
         println!("{:?}", matcher.get_root());
         assert_eq!(
             matcher.get_root(),
             &LevelNode {
-                dst: None,
                 next_lvs: [
                     (
                         "cn".into(),
                         LevelNode {
-                            dst: None,
                             next_lvs: [(
                                 "apple".into(),
                                 LevelNode {
-                                    dst: Some("domestic".into()),
                                     next_lvs: []
                                         .iter()
                                         .cloned()
-                                        .collect::<HashMap<Label, LevelNode<Label>>>()
+                                        .collect::<HashMap<Arc<str>, LevelNode>>()
                                 }
                             )]
                             .iter()
                             .cloned()
-                            .collect::<HashMap<Label, LevelNode<Label>>>()
+                            .collect::<HashMap<Arc<str>, LevelNode>>()
                         }
                     ),
                     (
                         "com".into(),
                         LevelNode {
-                            dst: None,
                             next_lvs: [(
                                 "apple".into(),
                                 LevelNode {
-                                    dst: Some("global".into()),
                                     next_lvs: []
                                         .iter()
                                         .cloned()
-                                        .collect::<HashMap<Label, LevelNode<Label>>>()
+                                        .collect::<HashMap<Arc<str>, LevelNode>>()
                                 }
                             )]
                             .iter()
                             .cloned()
-                            .collect::<HashMap<Label, LevelNode<Label>>>()
+                            .collect::<HashMap<Arc<str>, LevelNode>>()
                         }
                     )
                 ]
                 .iter()
                 .cloned()
-                .collect::<HashMap<Label, LevelNode<Label>>>()
+                .collect::<HashMap<Arc<str>, LevelNode>>()
             }
         );
     }

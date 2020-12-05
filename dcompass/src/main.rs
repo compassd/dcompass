@@ -18,7 +18,6 @@ mod worker;
 
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
-use dmatcher::{domain::Domain, Label};
 use droute::{error::DrouteError, router::Router};
 use log::*;
 use simple_logger::SimpleLogger;
@@ -37,18 +36,9 @@ struct DcompassOpts {
     config: Option<PathBuf>,
 }
 
-async fn init(
-    p: Parsed<Label>,
-) -> StdResult<(Router<Label, Domain<Label>>, SocketAddr, LevelFilter, u32), DrouteError<Label>> {
+async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
     Ok((
-        Router::new(
-            p.upstreams,
-            p.disable_ipv6,
-            p.cache_size,
-            p.default_tag,
-            p.rules,
-        )
-        .await?,
+        Router::new(p.cache_size, p.table, p.upstreams).await?,
         p.address,
         p.verbosity,
         p.ratelimit,
@@ -123,7 +113,7 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::init;
-    use droute::error::DrouteError;
+    use droute::error::*;
     use tokio_test::block_on;
 
     #[test]
@@ -134,23 +124,6 @@ mod tests {
             ))
             .is_ok(),
             true
-        );
-    }
-
-    #[test]
-    fn check_fail_rule() {
-        // Notice that data dir is relative to cargo test path.
-        assert_eq!(
-            match block_on(init(
-                serde_json::from_str(include_str!("../../configs/fail_rule.json")).unwrap()
-            ))
-            .err()
-            .unwrap()
-            {
-                DrouteError::MissingTag(tag) => tag,
-                e => panic!("Not the right error type: {}", e),
-            },
-            "undefined".into()
         );
     }
 
@@ -166,15 +139,15 @@ mod tests {
     }
 
     #[test]
-    fn check_fail_default() {
+    fn check_fail_undef() {
         assert_eq!(
             match block_on(init(
-                serde_json::from_str(include_str!("../../configs/fail_default.json")).unwrap()
+                serde_json::from_str(include_str!("../../configs/fail_undef.json")).unwrap()
             ))
             .err()
             .unwrap()
             {
-                DrouteError::MissingTag(tag) => tag,
+                DrouteError::UpstreamError(UpstreamError::MissingTag(tag)) => tag,
                 e => panic!("Not the right error type: {}", e),
             },
             "undefined".into()
@@ -189,7 +162,7 @@ mod tests {
         .err()
         .unwrap()
         {
-            DrouteError::HybridRecursion(_) => {}
+            DrouteError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
             e => panic!("Not the right error type: {}", e),
         };
     }
@@ -202,7 +175,7 @@ mod tests {
         .err()
         .unwrap()
         {
-            DrouteError::MultipleDef(_) => {}
+            DrouteError::UpstreamError(UpstreamError::MultipleDef(_)) => {}
             e => panic!("Not the right error type: {}", e),
         };
     }

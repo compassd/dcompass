@@ -1,10 +1,15 @@
 // TODO: Currently, criterion doesn't support async benchmark, which unables us to make actual connection.
 // Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
-use dmatcher::{domain::Domain, Label};
-use droute::router::{
-    upstream::{Upstream, UpstreamKind::Udp},
-    Router,
+use droute::{
+    parsed::{
+        ParsedAction::{Query as ActQuery, Skip},
+        ParsedMatcher, ParsedRule,
+    },
+    router::{
+        upstreams::{Upstream, UpstreamKind::Udp},
+        Router,
+    },
 };
 use lazy_static::lazy_static;
 use std::{net::SocketAddr, thread};
@@ -16,17 +21,20 @@ use trust_dns_proto::{
     rr::{record_type::RecordType, Name},
 };
 
-const BUILD: fn(usize) -> Router<Label, Domain<Label>> = |c| {
+const BUILD: fn(usize) -> Router = |c| {
     block_on(Router::new(
+        c,
+        vec![ParsedRule {
+            tag: "start".into(),
+            matcher: ParsedMatcher::Any,
+            on_match: (ActQuery("mock".into()), "end".into()),
+            no_match: (Skip, "end".into()),
+        }],
         vec![Upstream {
-            timeout: 2,
+            timeout: 10,
             method: Udp("127.0.0.1:53533".parse().unwrap()),
             tag: "mock".into(),
         }],
-        true,
-        c,
-        "mock".into(),
-        vec![],
     ))
     .unwrap()
 };

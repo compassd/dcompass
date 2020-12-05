@@ -15,14 +15,11 @@
 
 // Cache client to reuse client connections.
 
-use super::{Upstream, UpstreamKind};
-use crate::error::Result;
+use super::{error::Result, Upstream, UpstreamKind};
 use log::*;
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 use std::{
     collections::VecDeque,
-    fmt::{Debug, Display},
-    hash::Hash,
     sync::{Arc, Mutex},
 };
 use tokio::net::{TcpStream as TokioTcpStream, UdpSocket};
@@ -44,10 +41,7 @@ pub enum ClientCache {
 }
 
 impl ClientCache {
-    pub async fn new<L>(u: &Upstream<L>) -> Result<L, Self>
-    where
-        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
-    {
+    pub async fn new(u: &Upstream) -> Result<Self> {
         Ok(match &u.method {
             // For UDP, we only use one client throughout the course.
             UpstreamKind::Udp(_) => Self::Udp(Self::create_client(u).await?),
@@ -65,10 +59,7 @@ impl ClientCache {
         })
     }
 
-    pub async fn get_client<L>(&self, u: &Upstream<L>) -> Result<L, AsyncClient>
-    where
-        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
-    {
+    pub async fn get_client(&self, u: &Upstream) -> Result<AsyncClient> {
         Ok(match self {
             Self::Https(q) | Self::Tls(q) => {
                 {
@@ -117,10 +108,7 @@ impl ClientCache {
         Arc::new(client_config)
     }
 
-    async fn create_client<L>(u: &Upstream<L>) -> Result<L, AsyncClient>
-    where
-        L: Display + Debug + Eq + Hash + Send + Clone + Sync,
-    {
+    async fn create_client(u: &Upstream) -> Result<AsyncClient> {
         Ok(match &u.method {
             UpstreamKind::Udp(s) => {
                 let stream = UdpClientStream::<UdpSocket>::new(*s);

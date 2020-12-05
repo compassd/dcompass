@@ -16,46 +16,44 @@
 //! Upstream defines how droute resolves queries ultimately.
 
 mod client_cache;
+/// Module which contains the error type for the `upstreams` section.
+pub mod error;
 mod resp_cache;
 
 use self::{
     client_cache::ClientCache,
+    error::{Result, UpstreamError},
     resp_cache::{RecordStatus::*, RespCache},
 };
-use crate::error::{DrouteError, Result};
+use crate::Label;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Borrow,
-    fmt::{Debug, Display},
-    hash::Hash,
-    net::SocketAddr,
-};
+use std::{borrow::Borrow, net::SocketAddr};
 use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 #[derive(Serialize, Deserialize, Clone)]
 /// Information needed for an upstream.
-pub struct Upstream<L> {
+pub struct Upstream {
     /// The destination (tag) associated with the upstream.
-    pub tag: L,
+    pub tag: Label,
     /// Querying method.
-    pub method: UpstreamKind<L>,
+    pub method: UpstreamKind,
     /// How long to timeout.
     #[serde(default = "default_timeout")]
     pub timeout: u64,
 }
 
-impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstream<L> {
+impl Upstream {
     // Send the query and handle caching schemes.
     async fn query(
-        u: impl Borrow<Upstream<L>>,
+        u: impl Borrow<Upstream>,
         client_cache: impl Borrow<ClientCache>,
         resp_cache: impl Borrow<RespCache>,
         msg: Message,
-    ) -> Result<L, Message> {
+    ) -> Result<Message> {
         let (u, client_cache, resp_cache) =
             (u.borrow(), client_cache.borrow(), resp_cache.borrow());
 
@@ -73,7 +71,7 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstream<L>
         resp_cache: &RespCache,
         client_cache: &ClientCache,
         msg: &Message,
-    ) -> Result<L, Message> {
+    ) -> Result<Message> {
         let id = msg.id();
 
         // Check if cache exists
@@ -104,10 +102,11 @@ fn default_timeout() -> u64 {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 /// The methods of querying
-pub enum UpstreamKind<L> {
+pub enum UpstreamKind {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
-    Hybrid(Vec<L>),
+    Hybrid(Vec<Label>),
     /// DNS over HTTPS (DoH).
     Https {
         /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
@@ -130,20 +129,20 @@ pub enum UpstreamKind<L> {
     Udp(SocketAddr),
 }
 
-pub(crate) struct Upstreams<L> {
-    upstreams: HashMap<L, Upstream<L>>,
-    client_cache: HashMap<L, ClientCache>,
+pub(crate) struct Upstreams {
+    upstreams: HashMap<Label, Upstream>,
+    client_cache: HashMap<Label, ClientCache>,
     resp_cache: RespCache,
 }
 
-impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstreams<L> {
-    pub async fn new(upstreams: Vec<Upstream<L>>, size: usize) -> Result<L, Self> {
-        let mut r: HashMap<L, Upstream<L>> = HashMap::new();
+impl Upstreams {
+    pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
+        let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
         for u in upstreams {
             // Check if there is multiple definitions being passed in.
             match r.get(&u.tag) {
-                Some(_) => return Err(DrouteError::MultipleDef(u.tag)),
+                Some(_) => return Err(UpstreamError::MultipleDef(u.tag)),
                 None => {
                     c.insert(u.tag.clone(), ClientCache::new(&u).await?);
                     r.insert(u.tag.clone(), u);
@@ -155,33 +154,33 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstreams<L
             client_cache: c,
             resp_cache: RespCache::new(size),
         };
-        u.hybrid_check()?;
+        u.check()?;
         Ok(u)
     }
 
     // Check any upstream types
     // tag: current upstream node's tag
     // l: visited tags
-    fn hybrid_search(&self, l: &mut HashSet<L>, tag: L) -> Result<L, ()> {
+    fn traverse(&self, l: &mut HashSet<Label>, tag: Label) -> Result<()> {
         if l.contains(&tag) {
-            return Err(DrouteError::HybridRecursion(tag));
+            return Err(UpstreamError::HybridRecursion(tag));
         } else {
             l.insert(tag.clone());
 
             if let UpstreamKind::Hybrid(v) = &self
                 .upstreams
                 .get(&tag)
-                .ok_or_else(|| DrouteError::MissingTag(tag.clone()))?
+                .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?
                 .method
             {
                 // Check if it is empty.
                 if v.is_empty() {
-                    return Err(DrouteError::EmptyHybrid(tag.clone()));
+                    return Err(UpstreamError::EmptyHybrid(tag.clone()));
                 }
 
                 // Check if it is recursively defined.
                 for t in v {
-                    self.hybrid_search(l, t.clone())?
+                    self.traverse(l, t.clone())?
                 }
             }
         }
@@ -189,29 +188,29 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstreams<L
         Ok(())
     }
 
-    pub fn hybrid_check(&self) -> Result<L, bool> {
+    pub fn check(&self) -> Result<bool> {
         for (tag, _) in self.upstreams.iter() {
-            self.hybrid_search(&mut HashSet::new(), tag.clone())?
+            self.traverse(&mut HashSet::new(), tag.clone())?
         }
         Ok(true)
     }
 
-    pub fn exists(&self, tag: &L) -> Result<L, bool> {
+    pub fn exists(&self, tag: &Label) -> Result<bool> {
         if self.upstreams.contains_key(tag) {
             Ok(true)
         } else {
-            Err(DrouteError::MissingTag(tag.clone()))
+            Err(UpstreamError::MissingTag(tag.clone()))
         }
     }
 
     // Write out in this way to allow recursion for async functions
     pub fn resolve<'a>(
         &'a self,
-        tag: &'a L,
+        tag: &'a Label,
         msg: &'a Message,
-    ) -> BoxFuture<'a, Result<L, Message>> {
+    ) -> BoxFuture<'a, Result<Message>> {
         async move {
-            let u = self.upstreams.get(&tag).unwrap();
+            let u = self.upstreams.get(tag).unwrap();
             Ok(match &u.method {
                 UpstreamKind::Hybrid(v) => {
                     let v = v.iter().map(|t| self.resolve(t, msg));
@@ -222,7 +221,7 @@ impl<L: 'static + Display + Debug + Eq + Hash + Send + Clone + Sync> Upstreams<L
                     self.upstreams
                         .get(tag)
                         .unwrap()
-                        .resolve(&self.resp_cache, self.client_cache.get(&tag).unwrap(), msg)
+                        .resolve(&self.resp_cache, self.client_cache.get(tag).unwrap(), msg)
                         .await?
                 }
             })

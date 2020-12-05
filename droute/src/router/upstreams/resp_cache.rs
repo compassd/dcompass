@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use self::RecordStatus::*;
-use super::super::MAX_TTL;
+use crate::MAX_TTL;
 use log::*;
 use lru::LruCache;
 use std::{

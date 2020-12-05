@@ -13,8 +13,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-//! This is a library providing a set of domain and IP address matching algorithms.
+use super::{Matcher, Result};
+use hashbrown::HashSet;
+use trust_dns_proto::{
+    op::query::Query,
+    rr::{record_type::RecordType, resource::Record},
+};
 
-pub mod domain;
+pub struct QType(HashSet<RecordType>);
+
+impl QType {
+    pub fn new(specs: HashSet<RecordType>) -> Result<Self> {
+        Ok(Self(specs))
+    }
+}
+
+impl Matcher for QType {
+    fn matches(&self, queries: &[Query], _: &[Record]) -> bool {
+        self.0.contains(&queries[0].query_type())
+    }
+}

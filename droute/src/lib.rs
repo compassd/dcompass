@@ -19,3 +19,13 @@
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.
 pub mod error;
 pub mod router;
+
+pub use router::table::parsed;
+
+use std::sync::Arc;
+
+// Maximum TTL as defined in https://tools.ietf.org/html/rfc2181, 2147483647
+//   Setting this to a value of 1 day, in seconds
+const MAX_TTL: u32 = 86400_u32;
+
+type Label = Arc<str>;
