@@ -28,7 +28,7 @@ use tokio::{fs::File, net::UdpSocket, prelude::*};
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "dcompass",
-    about = "High-performance DNS server with rule matching/DoT/DoH functionalities built-in."
+    about = "High-performance DNS server with freestyle routing scheme support and DoT/DoH functionalities built-in."
 )]
 struct DcompassOpts {
     // Path to configuration file. Use built-in if not provided.
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
         include_str!("../../configs/default.json").to_owned()
     };
     let (router, addr, verbosity, ratelimit) = init(
-        serde_json::from_str(&config)
+        serde_yaml::from_str(&config)
             .with_context(|| "Failed to parse the configuration file".to_string())?,
     )
     .await?;
@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     let mut ratelimit = ratelimit::Builder::new()
         .capacity(1500) // TODO: to be determined if this is a proper value
         .quantum(ratelimit)
-        .interval(Duration::new(1, 0)) //add quantum tokens every 1 second
+        .interval(Duration::new(1, 0)) // add quantum tokens every 1 second
         .build();
 
     info!("Dcompass ready!");
@@ -120,7 +120,7 @@ mod tests {
     fn parse() {
         assert_eq!(
             block_on(init(
-                serde_json::from_str(include_str!("../../configs/default.json")).unwrap()
+                serde_yaml::from_str(include_str!("../../configs/default.json")).unwrap()
             ))
             .is_ok(),
             true
@@ -131,7 +131,18 @@ mod tests {
     fn check_success_rule() {
         assert_eq!(
             block_on(init(
-                serde_json::from_str(include_str!("../../configs/success_rule.json")).unwrap()
+                serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap()
+            ))
+            .is_ok(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_success_rule_yaml() {
+        assert_eq!(
+            block_on(init(
+                serde_yaml::from_str(include_str!("../../configs/success_rule_yaml.yaml")).unwrap()
             ))
             .is_ok(),
             true
@@ -142,7 +153,7 @@ mod tests {
     fn check_fail_undef() {
         assert_eq!(
             match block_on(init(
-                serde_json::from_str(include_str!("../../configs/fail_undef.json")).unwrap()
+                serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap()
             ))
             .err()
             .unwrap()
@@ -157,7 +168,7 @@ mod tests {
     #[test]
     fn check_fail_recursion() {
         match block_on(init(
-            serde_json::from_str(include_str!("../../configs/fail_recursion.json")).unwrap(),
+            serde_yaml::from_str(include_str!("../../configs/fail_recursion.json")).unwrap(),
         ))
         .err()
         .unwrap()
@@ -170,7 +181,7 @@ mod tests {
     #[test]
     fn check_fail_multiple_def() {
         match block_on(init(
-            serde_json::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap(),
+            serde_yaml::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap(),
         ))
         .err()
         .unwrap()

@@ -17,7 +17,7 @@ Breaking changes happened as new routing scheme has been adopted, see configurat
 
 # Usages
 ```
-dcompass -c path/to/config.json
+dcompass -c path/to/config.json # Or YAML
 ```
 
 # Packages
@@ -29,7 +29,7 @@ Configuration file contains different fields:
 - `cache_size`: Size of the DNS cache system. Larger size implies higher cache capacity (use LRU algorithm as the backend).
 - `verbosity`: Log level filter. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
 - `address`: The address to bind on.
-- `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`
+- `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`. Each rule contains `tag`, `if`, `then`, and `else`. Latter two of which are tuples of the form `(action, next)`, which means take the action first and goto the next rule with the tag specified.
 - `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
 
 Different actions:
@@ -48,105 +48,72 @@ Different querying methods:
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
-Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching:
-```json
-{
-    "verbosity": "info",
-    "cache_size": 4096,
-    "address": "0.0.0.0:2053",
-    "table": [
-        {
-            "tag": "start",
-            "if": {
-                "qtype": [
-                    "AAAA"
-                ]
-            },
-            "then": [
-                "disable",
-                "end"
-            ],
-            "else": [
-                "skip",
-                "dispatch"
-            ]
-        },
-        {
-            "tag": "dispatch",
-            "if": {
-                "domain": [
-                    "PATH TO DOMAIN LIST"
-                ]
-            },
-            "then": [
-                {
-                    "query": "domestic"
-                },
-                "end"
-            ],
-            "else": [
-                {
-                    "query": "secure"
-                },
-                "end"
-            ]
-        }
-    ],
-    "upstreams": [
-        {
-            "timeout": 2,
-            "method": {
-                "udp": "114.114.114.114:53"
-            },
-            "tag": "114DNS"
-        },
-        {
-            "timeout": 2,
-            "method": {
-                "udp": "223.6.6.6:53"
-            },
-            "tag": "Ali"
-        },
-        {
-            "method": {
-                "hybrid": [
-                    "114DNS",
-                    "Ali"
-                ]
-            },
-            "tag": "domestic"
-        },
-        {
-            "method": {
-                "https": {
-                    "no_sni": true,
-                    "name": "cloudflare-dns.com",
-                    "addr": "1.1.1.1:443"
-                }
-            },
-            "tag": "cloudflare"
-        },
-        {
-            "method": {
-                "https": {
-                    "no_sni": true,
-                    "name": "dns.quad9.net",
-                    "addr": "9.9.9.9:443"
-                }
-            },
-            "tag": "quad9"
-        },
-        {
-            "method": {
-                "hybrid": [
-                    "cloudflare",
-                    "quad9"
-                ]
-            },
-            "tag": "secure"
-        }
-    ]
-}
+Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching (Both `JSON` and `YAML` are accepted):
+```yaml
+---
+verbosity: info
+cache_size: 4096
+address: 0.0.0.0:2053
+table:
+- tag: start
+  if:
+    qtype:
+    - AAAA
+  then:
+  - disable
+  - end
+  else:
+  - skip
+  - dispatch
+
+- tag: dispatch
+  if:
+    domain:
+    - PATH TO DOMAIN LIST
+  then:
+  - query: domestic
+  - end
+  else:
+  - query: secure
+  - end
+
+
+upstreams:
+- timeout: 2
+  method:
+    udp: 114.114.114.114:53
+  tag: 114DNS
+
+- timeout: 2
+  method:
+    udp: 223.6.6.6:53
+  tag: Ali
+
+- method:
+    hybrid:
+    - 114DNS
+    - Ali
+  tag: domestic
+
+- method:
+    https:
+      no_sni: true
+      name: cloudflare-dns.com
+      addr: 1.1.1.1:443
+  tag: cloudflare
+
+- method:
+    https:
+      no_sni: true
+      name: dns.quad9.net
+      addr: 9.9.9.9:443
+  tag: quad9
+
+- method:
+    hybrid:
+    - cloudflare
+    - quad9
+  tag: secure
 ```
 
 # Behind the scene details
