@@ -70,7 +70,7 @@ impl ClientCache {
         })
     }
 
-    pub async fn get_client(&self, u: &Upstream) -> Result<AsyncClient> {
+    pub async fn get_client(&self, _u: &Upstream) -> Result<AsyncClient> {
         Ok(match self {
             #[cfg(feature = "crypto")]
             Self::Https(q) | Self::Tls(q) => {
@@ -85,7 +85,7 @@ impl ClientCache {
                         Some(q.pop_front().unwrap())
                     }
                 }
-                .unwrap_or(Self::create_client(u).await?)
+                .unwrap_or(Self::create_client(_u).await?)
             }
             // For UDP connections, it is pointless for us to cache as every `send` query would create a new socket. If we cache and pop it out, there would be endless client creation, resulting in rather low performance. (It takes me two days to realize)
             Self::Udp(c) => c.clone(),
@@ -93,12 +93,12 @@ impl ClientCache {
         })
     }
 
-    pub fn return_back(&self, c: AsyncClient) {
+    pub fn return_back(&self, _c: AsyncClient) {
         match self {
             #[cfg(feature = "crypto")]
             Self::Https(q) | Self::Tls(q) => {
                 let mut q = q.lock().unwrap();
-                q.push_back(c);
+                q.push_back(_c);
             }
             Self::Udp(_) => {}
             Self::Placeholder => unreachable!(),

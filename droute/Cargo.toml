@@ -6,6 +6,7 @@ edition = "2018"
 description = "Routing mechanism lib for dcompass the DNS server."
 repository = "https://github.com/LEXUGE/dcompass"
 license = "GPL-3.0"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]

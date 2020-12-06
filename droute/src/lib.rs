@@ -21,7 +21,7 @@ pub mod error;
 mod router;
 
 #[cfg(feature = "serde-cfg")]
-pub use self::router::table::parsed::*;
+pub use self::router::table::parsed::{ParsedAction, ParsedMatcher, ParsedRule};
 pub use self::router::{
     table::{
         rule::{actions, matchers, Rule},
