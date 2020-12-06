@@ -8,27 +8,40 @@ repository = "https://github.com/LEXUGE/dcompass"
 license = "GPL-3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+# serde support
+serde-cfg = ["serde", "hashbrown/serde"]
+
+# TCP related stuff, should not be used by end-users
+tcp = []
+# common denominator for DoH and DoT, should not be used by end-users
+crypto = ["rustls", "webpki-roots", "webpki", "tcp"]
+dot = ["trust-dns-rustls", "crypto"]
+doh = ["trust-dns-https", "crypto"]
+
+# enable all features
+all = ["serde-cfg", "dot", "doh"]
 
 [dependencies]
 # DNS-implementation related dependencies
 trust-dns-client = { version = "0.20.0-alpha.3", default-features = false }
-trust-dns-https = "0.20.0-alpha.3"
+trust-dns-https = { version = "0.20.0-alpha.3", optional = true }
 trust-dns-proto = "0.20.0-alpha.3"
-trust-dns-rustls = "0.20.0-alpha.3"
-rustls = {version = "^0.19", features = ["dangerous_configuration"] }
+trust-dns-rustls = { version = "0.20.0-alpha.3", optional = true }
+rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
 async-trait = "^0.1"
-webpki-roots = "^0.20"
-webpki = "^0.21"
+webpki-roots = { version = "^0.20", optional = true }
+webpki = { version = "^0.21", optional = true }
 
 # Async-aware dependencies
 futures = "^0.3"
 tokio = { version = "^0.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
 # Logic-needed dependencies
-hashbrown = { version = "^0.9", features = ["serde"]}
+hashbrown = { version = "^0.9" }
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
-serde = { version = "^1.0", features = ["derive", "rc"] }
+serde = { version = "^1.0", features = ["derive", "rc"], optional = true }
 lru = "^0.6"
 thiserror = "^1.0"
 lazy_static = "^1.0"

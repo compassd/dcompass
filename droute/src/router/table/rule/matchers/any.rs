@@ -16,10 +16,12 @@
 use super::Matcher;
 use trust_dns_proto::{op::query::Query, rr::resource::Record};
 
+/// A matcher that matches anything.
 pub struct Any;
 
-impl Any {
-    pub fn new() -> Self {
+impl Default for Any {
+    /// Create an `Any` matcher.
+    fn default() -> Self {
         Self
     }
 }

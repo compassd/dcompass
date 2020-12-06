@@ -14,22 +14,21 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::super::{super::upstreams::Upstreams, parsed::ParsedAction, State},
+    super::super::{super::upstreams::Upstreams, State},
     Action, Result,
 };
 use crate::Label;
 use async_trait::async_trait;
 
-pub(crate) struct Query {
+/// An action that send the query to an `Upstream` named with `tag`.
+pub struct Query {
     tag: Label,
 }
 
 impl Query {
-    pub fn new(spec: ParsedAction) -> Self {
-        match spec {
-            ParsedAction::Query(tag) => Self { tag },
-            _ => unreachable!(),
-        }
+    /// Create a `Query` action with its associated upstream tag.
+    pub fn new(tag: Label) -> Self {
+        Self { tag }
     }
 }
 

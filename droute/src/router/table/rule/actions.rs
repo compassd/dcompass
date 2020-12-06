@@ -13,9 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod disable;
-pub mod query;
-pub mod skip;
+mod disable;
+mod query;
+mod skip;
+
+pub use self::{disable::Disable, query::Query, skip::Skip};
 
 use super::super::{
     super::upstreams::{error::UpstreamError, Upstreams},
@@ -29,16 +31,19 @@ use thiserror::Error;
 type Result<T> = std::result::Result<T, ActionError>;
 
 #[derive(Error, Debug)]
+/// Errors may caused by `Action`.
 pub enum ActionError {
-    /// Error forwarded from `std::io::Error`.
+    /// Error forwarded from `UpstreamError`.
     #[error(transparent)]
     UpstreamError(#[from] UpstreamError),
 }
 
 #[async_trait]
-// Only visible in `table`.
-pub(in super::super) trait Action: Sync + Send {
+/// `Action` trait which can manipulate the `State` passed in.
+pub trait Action: Sync + Send {
+    /// Do something(or nothing) upon `State`.
     async fn act(&self, state: &mut State, upstreams: &Upstreams) -> Result<()>;
 
+    /// All upstreams may used by this `Action`.
     fn used_upstream(&self) -> Option<Label>;
 }

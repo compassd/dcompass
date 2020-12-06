@@ -15,7 +15,7 @@
 
 //! Router is the core concept of `droute`.
 
-pub(crate) mod table;
+pub mod table;
 pub mod upstreams;
 
 use self::{
@@ -33,17 +33,22 @@ pub struct Router {
 }
 
 impl Router {
-    /// Create a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
-    pub async fn new(
+    /// Create a new `Router` from raw
+    pub fn new(table: Table, upstreams: Upstreams) -> Result<Self> {
+        let router = Self { table, upstreams };
+        router.check()?;
+        Ok(router)
+    }
+
+    /// Create a new `Router` from parsed configuration and check the validity. `data` is the content of the configuration file.
+    pub async fn with_parsed(
         cache_size: usize,
         rules: Vec<ParsedRule>,
         upstreams: Vec<Upstream>,
     ) -> Result<Self> {
-        let table = Table::new(rules).await?;
+        let table = Table::with_parsed(rules).await?;
         let upstreams = Upstreams::new(upstreams, cache_size).await?;
-        let router = Self { upstreams, table };
-        router.check()?;
-        Ok(router)
+        Self::new(table, upstreams)
     }
 
     /// Validate the internal rules defined. This is automatically performed by `new` method.
@@ -79,11 +84,15 @@ impl Router {
 #[cfg(test)]
 mod tests {
     use super::{
-        table::parsed::{
-            ParsedAction::{Query as ActQuery, Skip},
-            ParsedMatcher, ParsedRule,
+        table::{
+            rule::{
+                actions::{Query as ActQuery, Skip},
+                matchers::Any,
+                Rule,
+            },
+            Table,
         },
-        upstreams::{Upstream, UpstreamKind::Udp},
+        upstreams::{Upstream, UpstreamKind::Udp, Upstreams},
         Router,
     };
     use lazy_static::lazy_static;
@@ -161,20 +170,24 @@ mod tests {
         tokio::spawn(server.run());
 
         let router = Router::new(
-            0,
-            vec![ParsedRule {
-                tag: "start".into(),
-                matcher: ParsedMatcher::Any,
-                on_match: (ActQuery("mock".into()), "end".into()),
-                no_match: (Skip, "end".into()),
-            }],
-            vec![Upstream {
-                timeout: 10,
-                method: Udp("127.0.0.1:53533".parse().unwrap()),
-                tag: "mock".into(),
-            }],
+            Table::new(vec![Rule::new(
+                "start".into(),
+                Box::new(Any::default()),
+                (Box::new(ActQuery::new("mock".into())), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
+            )])
+            .unwrap(),
+            Upstreams::new(
+                vec![Upstream {
+                    timeout: 10,
+                    method: Udp("127.0.0.1:53533".parse().unwrap()),
+                    tag: "mock".into(),
+                }],
+                0,
+            )
+            .await
+            .unwrap(),
         )
-        .await
         .unwrap();
 
         assert_eq!(

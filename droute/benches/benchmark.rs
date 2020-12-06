@@ -2,14 +2,11 @@
 // Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
 use droute::{
-    parsed::{
-        ParsedAction::{Query as ActQuery, Skip},
-        ParsedMatcher, ParsedRule,
-    },
-    router::{
-        upstreams::{Upstream, UpstreamKind::Udp},
-        Router,
-    },
+    actions::{Query as ActQuery, Skip},
+    matchers::Any,
+    Router, Rule, Table, Upstream,
+    UpstreamKind::Udp,
+    Upstreams,
 };
 use lazy_static::lazy_static;
 use std::{net::SocketAddr, thread};
@@ -22,20 +19,24 @@ use trust_dns_proto::{
 };
 
 const BUILD: fn(usize) -> Router = |c| {
-    block_on(Router::new(
-        c,
-        vec![ParsedRule {
-            tag: "start".into(),
-            matcher: ParsedMatcher::Any,
-            on_match: (ActQuery("mock".into()), "end".into()),
-            no_match: (Skip, "end".into()),
-        }],
-        vec![Upstream {
-            timeout: 10,
-            method: Udp("127.0.0.1:53533".parse().unwrap()),
-            tag: "mock".into(),
-        }],
-    ))
+    Router::new(
+        Table::new(vec![Rule::new(
+            "start".into(),
+            Box::new(Any::default()),
+            (Box::new(ActQuery::new("mock".into())), "end".into()),
+            (Box::new(Skip::default()), "end".into()),
+        )])
+        .unwrap(),
+        block_on(Upstreams::new(
+            vec![Upstream {
+                timeout: 10,
+                method: Udp("127.0.0.1:53533".parse().unwrap()),
+                tag: "mock".into(),
+            }],
+            c,
+        ))
+        .unwrap(),
+    )
     .unwrap()
 };
 

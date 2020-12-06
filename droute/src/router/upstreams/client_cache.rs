@@ -16,24 +16,33 @@
 // Cache client to reuse client connections.
 
 use super::{error::Result, Upstream, UpstreamKind};
-use log::*;
+#[cfg(feature = "crypto")]
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
+#[cfg(feature = "tcp")]
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
-use tokio::net::{TcpStream as TokioTcpStream, UdpSocket};
+#[cfg(feature = "tcp")]
+use tokio::net::TcpStream as TokioTcpStream;
+use tokio::net::UdpSocket;
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
+#[cfg(feature = "doh")]
 use trust_dns_https::HttpsClientStreamBuilder;
+#[cfg(feature = "tcp")]
 use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
+#[cfg(feature = "dot")]
 use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
+#[cfg(feature = "crypto")]
 const ALPN_H2: &[u8] = b"h2";
 
 #[derive(Clone)]
 pub enum ClientCache {
     // We should use sync Mutex implementation here, else the channel seems to fail if lock is presented across querying in `final_resolve` in Upstreams.
+    #[cfg(feature = "doh")]
     Https(Arc<Mutex<VecDeque<AsyncClient>>>),
+    #[cfg(feature = "doh")]
     Tls(Arc<Mutex<VecDeque<AsyncClient>>>),
     Udp(AsyncClient),
     // Create a type placeholder (currently used by hybrid), which doesn't implement any method other than `new`
@@ -45,11 +54,13 @@ impl ClientCache {
         Ok(match &u.method {
             // For UDP, we only use one client throughout the course.
             UpstreamKind::Udp(_) => Self::Udp(Self::create_client(u).await?),
+            #[cfg(feature = "doh")]
             UpstreamKind::Https {
                 name: _,
                 addr: _,
                 no_sni: _,
             } => Self::Https(Arc::new(Mutex::new(VecDeque::new()))),
+            #[cfg(feature = "dot")]
             UpstreamKind::Tls {
                 name: _,
                 addr: _,
@@ -61,6 +72,7 @@ impl ClientCache {
 
     pub async fn get_client(&self, u: &Upstream) -> Result<AsyncClient> {
         Ok(match self {
+            #[cfg(feature = "crypto")]
             Self::Https(q) | Self::Tls(q) => {
                 {
                     // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
@@ -68,7 +80,7 @@ impl ClientCache {
                     if q.is_empty() {
                         None
                     } else {
-                        info!("HTTPS/TLS client cache hit");
+                        log::info!("HTTPS/TLS client cache hit");
                         // queue is not empty
                         Some(q.pop_front().unwrap())
                     }
@@ -83,6 +95,7 @@ impl ClientCache {
 
     pub fn return_back(&self, c: AsyncClient) {
         match self {
+            #[cfg(feature = "crypto")]
             Self::Https(q) | Self::Tls(q) => {
                 let mut q = q.lock().unwrap();
                 q.push_back(c);
@@ -93,6 +106,7 @@ impl ClientCache {
     }
 
     // Create client config for TLS and HTTPS clients
+    #[cfg(feature = "crypto")]
     fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
@@ -116,6 +130,7 @@ impl ClientCache {
                 tokio::spawn(bg);
                 client
             }
+            #[cfg(feature = "dot")]
             UpstreamKind::Tls { name, addr, no_sni } => {
                 let (stream, sender) =
                     tls_client_connect(*addr, name.to_string(), Self::create_client_config(no_sni));
@@ -123,6 +138,7 @@ impl ClientCache {
                 tokio::spawn(bg);
                 client
             }
+            #[cfg(feature = "doh")]
             UpstreamKind::Https { name, addr, no_sni } => {
                 let stream = HttpsClientStreamBuilder::with_client_config(
                     Self::create_client_config(no_sni),

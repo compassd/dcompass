@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use droute::router::Router;
+use droute::Router;
 use log::*;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;

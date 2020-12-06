@@ -20,11 +20,13 @@ use trust_dns_proto::{
     rr::{record_type::RecordType, resource::Record},
 };
 
+/// A matcher that matches if first query is of any of the record types provided.
 pub struct QType(HashSet<RecordType>);
 
 impl QType {
-    pub fn new(specs: HashSet<RecordType>) -> Result<Self> {
-        Ok(Self(specs))
+    /// Create a new `QType` matcher.
+    pub fn new(types: HashSet<RecordType>) -> Result<Self> {
+        Ok(Self(types))
     }
 }
 

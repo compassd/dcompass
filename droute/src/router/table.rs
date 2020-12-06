@@ -15,7 +15,7 @@
 
 /// Structures used for serialize/deserialize information needed to create router and more.
 pub mod parsed;
-pub(self) mod rule;
+pub mod rule;
 
 use self::{
     parsed::ParsedRule,
@@ -61,18 +61,20 @@ pub struct State {
     query: Message,
 }
 
-pub(crate) struct Table {
+/// A simple routing table.
+pub struct Table {
     rules: HashMap<Label, Rule>,
     used: HashSet<Label>,
 }
 
 impl Table {
-    pub async fn new(rules: Vec<ParsedRule>) -> Result<Self> {
+    /// Create a routing table from a bunch of `Rule`s.
+    pub fn new(rules: Vec<Rule>) -> Result<Self> {
         let mut table = HashMap::new();
         for r in rules {
-            match table.get(&r.tag) {
-                Some(_) => return Err(TableError::MultipleDef(r.tag)),
-                None => table.insert(r.tag.clone(), Rule::new(r).await?),
+            match table.get(r.tag()) {
+                Some(_) => return Err(TableError::MultipleDef(r.tag().clone())),
+                None => table.insert(r.tag().clone(), r),
             };
         }
         let mut used = HashSet::new();
@@ -80,7 +82,17 @@ impl Table {
         Ok(Self { rules: table, used })
     }
 
-    pub fn used(&self) -> &HashSet<Label> {
+    // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
+    pub(super) async fn with_parsed(parsed_rules: Vec<ParsedRule>) -> Result<Self> {
+        let mut rules = Vec::new();
+        for r in parsed_rules {
+            rules.push(Rule::with_parsed(r).await?);
+        }
+        Self::new(rules)
+    }
+
+    // Not intended to be used by end-users
+    pub(super) fn used(&self) -> &HashSet<Label> {
         &self.used
     }
 
@@ -109,7 +121,8 @@ impl Table {
         }
     }
 
-    pub async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
+    // Not intended to be used by end-users
+    pub(super) async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
         let name = query.queries().iter().next().unwrap().name().to_utf8();
         let mut s = State {
             resp: Message::new(),
@@ -132,21 +145,23 @@ impl Table {
 
 #[cfg(test)]
 mod tests {
-    use super::{Table, TableError};
-    use crate::parsed::{
-        ParsedAction::{Query as ActQuery, Skip},
-        ParsedMatcher, ParsedRule,
+    use super::{
+        rule::{
+            actions::{Query, Skip},
+            matchers::{Any, Domain},
+            Rule,
+        },
+        Table, TableError,
     };
 
     #[tokio::test]
     async fn fail_table_recursion() {
-        match Table::new(vec![ParsedRule {
-            tag: "start".into(),
-            matcher: ParsedMatcher::Any,
-            on_match: (ActQuery("mock".into()), "end".into()),
-            no_match: (Skip, "start".into()),
-        }])
-        .await
+        match Table::new(vec![Rule::new(
+            "start".into(),
+            Box::new(Any::default()),
+            (Box::new(Query::new("mock".into())), "end".into()),
+            (Box::new(Skip::default()), "start".into()),
+        )])
         .err()
         .unwrap()
         {
@@ -158,20 +173,19 @@ mod tests {
     #[tokio::test]
     async fn fail_multiple_defs() {
         match Table::new(vec![
-            ParsedRule {
-                tag: "start".into(),
-                matcher: ParsedMatcher::Any,
-                on_match: (ActQuery("mock".into()), "end".into()),
-                no_match: (Skip, "end".into()),
-            },
-            ParsedRule {
-                tag: "start".into(),
-                matcher: ParsedMatcher::Any,
-                on_match: (ActQuery("mock".into()), "end".into()),
-                no_match: (Skip, "end".into()),
-            },
+            Rule::new(
+                "start".into(),
+                Box::new(Any::default()),
+                (Box::new(Query::new("mock".into())), "end".into()),
+                (Box::new(Skip::default()), "start".into()),
+            ),
+            Rule::new(
+                "start".into(),
+                Box::new(Any::default()),
+                (Box::new(Query::new("mock".into())), "end".into()),
+                (Box::new(Skip::default()), "start".into()),
+            ),
         ])
-        .await
         .err()
         .unwrap()
         {
@@ -182,13 +196,16 @@ mod tests {
 
     #[tokio::test]
     async fn success_domain_table() {
-        Table::new(vec![ParsedRule {
-            tag: "start".into(),
-            matcher: ParsedMatcher::Domain(vec!["../data/china.txt".to_string()]),
-            on_match: (ActQuery("mock".into()), "end".into()),
-            no_match: (ActQuery("another".into()), "end".into()),
-        }])
-        .await
+        Table::new(vec![Rule::new(
+            "start".into(),
+            Box::new(
+                Domain::new(vec!["../data/china.txt".to_string()])
+                    .await
+                    .unwrap(),
+            ),
+            (Box::new(Query::new("mock".into())), "end".into()),
+            (Box::new(Query::new("another_mock".into())), "end".into()),
+        )])
         .ok()
         .unwrap();
     }

@@ -15,8 +15,10 @@
 
 //! Rules and other related concepts.
 
-pub(super) mod actions;
-pub(super) mod matchers;
+/// A module containing built-in actions, action trait, and more.
+pub mod actions;
+/// A module containing built-in matchers, matcher trait, and more.
+pub mod matchers;
 
 use self::{actions::Action, matchers::Matcher};
 use super::{
@@ -28,7 +30,9 @@ use crate::Label;
 use hashbrown::HashSet;
 use log::*;
 
+/// A unit that composes the `Table`.
 pub struct Rule {
+    tag: Label,
     matcher: Box<dyn Matcher>,
     // In the form of (Action, Next)
     on_match: (Box<dyn Action>, Label),
@@ -36,23 +40,47 @@ pub struct Rule {
 }
 
 impl Rule {
-    pub(crate) async fn new(rules: ParsedRule) -> Result<Self> {
-        Ok(Self {
-            matcher: ParsedMatcher::convert(rules.matcher).await?,
-            on_match: (ParsedAction::convert(rules.on_match.0), rules.on_match.1),
-            no_match: (ParsedAction::convert(rules.no_match.0), rules.no_match.1),
-        })
+    /// Create a `Rule` from directly.
+    /// - `tag`: the name of the `Rule`, which may be refered by other rules.
+    /// - `matcher`: A trait object implementing the `Matcher` trait. It determines the action to take and what the next rule is.
+    /// - `on_match` and `no_match`: The action to take and what the next rule is based on if it matches or not.
+    pub fn new(
+        tag: Label,
+        matcher: Box<dyn Matcher>,
+        on_match: (Box<dyn Action>, Label),
+        no_match: (Box<dyn Action>, Label),
+    ) -> Self {
+        Self {
+            tag,
+            matcher,
+            on_match,
+            no_match,
+        }
     }
 
-    pub fn on_match_next(&self) -> &Label {
+    // Shall not be used by end-users. visible under `Router`.
+    pub(in super::super) async fn with_parsed(rules: ParsedRule) -> Result<Self> {
+        Ok(Self::new(
+            rules.tag,
+            ParsedMatcher::convert(rules.matcher).await?,
+            (ParsedAction::convert(rules.on_match.0), rules.on_match.1),
+            (ParsedAction::convert(rules.no_match.0), rules.no_match.1),
+        ))
+    }
+
+    pub(in super::super) fn tag(&self) -> &Label {
+        &self.tag
+    }
+
+    pub(in super::super) fn on_match_next(&self) -> &Label {
         &self.on_match.1
     }
 
-    pub fn no_match_next(&self) -> &Label {
+    pub(in super::super) fn no_match_next(&self) -> &Label {
         &self.no_match.1
     }
 
-    pub fn used_upstreams(&self) -> HashSet<Label> {
+    pub(in super::super) fn used_upstreams(&self) -> HashSet<Label> {
         let mut h = HashSet::new();
         if let Some(l) = self.on_match.0.used_upstream() {
             h.insert(l);
@@ -63,7 +91,7 @@ impl Rule {
         h
     }
 
-    pub(crate) async fn route(
+    pub(in super::super) async fn route(
         &self,
         state: &mut State,
         upstreams: &Upstreams,

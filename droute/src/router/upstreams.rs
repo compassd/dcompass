@@ -28,13 +28,15 @@ use self::{
 use crate::Label;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
+#[cfg(feature = "serde-cfg")]
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, net::SocketAddr};
 use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "serde-cfg", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// Information needed for an upstream.
 pub struct Upstream {
     /// The destination (tag) associated with the upstream.
@@ -42,7 +44,7 @@ pub struct Upstream {
     /// Querying method.
     pub method: UpstreamKind,
     /// How long to timeout.
-    #[serde(default = "default_timeout")]
+    #[cfg_attr(feature = "serde-cfg", serde(default = "default_timeout"))]
     pub timeout: u64,
 }
 
@@ -97,17 +99,20 @@ impl Upstream {
 }
 
 // Default value for timeout
+#[cfg(feature = "serde-cfg")]
 fn default_timeout() -> u64 {
     5
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "serde-cfg", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone)]
 /// The methods of querying
 pub enum UpstreamKind {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
     Hybrid(Vec<Label>),
     /// DNS over HTTPS (DoH).
+    #[cfg(feature = "doh")]
     Https {
         /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
         name: String,
@@ -117,6 +122,7 @@ pub enum UpstreamKind {
         no_sni: bool,
     },
     /// DNS over TLS (DoT).
+    #[cfg(feature = "dot")]
     Tls {
         /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
         name: String,
@@ -129,13 +135,15 @@ pub enum UpstreamKind {
     Udp(SocketAddr),
 }
 
-pub(crate) struct Upstreams {
+/// `Upstream` aggregated, used to create `Router`.
+pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
     client_cache: HashMap<Label, ClientCache>,
     resp_cache: RespCache,
 }
 
 impl Upstreams {
+    /// Create a new `Upstreams` by passing a bunch of `Upstream`s and cache capacity.
     pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
         let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
@@ -188,6 +196,7 @@ impl Upstreams {
         Ok(())
     }
 
+    /// Check if the upstream is legitimate. This is automatically done when you create a new `Upstreams`.
     pub fn check(&self) -> Result<bool> {
         for (tag, _) in self.upstreams.iter() {
             self.traverse(&mut HashSet::new(), tag.clone())?
@@ -195,7 +204,8 @@ impl Upstreams {
         Ok(true)
     }
 
-    pub fn exists(&self, tag: &Label) -> Result<bool> {
+    // Make it only visible in side `router`
+    pub(super) fn exists(&self, tag: &Label) -> Result<bool> {
         if self.upstreams.contains_key(tag) {
             Ok(true)
         } else {
@@ -204,7 +214,8 @@ impl Upstreams {
     }
 
     // Write out in this way to allow recursion for async functions
-    pub fn resolve<'a>(
+    // Should no be accessible from external crates
+    pub(super) fn resolve<'a>(
         &'a self,
         tag: &'a Label,
         msg: &'a Message,

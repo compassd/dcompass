@@ -13,27 +13,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::parsed::ParsedMatcher, Matcher, Result};
+use super::{Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
 use tokio::{fs::File, prelude::*};
 use trust_dns_proto::{op::query::Query, rr::resource::Record};
 
+/// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
 
 impl Domain {
-    pub async fn new(spec: ParsedMatcher) -> Result<Self> {
-        Ok(match spec {
-            ParsedMatcher::Domain(p) => {
-                let mut matcher = DomainAlg::new();
-                for r in p {
-                    let mut file = File::open(r).await?;
-                    let mut data = String::new();
-                    file.read_to_string(&mut data).await?;
-                    matcher.insert_multi(&data);
-                }
-                Self(matcher)
+    /// Create a new `Domain` matcher from a list of files where each domain is seperated from one another by `\n`.
+    pub async fn new(p: Vec<String>) -> Result<Self> {
+        Ok({
+            let mut matcher = DomainAlg::new();
+            for r in p {
+                let mut file = File::open(r).await?;
+                let mut data = String::new();
+                file.read_to_string(&mut data).await?;
+                matcher.insert_multi(&data);
             }
-            _ => unreachable!(),
+            Self(matcher)
         })
     }
 }

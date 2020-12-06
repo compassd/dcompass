@@ -18,9 +18,18 @@
 // Documentation
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.
 pub mod error;
-pub mod router;
+mod router;
 
-pub use router::table::parsed;
+#[cfg(feature = "serde-cfg")]
+pub use self::router::table::parsed::*;
+pub use self::router::{
+    table::{
+        rule::{actions, matchers, Rule},
+        Table,
+    },
+    upstreams::{Upstream, UpstreamKind, Upstreams},
+    Router,
+};
 
 use std::sync::Arc;
 

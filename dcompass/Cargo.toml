@@ -9,7 +9,7 @@ license = "GPL-3.0"
 
 [dependencies]
 trust-dns-proto = { version = "0.20.0-alpha.3", default-features = false }
-droute = {version = "0.1.0-alpha.1", path = "../droute"}
+droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["all"]}
 futures = "^0.3"
 tokio = { version = "^0.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 simple_logger = "^1.11"

@@ -14,20 +14,19 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::super::{super::upstreams::Upstreams, parsed::ParsedAction, State},
+    super::super::{super::upstreams::Upstreams, State},
     Action, Result,
 };
 use crate::Label;
 use async_trait::async_trait;
 
-pub(crate) struct Skip;
+/// An action that does nothing.
+pub struct Skip;
 
-impl Skip {
-    pub fn new(spec: ParsedAction) -> Self {
-        match spec {
-            ParsedAction::Skip => Self,
-            _ => unreachable!(),
-        }
+impl Default for Skip {
+    /// Create a `Skip` action.
+    fn default() -> Self {
+        Self
     }
 }
 

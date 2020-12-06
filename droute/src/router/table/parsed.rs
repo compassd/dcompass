@@ -15,22 +15,21 @@
 
 use super::{
     rule::{
-        actions::{
-            disable::Disable as ActDisable, query::Query as ActQuery, skip::Skip as ActSkip, Action,
-        },
-        matchers::{
-            any::Any as MatAny, domain::Domain as MatDomain, qtype::QType as MatQType, Matcher,
-        },
+        actions::{Action, Disable as ActDisable, Query as ActQuery, Skip as ActSkip},
+        matchers::{Any as MatAny, Domain as MatDomain, Matcher, QType as MatQType},
     },
     Result,
 };
 use crate::Label;
 use hashbrown::HashSet;
+#[cfg(feature = "serde-cfg")]
 use serde::Deserialize;
 use trust_dns_proto::rr::record_type::RecordType;
 
-#[derive(Deserialize, Clone, Eq, PartialEq, Hash)]
-#[serde(remote = "RecordType")]
+#[cfg(feature = "serde-cfg")]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(remote = "RecordType"))]
+#[derive(Clone, Eq, PartialEq, Hash)]
 enum RecordTypeDef {
     A,
     AAAA,
@@ -58,12 +57,14 @@ enum RecordTypeDef {
 
 /// Type wrapper for `RecordType`.
 /// TODO: remove after trust-dns-proto supports serde
-#[derive(Clone, Deserialize, Eq, PartialEq, Hash)]
-pub struct Adapter(#[serde(with = "RecordTypeDef")] RecordType);
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct Adapter(#[cfg_attr(feature = "serde-cfg", serde(with = "RecordTypeDef"))] RecordType);
 
 /// Actions to take
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone)]
 pub enum ParsedAction {
     /// Set response to a message that "disables" requestor to retry.
     Disable,
@@ -76,18 +77,20 @@ pub enum ParsedAction {
 }
 
 impl ParsedAction {
+    // Should only be accessible from `Rule`.
     pub(super) fn convert(self) -> Box<dyn Action> {
         match self {
-            Self::Disable => Box::new(ActDisable::new(self)),
-            Self::Skip => Box::new(ActSkip::new(self)),
-            Self::Query(_) => Box::new(ActQuery::new(self)),
+            Self::Disable => Box::new(ActDisable::default()),
+            Self::Skip => Box::new(ActSkip::default()),
+            Self::Query(t) => Box::new(ActQuery::new(t)),
         }
     }
 }
 
 /// Matchers to use
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone)]
 pub enum ParsedMatcher {
     /// Matches any query
     Any,
@@ -100,10 +103,11 @@ pub enum ParsedMatcher {
 }
 
 impl ParsedMatcher {
+    // Should only be accessible from `Rule`.
     pub(super) async fn convert(self) -> Result<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Any => Box::new(MatAny::new()),
-            Self::Domain(_) => Box::new(MatDomain::new(self).await?),
+            Self::Any => Box::new(MatAny::default()),
+            Self::Domain(v) => Box::new(MatDomain::new(v).await?),
             Self::QType(types) => {
                 let converted = types.iter().map(|s| s.0).collect();
                 Box::new(MatQType::new(converted)?)
@@ -113,26 +117,28 @@ impl ParsedMatcher {
 }
 
 /// A rule composed of tag name, matcher, and branches.
-#[derive(Deserialize, Clone)]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[derive(Clone)]
 pub struct ParsedRule {
     /// The tag name of the rule
     pub tag: Label,
 
     /// The matcher rule uses.
-    #[serde(rename = "if")]
+    #[cfg_attr(feature = "serde-cfg", serde(rename = "if"))]
     pub matcher: ParsedMatcher,
 
     /// If matcher matches, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[serde(default = "default_branch")]
-    #[serde(rename = "then")]
+    #[cfg_attr(feature = "serde-cfg", serde(default = "default_branch"))]
+    #[cfg_attr(feature = "serde-cfg", serde(rename = "then"))]
     pub on_match: (ParsedAction, Label),
 
     /// If matcher doesn't, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[serde(default = "default_branch")]
-    #[serde(rename = "else")]
+    #[cfg_attr(feature = "serde-cfg", serde(default = "default_branch"))]
+    #[cfg_attr(feature = "serde-cfg", serde(rename = "else"))]
     pub no_match: (ParsedAction, Label),
 }
 
+#[cfg(feature = "serde-cfg")]
 fn default_branch() -> (ParsedAction, Label) {
     (ParsedAction::Skip, "end".into())
 }

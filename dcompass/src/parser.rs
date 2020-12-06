@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use droute::{parsed::ParsedRule, router::upstreams::Upstream};
+use droute::{ParsedRule, Upstream};
 use log::LevelFilter;
 use serde::Deserialize;
 use std::net::SocketAddr;

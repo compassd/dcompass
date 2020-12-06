@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::super::{super::upstreams::Upstreams, parsed::ParsedAction, State},
+    super::super::{super::upstreams::Upstreams, State},
     Action, Result,
 };
 use crate::{Label, MAX_TTL};
@@ -37,14 +37,13 @@ lazy_static! {
     };
 }
 
-pub(crate) struct Disable;
+/// An action that sends back the message that may refrain the sender to continue to query.
+pub struct Disable;
 
-impl Disable {
-    pub fn new(spec: ParsedAction) -> Self {
-        match spec {
-            ParsedAction::Disable => Self,
-            _ => unreachable!(),
-        }
+impl Default for Disable {
+    /// Create a default `Disable` action.
+    fn default() -> Self {
+        Self
     }
 }
 
