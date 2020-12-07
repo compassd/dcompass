@@ -20,8 +20,10 @@ crypto = ["rustls", "webpki-roots", "webpki", "tcp"]
 dot = ["trust-dns-rustls", "crypto"]
 doh = ["trust-dns-https", "crypto"]
 
+geoip = ["maxminddb"]
+
 # enable all features
-all = ["serde-cfg", "dot", "doh"]
+all = ["serde-cfg", "dot", "doh", "geoip"]
 
 [dependencies]
 # DNS-implementation related dependencies
@@ -33,6 +35,8 @@ rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = 
 async-trait = "^0.1"
 webpki-roots = { version = "^0.20", optional = true }
 webpki = { version = "^0.21", optional = true }
+
+maxminddb = { version = "^0.16", optional = true }
 
 # Async-aware dependencies
 futures = "^0.3"

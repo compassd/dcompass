@@ -318,6 +318,7 @@ dependencies = [
  "lazy_static",
  "log",
  "lru",
+ "maxminddb",
  "rustls",
  "serde",
  "thiserror",
@@ -639,6 +640,16 @@ name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
+
+[[package]]
+name = "maxminddb"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6836097a15eb5f6a1561ef99dd3712d8dd2044421a582f30ea340c4aac3f62f7"
+dependencies = [
+ "log",
+ "serde",
+]
 
 [[package]]
 name = "memchr"

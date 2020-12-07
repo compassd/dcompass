@@ -18,6 +18,8 @@ jobs:
         with:
           format: YYYYMMDD_HHmm
           utcOffset: "+08:00"
+      - name: Update data files
+        run: ./data/update.sh
       - name: Create release
         id: create_release
         uses: actions/create-release@v1

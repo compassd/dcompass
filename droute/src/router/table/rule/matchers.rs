@@ -15,10 +15,16 @@
 
 mod any;
 mod domain;
+#[cfg(feature = "geoip")]
+mod geoip;
 mod qtype;
 
+#[cfg(feature = "geoip")]
+pub use self::geoip::Geoip;
 pub use self::{any::Any, domain::Domain, qtype::QType};
 
+#[cfg(feature = "geoip")]
+use maxminddb::MaxMindDBError;
 use std::fmt::Debug;
 use thiserror::Error;
 use trust_dns_proto::{op::query::Query, rr::resource::Record};
@@ -31,6 +37,11 @@ pub enum MatchError {
     /// Error forwarded from `std::io::Error`.
     #[error("An I/O error encountered. Check files provided for matcher(s) to ensure they exist and have the right permissions.")]
     IOError(#[from] std::io::Error),
+
+    /// Error related to GeoIP usages.
+    #[cfg(feature = "geoip")]
+    #[error("An error happened when using `geoip` matcher.")]
+    GeoIPError(#[from] MaxMindDBError),
 
     /// Malformatted file provided to a matcher.
     #[error("File provided for matcher(s) is malformatted.")]

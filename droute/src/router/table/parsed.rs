@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(feature = "geoip")]
+use super::rule::matchers::Geoip as MatGeoip;
 use super::{
     rule::{
         actions::{Action, Disable as ActDisable, Query as ActQuery, Skip as ActSkip},
@@ -100,6 +102,10 @@ pub enum ParsedMatcher {
 
     /// Matches query types provided. Query types are like AAAA, A, TXT.
     QType(HashSet<Adapter>),
+
+    /// Matches if IP address in the record of the first response is in the list of countries.
+    #[cfg(feature = "geoip")]
+    Geoip(HashSet<String>),
 }
 
 impl ParsedMatcher {
@@ -112,6 +118,8 @@ impl ParsedMatcher {
                 let converted = types.iter().map(|s| s.0).collect();
                 Box::new(MatQType::new(converted)?)
             }
+            #[cfg(feature = "geoip")]
+            Self::Geoip(s) => Box::new(MatGeoip::new(s)?),
         })
     }
 }
