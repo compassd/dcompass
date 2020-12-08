@@ -162,3 +162,7 @@ Found 10 outliers among 100 measurements (10.00%)
 Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.
 - On `i7-10710U`, dnsperf gets out `~760 qps` with `0.12s avg latency` and `0.27% ServFail` rate for a test of `15004` queries.
 - As a reference SmartDNS gets `~640 qps` for the same test on the same hardware.
+
+# License
+All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.  
+`dcompass` and `droute` with `geoip` feature gate enabled include GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a>.
