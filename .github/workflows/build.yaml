@@ -59,6 +59,14 @@ jobs:
     - name: Update data files
       run: ./data/update.sh
 
+    - name: Install upx for linux
+      if: contains(matrix.os, 'ubuntu')
+      run: sudo apt-get install upx
+
+    - name: Install upx for macos
+      if: contains(matrix.os, 'macos')
+      run: brew install upx
+
     - name: Install musl tools
       if: contains(matrix.target, 'musl')
       run: sudo apt-get install musl-tools
@@ -124,6 +132,7 @@ jobs:
         else
           cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}
         fi
+        upx ./dcompass*
 
     - name: Publish
       uses: softprops/action-gh-release@v1
