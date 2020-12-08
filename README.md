@@ -37,10 +37,11 @@ Different actions:
 - `disable`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
 - `query(tag)`: Send query via upstream with specified tag.
 
-Different matchers: (More matchers to come, including `cidr`, `geoip`)
+Different matchers: (More matchers to come, including `cidr`)
 - `any`: Matches anything.
 - `domain(list of file paths)`: Matches domain in specified domain lists
 - `qtype(list of record types)`: Matches record type specified.
+- `geoip(list of ISO country codes)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
 
 Different querying methods:
 - `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
@@ -114,6 +115,24 @@ upstreams:
     - cloudflare
     - quad9
   tag: secure
+```
+
+Table example of using GeoIP to mitigate pollution
+
+```yaml
+table:
+- tag: start
+  if: any
+  then:
+  - query: domestic
+  - check_secure
+- tag: check_secure
+  if:
+    geoip:
+    - CN
+  else:
+  - query: secure
+  - end
 ```
 
 # Behind the scene details

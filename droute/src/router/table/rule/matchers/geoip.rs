@@ -15,6 +15,7 @@
 
 use super::{Matcher, Result};
 use hashbrown::HashSet;
+use log::info;
 use maxminddb::{geoip2::Country, Reader};
 use std::net::IpAddr;
 use trust_dns_proto::{
@@ -25,7 +26,7 @@ use trust_dns_proto::{
     },
 };
 
-/// A matcher that matches if IP address in the record of the first response is in the list of countries.
+/// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 pub struct Geoip {
     db: Reader<Vec<u8>>,
     list: HashSet<String>,
@@ -45,8 +46,11 @@ impl Geoip {
 
 impl Matcher for Geoip {
     fn matches(&self, _: &[Query], records: &[Record]) -> bool {
-        if !records.is_empty() {
-            let r = if let Ok(r) = self.db.lookup::<Country>(match *records[0].rdata() {
+        if let Some(record) = records
+            .iter()
+            .find(|&record| matches!(record.rdata(), A(_) | AAAA(_)))
+        {
+            let r = if let Ok(r) = self.db.lookup::<Country>(match *record.rdata() {
                 A(addr) => IpAddr::V4(addr),
                 AAAA(addr) => IpAddr::V6(addr),
                 _ => return false,
@@ -57,7 +61,16 @@ impl Matcher for Geoip {
             };
 
             r.country
-                .and_then(|c| c.iso_code.map(|n| self.list.contains(n)))
+                .and_then(|c| {
+                    c.iso_code.map(|n| {
+                        info!(
+                            "The record `{:?}` has ISO country code `{}`",
+                            record.rdata(),
+                            n
+                        );
+                        self.list.contains(n)
+                    })
+                })
                 .unwrap_or(false)
         } else {
             false
@@ -122,6 +135,16 @@ mod tests {
     }
 
     #[test]
+    fn empty_records() {
+        assert_eq!(
+            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+                .unwrap()
+                .matches(&[], &[]),
+            false,
+        )
+    }
+
+    #[test]
     fn is_china() {
         assert_eq!(
             Geoip::new(vec!["CN".to_string()].into_iter().collect())
@@ -133,6 +156,35 @@ mod tests {
                         10,
                         RData::A("36.152.44.95".parse().unwrap()),
                     )],
+                ),
+            true
+        )
+    }
+
+    #[test]
+    fn unordered_is_china() {
+        assert_eq!(
+            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+                .unwrap()
+                .matches(
+                    &[],
+                    &[
+                        Record::from_rdata(
+                            Name::from_str("baidu.com").unwrap(),
+                            10,
+                            RData::CNAME(Name::from_str("baidu.com").unwrap()),
+                        ),
+                        Record::from_rdata(
+                            Name::from_str("baidu.com").unwrap(),
+                            10,
+                            RData::A("36.152.44.95".parse().unwrap()),
+                        ),
+                        Record::from_rdata(
+                            Name::from_str("baidu.com").unwrap(),
+                            10,
+                            RData::NS(Name::from_str("baidu.com").unwrap()),
+                        ),
+                    ],
                 ),
             true
         )
