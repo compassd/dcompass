@@ -128,11 +128,12 @@ jobs:
       run: |
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
+          upx ./target/${{ matrix.target }}/release/dcompass.exe
           cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}.exe
         else
+          upx ./target/${{ matrix.target }}/release/dcompass
           cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}
         fi
-        upx ./dcompass*
 
     - name: Publish
       uses: softprops/action-gh-release@v1
