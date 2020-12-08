@@ -139,7 +139,7 @@ pub enum UpstreamKind {
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
     client_cache: HashMap<Label, ClientCache>,
-    resp_cache: RespCache,
+    resp_cache: HashMap<Label, RespCache>,
 }
 
 impl Upstreams {
@@ -147,12 +147,14 @@ impl Upstreams {
     pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
         let mut r: HashMap<Label, Upstream> = HashMap::new();
         let mut c = HashMap::new();
+        let mut resp_cache = HashMap::new();
         for u in upstreams {
             // Check if there is multiple definitions being passed in.
             match r.get(&u.tag) {
                 Some(_) => return Err(UpstreamError::MultipleDef(u.tag)),
                 None => {
                     c.insert(u.tag.clone(), ClientCache::new(&u).await?);
+                    resp_cache.insert(u.tag.clone(), RespCache::new(size));
                     r.insert(u.tag.clone(), u);
                 }
             };
@@ -160,7 +162,7 @@ impl Upstreams {
         let u = Self {
             upstreams: r,
             client_cache: c,
-            resp_cache: RespCache::new(size),
+            resp_cache,
         };
         u.check()?;
         Ok(u)
@@ -232,7 +234,11 @@ impl Upstreams {
                     self.upstreams
                         .get(tag)
                         .unwrap()
-                        .resolve(&self.resp_cache, self.client_cache.get(tag).unwrap(), msg)
+                        .resolve(
+                            &self.resp_cache.get(tag).unwrap(),
+                            self.client_cache.get(tag).unwrap(),
+                            msg,
+                        )
                         .await?
                 }
             })

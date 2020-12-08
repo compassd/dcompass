@@ -19,4 +19,4 @@ let
   };
 in with nixpkgs;
 
-mkShell { buildInputs = [ rustEnv ]; }
+mkShell { buildInputs = [ rustEnv binutils-unwrapped ]; }

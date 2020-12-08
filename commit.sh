@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 find . -type f -name '*.sh' -exec shellcheck {} +
 find . -type f -name '*.sh' -exec shfmt -w {} +
 find . -type f -name '*.nix' -exec nixfmt {} +

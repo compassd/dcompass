@@ -45,48 +45,22 @@ impl Geoip {
 
 impl Matcher for Geoip {
     fn matches(&self, _: &[Query], records: &[Record]) -> bool {
-        match *records[0].rdata() {
-            A(addr) => {
-                if let Some(name) = if let Some(c) =
-                    if let Ok(r) = self.db.lookup::<Country>(IpAddr::V4(addr)) {
-                        r
-                    } else {
-                        return false;
-                    }
-                    .country
-                {
-                    c
-                } else {
-                    return false;
-                }
-                .iso_code
-                {
-                    self.list.contains(name)
-                } else {
-                    false
-                }
-            }
-            AAAA(addr) => {
-                if let Some(name) = if let Some(c) =
-                    if let Ok(r) = self.db.lookup::<Country>(IpAddr::V6(addr)) {
-                        r
-                    } else {
-                        return false;
-                    }
-                    .country
-                {
-                    c
-                } else {
-                    return false;
-                }
-                .iso_code
-                {
-                    self.list.contains(name)
-                } else {
-                    false
-                }
-            }
-            _ => false,
+        if !records.is_empty() {
+            let r = if let Ok(r) = self.db.lookup::<Country>(match *records[0].rdata() {
+                A(addr) => IpAddr::V4(addr),
+                AAAA(addr) => IpAddr::V6(addr),
+                _ => return false,
+            }) {
+                r
+            } else {
+                return false;
+            };
+
+            r.country
+                .and_then(|c| c.iso_code.map(|n| self.list.contains(n)))
+                .unwrap_or(false)
+        } else {
+            false
         }
     }
 }
