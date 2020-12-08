@@ -137,33 +137,26 @@ pub enum UpstreamKind {
 
 /// `Upstream` aggregated, used to create `Router`.
 pub struct Upstreams {
-    upstreams: HashMap<Label, Upstream>,
-    client_cache: HashMap<Label, ClientCache>,
-    resp_cache: HashMap<Label, RespCache>,
+    upstreams: HashMap<Label, (Upstream, ClientCache, RespCache)>,
 }
 
 impl Upstreams {
     /// Create a new `Upstreams` by passing a bunch of `Upstream`s and cache capacity.
     pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
-        let mut r: HashMap<Label, Upstream> = HashMap::new();
-        let mut c = HashMap::new();
-        let mut resp_cache = HashMap::new();
+        let mut r = HashMap::new();
         for u in upstreams {
             // Check if there is multiple definitions being passed in.
             match r.get(&u.tag) {
                 Some(_) => return Err(UpstreamError::MultipleDef(u.tag)),
                 None => {
-                    c.insert(u.tag.clone(), ClientCache::new(&u).await?);
-                    resp_cache.insert(u.tag.clone(), RespCache::new(size));
-                    r.insert(u.tag.clone(), u);
+                    r.insert(
+                        u.tag.clone(),
+                        (u.clone(), ClientCache::new(&u).await?, RespCache::new(size)),
+                    );
                 }
             };
         }
-        let u = Self {
-            upstreams: r,
-            client_cache: c,
-            resp_cache,
-        };
+        let u = Self { upstreams: r };
         u.check()?;
         Ok(u)
     }
@@ -181,6 +174,7 @@ impl Upstreams {
                 .upstreams
                 .get(&tag)
                 .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?
+                .0
                 .method
             {
                 // Check if it is empty.
@@ -224,23 +218,13 @@ impl Upstreams {
     ) -> BoxFuture<'a, Result<Message>> {
         async move {
             let u = self.upstreams.get(tag).unwrap();
-            Ok(match &u.method {
+            Ok(match &u.0.method {
                 UpstreamKind::Hybrid(v) => {
                     let v = v.iter().map(|t| self.resolve(t, msg));
                     let (r, _) = select_ok(v.clone()).await?;
                     r
                 }
-                _ => {
-                    self.upstreams
-                        .get(tag)
-                        .unwrap()
-                        .resolve(
-                            &self.resp_cache.get(tag).unwrap(),
-                            self.client_cache.get(tag).unwrap(),
-                            msg,
-                        )
-                        .await?
-                }
+                _ => u.0.resolve(&u.2, &u.1, msg).await?,
             })
         }
         .boxed()
