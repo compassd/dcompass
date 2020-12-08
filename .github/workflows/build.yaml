@@ -128,10 +128,10 @@ jobs:
       run: |
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          upx ./target/${{ matrix.target }}/release/dcompass.exe
+          upx ./target/${{ matrix.target }}/release/dcompass.exe || true
           cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}.exe
         else
-          upx ./target/${{ matrix.target }}/release/dcompass
+          upx ./target/${{ matrix.target }}/release/dcompass || true
           cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}
         fi
 
