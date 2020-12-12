@@ -13,12 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Matcher, Result};
+use super::{super::super::State, Matcher, Result};
 use hashbrown::HashSet;
-use trust_dns_proto::{
-    op::query::Query,
-    rr::{record_type::RecordType, resource::Record},
-};
+use trust_dns_proto::rr::record_type::RecordType;
 
 /// A matcher that matches if first query is of any of the record types provided.
 pub struct QType(HashSet<RecordType>);
@@ -31,7 +28,7 @@ impl QType {
 }
 
 impl Matcher for QType {
-    fn matches(&self, queries: &[Query], _: &[Record]) -> bool {
-        self.0.contains(&queries[0].query_type())
+    fn matches(&self, state: &State) -> bool {
+        self.0.contains(&state.query.queries()[0].query_type())
     }
 }

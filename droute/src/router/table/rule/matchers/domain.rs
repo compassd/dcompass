@@ -13,10 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Matcher, Result};
+use super::{super::super::State, Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
 use tokio::{fs::File, prelude::*};
-use trust_dns_proto::{op::query::Query, rr::resource::Record};
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
@@ -38,7 +37,7 @@ impl Domain {
 }
 
 impl Matcher for Domain {
-    fn matches(&self, queries: &[Query], _: &[Record]) -> bool {
-        self.0.matches(&queries[0].name().to_utf8())
+    fn matches(&self, state: &State) -> bool {
+        self.0.matches(&state.query.queries()[0].name().to_utf8())
     }
 }

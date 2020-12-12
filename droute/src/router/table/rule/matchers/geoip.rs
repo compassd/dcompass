@@ -13,18 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Matcher, Result};
+use super::{super::super::State, Matcher, Result};
 use hashbrown::HashSet;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
 use std::net::IpAddr;
-use trust_dns_proto::{
-    op::query::Query,
-    rr::{
-        record_data::RData::{A, AAAA},
-        resource::Record,
-    },
-};
+use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 pub struct Geoip {
@@ -45,8 +39,10 @@ impl Geoip {
 }
 
 impl Matcher for Geoip {
-    fn matches(&self, _: &[Query], records: &[Record]) -> bool {
-        if let Some(record) = records
+    fn matches(&self, state: &State) -> bool {
+        if let Some(record) = state
+            .resp
+            .answers()
             .iter()
             .find(|&record| matches!(record.rdata(), A(_) | AAAA(_)))
         {
@@ -80,24 +76,34 @@ impl Matcher for Geoip {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::Matcher, Geoip};
+    use super::{super::Matcher, Geoip, State};
     use std::str::FromStr;
     use trust_dns_client::rr::RData;
-    use trust_dns_proto::rr::{resource::Record, Name};
+    use trust_dns_proto::{
+        op::Message,
+        rr::{resource::Record, Name},
+    };
 
     #[test]
     fn not_china() {
         assert_eq!(
             Geoip::new(vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
-                .matches(
-                    &[],
-                    &[Record::from_rdata(
-                        Name::from_str("apple.com").unwrap(),
-                        10,
-                        RData::A("1.1.1.1".parse().unwrap()),
-                    )],
-                ),
+                .matches(&State {
+                    query: Message::new(),
+                    resp: {
+                        let mut m = Message::new();
+                        m.insert_answers(
+                            [Record::from_rdata(
+                                Name::from_str("apple.com").unwrap(),
+                                10,
+                                RData::A("1.1.1.1".parse().unwrap()),
+                            )]
+                            .to_vec(),
+                        );
+                        m
+                    },
+                }),
             false
         )
     }
@@ -111,25 +117,39 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            geoip.matches(
-                &[],
-                &[Record::from_rdata(
-                    Name::from_str("apple.com").unwrap(),
-                    10,
-                    RData::A("1.1.1.1".parse().unwrap()),
-                )],
-            ),
+            geoip.matches(&State {
+                query: Message::new(),
+                resp: {
+                    let mut m = Message::new();
+                    m.insert_answers(
+                        [Record::from_rdata(
+                            Name::from_str("apple.com").unwrap(),
+                            10,
+                            RData::A("1.1.1.1".parse().unwrap()),
+                        )]
+                        .to_vec(),
+                    );
+                    m
+                },
+            }),
             true
         );
         assert_eq!(
-            geoip.matches(
-                &[],
-                &[Record::from_rdata(
-                    Name::from_str("baidu.com").unwrap(),
-                    10,
-                    RData::A("36.152.44.95".parse().unwrap()),
-                )],
-            ),
+            geoip.matches(&State {
+                query: Message::new(),
+                resp: {
+                    let mut m = Message::new();
+                    m.insert_answers(
+                        [Record::from_rdata(
+                            Name::from_str("baidu.com").unwrap(),
+                            10,
+                            RData::A("36.152.44.95".parse().unwrap()),
+                        )]
+                        .to_vec(),
+                    );
+                    m
+                },
+            }),
             true
         )
     }
@@ -139,7 +159,10 @@ mod tests {
         assert_eq!(
             Geoip::new(vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
-                .matches(&[], &[]),
+                .matches(&State {
+                    query: Message::new(),
+                    resp: Message::new()
+                }),
             false,
         )
     }
@@ -149,14 +172,21 @@ mod tests {
         assert_eq!(
             Geoip::new(vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
-                .matches(
-                    &[],
-                    &[Record::from_rdata(
-                        Name::from_str("baidu.com").unwrap(),
-                        10,
-                        RData::A("36.152.44.95".parse().unwrap()),
-                    )],
-                ),
+                .matches(&State {
+                    query: Message::new(),
+                    resp: {
+                        let mut m = Message::new();
+                        m.insert_answers(
+                            [Record::from_rdata(
+                                Name::from_str("baidu.com").unwrap(),
+                                10,
+                                RData::A("36.152.44.95".parse().unwrap()),
+                            )]
+                            .to_vec(),
+                        );
+                        m
+                    },
+                }),
             true
         )
     }
@@ -166,26 +196,33 @@ mod tests {
         assert_eq!(
             Geoip::new(vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
-                .matches(
-                    &[],
-                    &[
-                        Record::from_rdata(
-                            Name::from_str("baidu.com").unwrap(),
-                            10,
-                            RData::CNAME(Name::from_str("baidu.com").unwrap()),
-                        ),
-                        Record::from_rdata(
-                            Name::from_str("baidu.com").unwrap(),
-                            10,
-                            RData::A("36.152.44.95".parse().unwrap()),
-                        ),
-                        Record::from_rdata(
-                            Name::from_str("baidu.com").unwrap(),
-                            10,
-                            RData::NS(Name::from_str("baidu.com").unwrap()),
-                        ),
-                    ],
-                ),
+                .matches(&State {
+                    query: Message::new(),
+                    resp: {
+                        let mut m = Message::new();
+                        m.insert_answers(
+                            [
+                                Record::from_rdata(
+                                    Name::from_str("baidu.com").unwrap(),
+                                    10,
+                                    RData::CNAME(Name::from_str("baidu.com").unwrap()),
+                                ),
+                                Record::from_rdata(
+                                    Name::from_str("baidu.com").unwrap(),
+                                    10,
+                                    RData::A("36.152.44.95".parse().unwrap()),
+                                ),
+                                Record::from_rdata(
+                                    Name::from_str("baidu.com").unwrap(),
+                                    10,
+                                    RData::NS(Name::from_str("baidu.com").unwrap()),
+                                ),
+                            ]
+                            .to_vec(),
+                        );
+                        m
+                    },
+                }),
             true
         )
     }

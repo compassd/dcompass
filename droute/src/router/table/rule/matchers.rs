@@ -23,11 +23,11 @@ mod qtype;
 pub use self::geoip::Geoip;
 pub use self::{any::Any, domain::Domain, qtype::QType};
 
+use super::super::State;
 #[cfg(feature = "geoip")]
 use maxminddb::MaxMindDBError;
 use std::fmt::Debug;
 use thiserror::Error;
-use trust_dns_proto::{op::query::Query, rr::resource::Record};
 
 type Result<T> = std::result::Result<T, MatchError>;
 
@@ -48,8 +48,8 @@ pub enum MatchError {
     Malformatted,
 }
 
-/// A matcher determines if something matches or not given the queries and responses.
+/// A matcher determines if something matches or not given the current state.
 pub trait Matcher: Sync + Send {
     /// Determine if match.
-    fn matches(&self, queries: &[Query], resps: &[Record]) -> bool;
+    fn matches(&self, state: &State) -> bool;
 }

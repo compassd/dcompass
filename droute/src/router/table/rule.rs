@@ -98,10 +98,7 @@ impl Rule {
         name: &str,
         tag_name: &Label,
     ) -> Result<Label> {
-        if self
-            .matcher
-            .matches(state.query.queries(), state.resp.answers())
-        {
+        if self.matcher.matches(&state) {
             info!("Domain \"{}\" matches at rule `{}`", name, tag_name);
             self.on_match.0.act(state, upstreams).await?;
             Ok(self.on_match.1.clone())
