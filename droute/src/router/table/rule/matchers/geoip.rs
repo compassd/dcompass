@@ -56,7 +56,7 @@ impl Geoip {
 impl Matcher for Geoip {
     fn matches(&self, state: &State) -> bool {
         if let Some(ip) = match self.on {
-            GeoIpTarget::Src => state.src,
+            GeoIpTarget::Src => state.src.map(|i| i.ip()),
             GeoIpTarget::Resp => state
                 .resp
                 .answers()
@@ -103,7 +103,8 @@ mod tests {
             Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
                 .matches(&State {
-                    src: Some("36.152.44.95".parse().unwrap()),
+                    // Port if not important here.
+                    src: Some("36.152.44.95:1".parse().unwrap()),
                     ..Default::default()
                 }),
             true
@@ -116,7 +117,7 @@ mod tests {
             Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
                 .matches(&State {
-                    src: Some("1.1.1.1".parse().unwrap()),
+                    src: Some("1.1.1.1:1".parse().unwrap()),
                     ..Default::default()
                 }),
             false

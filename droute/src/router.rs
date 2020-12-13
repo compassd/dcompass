@@ -24,7 +24,7 @@ use self::{
 };
 use crate::error::Result;
 use log::warn;
-use std::net::IpAddr;
+use std::net::SocketAddr;
 use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.
@@ -62,7 +62,7 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, src: Option<IpAddr>, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, src: Option<SocketAddr>, msg: Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.

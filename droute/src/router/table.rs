@@ -25,7 +25,7 @@ use super::upstreams::Upstreams;
 use crate::Label;
 use hashbrown::{HashMap, HashSet};
 use log::*;
-use std::net::IpAddr;
+use std::net::SocketAddr;
 use thiserror::Error;
 use trust_dns_client::op::Message;
 
@@ -61,7 +61,7 @@ pub enum TableError {
 pub struct State {
     resp: Message,
     query: Message,
-    src: Option<IpAddr>,
+    src: Option<SocketAddr>,
 }
 
 /// A simple routing table.
@@ -127,7 +127,7 @@ impl Table {
     // Not intended to be used by end-users
     pub(super) async fn route(
         &self,
-        src: Option<IpAddr>,
+        src: Option<SocketAddr>,
         query: Message,
         upstreams: &Upstreams,
     ) -> Result<Message> {
