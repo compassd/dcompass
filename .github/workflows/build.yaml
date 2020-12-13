@@ -2,7 +2,7 @@ name: "Build dcompass on various targets"
 on:
   push:
   schedule:
-    - cron: '30 1 * * *'
+    - cron: '0 1 * * *'
 
 jobs:
   create-release:

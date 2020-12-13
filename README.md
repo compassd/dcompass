@@ -51,6 +51,7 @@ Different querying methods:
 
 Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching (Both `JSON` and `YAML` are accepted):
 <details><summary>Configuration example</summary>
+<p>
 ```yaml
 ---
 verbosity: info
@@ -117,6 +118,7 @@ upstreams:
     - quad9
   tag: secure
 ```
+</p>
 </details>
 
 Table example of using GeoIP to mitigate pollution
