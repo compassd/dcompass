@@ -1374,7 +1374,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
+source = "git+https://github.com/bluejekyll/trust-dns?branch=main#0662ab66acf5ce40a20df72ed82766236245c0ef"
 dependencies = [
  "cfg-if 1.0.0",
  "chrono",
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-https"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
+source = "git+https://github.com/bluejekyll/trust-dns?branch=main#0662ab66acf5ce40a20df72ed82766236245c0ef"
 dependencies = [
  "bytes 0.6.0",
  "cfg-if 1.0.0",
@@ -1415,7 +1415,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
+source = "git+https://github.com/bluejekyll/trust-dns?branch=main#0662ab66acf5ce40a20df72ed82766236245c0ef"
 dependencies = [
  "async-trait",
  "cfg-if 1.0.0",
@@ -1439,7 +1439,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-rustls"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
+source = "git+https://github.com/bluejekyll/trust-dns?branch=main#0662ab66acf5ce40a20df72ed82766236245c0ef"
 dependencies = [
  "futures-channel",
  "futures-io",
