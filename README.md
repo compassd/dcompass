@@ -50,6 +50,7 @@ Different querying methods:
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
 Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching (Both `JSON` and `YAML` are accepted):
+<details><summary>Configuration example</summary>
 ```yaml
 ---
 verbosity: info
@@ -116,6 +117,7 @@ upstreams:
     - quad9
   tag: secure
 ```
+</details>
 
 Table example of using GeoIP to mitigate pollution
 
@@ -163,6 +165,12 @@ Following benchmarks are not mocked, but they are rather based on multiple perfs
 - On `i7-10710U`, dnsperf gets out `~760 qps` with `0.12s avg latency` and `0.27% ServFail` rate for a test of `15004` queries.
 - As a reference SmartDNS gets `~640 qps` for the same test on the same hardware.
 
+# TODO-list
+- [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
+- [ ] IP-CIDR matcher for both source address and response address
+- [ ] GeoIP matcher for source address
+- [ ] Custom response action
+
 # License
-All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.  
+All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.
 `dcompass` and `droute` with `geoip` feature gate enabled include GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a>.
