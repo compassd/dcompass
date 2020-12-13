@@ -50,8 +50,10 @@ Different querying methods:
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
 Below is an example that races multiple upstreams, disables `AAAA` queries, and dispatches queries using domain matching (Both `JSON` and `YAML` are accepted):
+
 <details><summary>Configuration example</summary>
 <p>
+
 ```yaml
 ---
 verbosity: info
@@ -118,6 +120,7 @@ upstreams:
     - quad9
   tag: secure
 ```
+
 </p>
 </details>
 
