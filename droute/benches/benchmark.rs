@@ -95,11 +95,11 @@ fn bench_resolve(c: &mut Criterion) {
     let cached_router = BUILD(4096);
 
     c.bench_function("non_cache_resolve", |b| {
-        b.iter(|| assert_ok!(block_on(router.resolve(QUERY.clone()))))
+        b.iter(|| assert_ok!(block_on(router.resolve(None, QUERY.clone()))))
     });
 
     c.bench_function("cached_resolve", |b| {
-        b.iter(|| assert_ok!(block_on(cached_router.resolve(QUERY.clone()))))
+        b.iter(|| assert_ok!(block_on(cached_router.resolve(None, QUERY.clone()))))
     });
 }
 

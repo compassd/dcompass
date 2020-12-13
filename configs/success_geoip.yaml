@@ -1,0 +1,29 @@
+---
+verbosity: 'off'
+cache_size: 4096
+address: 0.0.0.0:2053
+table:
+- tag: start
+  if:
+    geoip:
+      on: src
+      codes:
+        - CN
+  then:
+  - query: domestic
+  - end
+  else:
+  - query: secure
+  - end
+upstreams:
+- timeout: 1
+  method:
+    udp: 114.114.114.114:53
+  tag: domestic
+- timeout: 2
+  method:
+    https:
+      no_sni: false
+      name: dns.quad9.net
+      addr: 9.9.9.9:443
+  tag: secure

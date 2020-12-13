@@ -31,7 +31,10 @@ pub async fn worker(
 
     info!("Received message: {:?}", request);
     socket
-        .send_to(&router.resolve(request).await?.to_vec()?, src)
+        .send_to(
+            &router.resolve(Some(src.ip()), request).await?.to_vec()?,
+            src,
+        )
         .await
         .unwrap_or_else(|e| {
             warn!("Failed to send back response: {}", e);

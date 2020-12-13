@@ -136,7 +136,9 @@ table:
 - tag: check_secure
   if:
     geoip:
-    - CN
+      on: resp
+      codes:
+        - CN
   else:
   - query: secure
   - end
@@ -173,7 +175,7 @@ Following benchmarks are not mocked, but they are rather based on multiple perfs
 # TODO-list
 - [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
 - [ ] IP-CIDR matcher for both source address and response address
-- [ ] GeoIP matcher for source address
+- [x] GeoIP matcher for source address
 - [ ] Custom response action
 
 # License

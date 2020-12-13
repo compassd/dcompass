@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #[cfg(feature = "geoip")]
-use super::rule::matchers::Geoip as MatGeoip;
+use super::rule::matchers::{GeoIpTarget, Geoip as MatGeoip};
 use super::{
     rule::{
         actions::{Action, Disable as ActDisable, Query as ActQuery, Skip as ActSkip},
@@ -54,10 +54,18 @@ impl ParsedAction {
     }
 }
 
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone, Eq, PartialEq)]
+pub struct ParsedGeoIp {
+    on: GeoIpTarget,
+    codes: HashSet<String>,
+}
+
 /// Matchers to use
 #[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
 #[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum ParsedMatcher {
     /// Matches any query
     Any,
@@ -68,9 +76,9 @@ pub enum ParsedMatcher {
     /// Matches query types provided. Query types are like AAAA, A, TXT.
     QType(HashSet<RecordType>),
 
-    /// Matches if IP address in the record of the first response is in the list of countries.
+    /// Matches if IP address in the record of the first response is in the list of countries. If specified, this can also match against source IP.
     #[cfg(feature = "geoip")]
-    Geoip(HashSet<String>),
+    Geoip(ParsedGeoIp),
 }
 
 impl ParsedMatcher {
@@ -81,7 +89,7 @@ impl ParsedMatcher {
             Self::Domain(v) => Box::new(MatDomain::new(v).await?),
             Self::QType(types) => Box::new(MatQType::new(types)?),
             #[cfg(feature = "geoip")]
-            Self::Geoip(s) => Box::new(MatGeoip::new(s)?),
+            Self::Geoip(s) => Box::new(MatGeoip::new(s.on, s.codes)?),
         })
     }
 }

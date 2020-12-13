@@ -24,6 +24,7 @@ use self::{
 };
 use crate::error::Result;
 use log::warn;
+use std::net::IpAddr;
 use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.
@@ -61,12 +62,12 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, src: Option<IpAddr>, msg: Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.
         if !msg.queries().is_empty() {
-            Ok(match self.table.route(msg, &self.upstreams).await {
+            Ok(match self.table.route(src, msg, &self.upstreams).await {
                 Ok(m) => m,
                 Err(e) => {
                     // Catch all server failure here and return server fail
@@ -100,7 +101,7 @@ mod tests {
     use tokio::net::UdpSocket;
     use trust_dns_client::op::Message;
     use trust_dns_proto::{
-        op::{header::MessageType, query::Query},
+        op::{header::MessageType, query::Query, OpCode, ResponseCode},
         rr::{record_data::RData, record_type::RecordType, resource::Record, Name},
     };
 
@@ -191,8 +192,14 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            router.resolve(QUERY.clone()).await.unwrap().answers(),
+            router.resolve(None, QUERY.clone()).await.unwrap().answers(),
             DUMMY_MSG.answers()
+        );
+
+        // Shall not accept messages with no queries.
+        assert_eq!(
+            router.resolve(None, Message::new()).await.unwrap(),
+            Message::error_msg(0, OpCode::Query, ResponseCode::ServFail)
         );
     }
 }

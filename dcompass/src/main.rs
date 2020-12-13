@@ -139,6 +139,17 @@ mod tests {
     }
 
     #[test]
+    fn check_success_geoip() {
+        assert_eq!(
+            block_on(init(
+                serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap()
+            ))
+            .is_ok(),
+            true
+        );
+    }
+
+    #[test]
     fn check_success_rule_yaml() {
         assert_eq!(
             block_on(init(

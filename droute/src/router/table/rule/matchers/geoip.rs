@@ -17,19 +17,34 @@ use super::{super::super::State, Matcher, Result};
 use hashbrown::HashSet;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
+#[cfg(feature = "serde-cfg")]
+use serde::Deserialize;
 use std::net::IpAddr;
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
+
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone, Eq, PartialEq)]
+/// Target for GeoIP to match on
+pub enum GeoIpTarget {
+    /// Match on the IP of the query sender.
+    Src,
+    /// Match on the response.
+    Resp,
+}
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 pub struct Geoip {
     db: Reader<Vec<u8>>,
     list: HashSet<String>,
+    on: GeoIpTarget,
 }
 
 impl Geoip {
     /// Create a new `Geoip` matcher from a set of ISO country codes like `CN`, `AU`.
-    pub fn new(list: HashSet<String>) -> Result<Self> {
+    pub fn new(on: GeoIpTarget, list: HashSet<String>) -> Result<Self> {
         Ok(Self {
+            on,
             list,
             db: Reader::from_source(
                 include_bytes!("../../../../../../data/Country.mmdb").to_vec(),
@@ -40,17 +55,20 @@ impl Geoip {
 
 impl Matcher for Geoip {
     fn matches(&self, state: &State) -> bool {
-        if let Some(record) = state
-            .resp
-            .answers()
-            .iter()
-            .find(|&record| matches!(record.rdata(), A(_) | AAAA(_)))
-        {
-            let r = if let Ok(r) = self.db.lookup::<Country>(match *record.rdata() {
-                A(addr) => IpAddr::V4(addr),
-                AAAA(addr) => IpAddr::V6(addr),
-                _ => return false,
-            }) {
+        if let Some(ip) = match self.on {
+            GeoIpTarget::Src => state.src,
+            GeoIpTarget::Resp => state
+                .resp
+                .answers()
+                .iter()
+                .find(|&r| matches!(r.rdata(), A(_) | AAAA(_)))
+                .map(|r| match *r.rdata() {
+                    A(addr) => IpAddr::V4(addr),
+                    AAAA(addr) => IpAddr::V6(addr),
+                    _ => unreachable!(),
+                }),
+        } {
+            let r = if let Ok(r) = self.db.lookup::<Country>(ip) {
                 r
             } else {
                 return false;
@@ -59,11 +77,7 @@ impl Matcher for Geoip {
             r.country
                 .and_then(|c| {
                     c.iso_code.map(|n| {
-                        info!(
-                            "The record `{:?}` has ISO country code `{}`",
-                            record.rdata(),
-                            n
-                        );
+                        info!("The IP `{}` has ISO country code `{}`", ip, n);
                         self.list.contains(n)
                     })
                 })
@@ -76,7 +90,7 @@ impl Matcher for Geoip {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::Matcher, Geoip, State};
+    use super::{super::Matcher, GeoIpTarget::*, Geoip, State};
     use std::str::FromStr;
     use trust_dns_proto::{
         op::Message,
@@ -84,12 +98,47 @@ mod tests {
     };
 
     #[test]
-    fn not_china() {
+    fn src_is_china() {
         assert_eq!(
-            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
                 .matches(&State {
-                    query: Message::new(),
+                    src: Some("36.152.44.95".parse().unwrap()),
+                    ..Default::default()
+                }),
+            true
+        )
+    }
+
+    #[test]
+    fn src_is_not_china() {
+        assert_eq!(
+            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
+                .unwrap()
+                .matches(&State {
+                    src: Some("1.1.1.1".parse().unwrap()),
+                    ..Default::default()
+                }),
+            false
+        )
+    }
+
+    #[test]
+    fn empty_src() {
+        assert_eq!(
+            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
+                .unwrap()
+                .matches(&State::default()),
+            false
+        )
+    }
+
+    #[test]
+    fn not_china() {
+        assert_eq!(
+            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
+                .unwrap()
+                .matches(&State {
                     resp: {
                         let mut m = Message::new();
                         m.insert_answers(
@@ -102,6 +151,7 @@ mod tests {
                         );
                         m
                     },
+                    ..Default::default()
                 }),
             false
         )
@@ -110,6 +160,7 @@ mod tests {
     #[test]
     fn mixed() {
         let geoip = Geoip::new(
+            Resp,
             vec!["CN".to_string(), "AU".to_string()]
                 .into_iter()
                 .collect(),
@@ -117,7 +168,6 @@ mod tests {
         .unwrap();
         assert_eq!(
             geoip.matches(&State {
-                query: Message::new(),
                 resp: {
                     let mut m = Message::new();
                     m.insert_answers(
@@ -130,12 +180,12 @@ mod tests {
                     );
                     m
                 },
+                ..Default::default()
             }),
             true
         );
         assert_eq!(
             geoip.matches(&State {
-                query: Message::new(),
                 resp: {
                     let mut m = Message::new();
                     m.insert_answers(
@@ -148,6 +198,7 @@ mod tests {
                     );
                     m
                 },
+                ..Default::default()
             }),
             true
         )
@@ -156,12 +207,9 @@ mod tests {
     #[test]
     fn empty_records() {
         assert_eq!(
-            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
-                .matches(&State {
-                    query: Message::new(),
-                    resp: Message::new()
-                }),
+                .matches(&State::default()),
             false,
         )
     }
@@ -169,10 +217,9 @@ mod tests {
     #[test]
     fn is_china() {
         assert_eq!(
-            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
                 .matches(&State {
-                    query: Message::new(),
                     resp: {
                         let mut m = Message::new();
                         m.insert_answers(
@@ -185,6 +232,7 @@ mod tests {
                         );
                         m
                     },
+                    ..Default::default()
                 }),
             true
         )
@@ -193,10 +241,9 @@ mod tests {
     #[test]
     fn unordered_is_china() {
         assert_eq!(
-            Geoip::new(vec!["CN".to_string()].into_iter().collect())
+            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
                 .unwrap()
                 .matches(&State {
-                    query: Message::new(),
                     resp: {
                         let mut m = Message::new();
                         m.insert_answers(
@@ -221,6 +268,7 @@ mod tests {
                         );
                         m
                     },
+                    ..Default::default()
                 }),
             true
         )

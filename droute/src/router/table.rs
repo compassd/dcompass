@@ -25,6 +25,7 @@ use super::upstreams::Upstreams;
 use crate::Label;
 use hashbrown::{HashMap, HashSet};
 use log::*;
+use std::net::IpAddr;
 use thiserror::Error;
 use trust_dns_client::op::Message;
 
@@ -56,9 +57,11 @@ pub enum TableError {
     MultipleDef(Label),
 }
 
+#[derive(Default)]
 pub struct State {
     resp: Message,
     query: Message,
+    src: Option<IpAddr>,
 }
 
 /// A simple routing table.
@@ -122,11 +125,17 @@ impl Table {
     }
 
     // Not intended to be used by end-users
-    pub(super) async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
+    pub(super) async fn route(
+        &self,
+        src: Option<IpAddr>,
+        query: Message,
+        upstreams: &Upstreams,
+    ) -> Result<Message> {
         let name = query.queries().iter().next().unwrap().name().to_utf8();
         let mut s = State {
-            resp: Message::new(),
+            src,
             query,
+            ..Default::default()
         };
 
         let mut tag = "start".into();
