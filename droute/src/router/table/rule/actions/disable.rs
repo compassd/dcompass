@@ -20,7 +20,7 @@ use super::{
 use crate::{Label, MAX_TTL};
 use async_trait::async_trait;
 use lazy_static::lazy_static;
-use trust_dns_client::rr::{rdata::soa::SOA, record_data::RData, resource::Record, Name};
+use trust_dns_proto::rr::{rdata::soa::SOA, record_data::RData, resource::Record, Name};
 
 // Data from smartdns. https://github.com/pymumu/smartdns/blob/42b3e98b2a3ca90ea548f8cb5ed19a3da6011b74/src/dns_server.c#L651
 lazy_static! {

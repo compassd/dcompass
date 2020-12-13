@@ -7,9 +7,10 @@ members = [
 ]
 
 # h2 v0.3 with tokio v0.3 supports is not published yet
+# git = "https://github.com/bluejekyll/trust-dns"
 [patch.crates-io]
 h2 = { git = "https://github.com/hyperium/h2.git" }
-trust-dns-client = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-https = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-proto = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-rustls = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
+trust-dns-client = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+trust-dns-https = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+trust-dns-proto = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+trust-dns-rustls = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }

@@ -78,10 +78,9 @@ impl Matcher for Geoip {
 mod tests {
     use super::{super::Matcher, Geoip, State};
     use std::str::FromStr;
-    use trust_dns_client::rr::RData;
     use trust_dns_proto::{
         op::Message,
-        rr::{resource::Record, Name},
+        rr::{resource::Record, Name, RData},
     };
 
     #[test]

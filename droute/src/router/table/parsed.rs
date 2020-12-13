@@ -28,41 +28,6 @@ use hashbrown::HashSet;
 use serde::Deserialize;
 use trust_dns_proto::rr::record_type::RecordType;
 
-#[cfg(feature = "serde-cfg")]
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(remote = "RecordType"))]
-#[derive(Clone, Eq, PartialEq, Hash)]
-enum RecordTypeDef {
-    A,
-    AAAA,
-    ANAME,
-    ANY,
-    AXFR,
-    CAA,
-    CNAME,
-    IXFR,
-    MX,
-    NAPTR,
-    NS,
-    NULL,
-    OPENPGPKEY,
-    OPT,
-    PTR,
-    SOA,
-    SRV,
-    SSHFP,
-    TLSA,
-    TXT,
-    Unknown(u16),
-    ZERO,
-}
-
-/// Type wrapper for `RecordType`.
-/// TODO: remove after trust-dns-proto supports serde
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct Adapter(#[cfg_attr(feature = "serde-cfg", serde(with = "RecordTypeDef"))] RecordType);
-
 /// Actions to take
 #[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
 #[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
@@ -101,7 +66,7 @@ pub enum ParsedMatcher {
     Domain(Vec<String>),
 
     /// Matches query types provided. Query types are like AAAA, A, TXT.
-    QType(HashSet<Adapter>),
+    QType(HashSet<RecordType>),
 
     /// Matches if IP address in the record of the first response is in the list of countries.
     #[cfg(feature = "geoip")]
@@ -114,10 +79,7 @@ impl ParsedMatcher {
         Ok(match self {
             Self::Any => Box::new(MatAny::default()),
             Self::Domain(v) => Box::new(MatDomain::new(v).await?),
-            Self::QType(types) => {
-                let converted = types.iter().map(|s| s.0).collect();
-                Box::new(MatQType::new(converted)?)
-            }
+            Self::QType(types) => Box::new(MatQType::new(types)?),
             #[cfg(feature = "geoip")]
             Self::Geoip(s) => Box::new(MatGeoip::new(s)?),
         })

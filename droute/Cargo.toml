@@ -11,7 +11,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 # serde support
-serde-cfg = ["serde", "hashbrown/serde"]
+serde-cfg = ["serde", "hashbrown/serde", "trust-dns-proto/serde-config"]
 
 # TCP related stuff, should not be used by end-users
 tcp = []

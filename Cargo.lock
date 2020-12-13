@@ -2,9 +2,9 @@
 # It is not intended for manual editing.
 [[package]]
 name = "ahash"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6789e291be47ace86a60303502173d84af8327e3627ecf334356ee0f87a164c"
+checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
 
 [[package]]
 name = "ansi_term"
@@ -17,9 +17,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.34"
+version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf8dcb5b4bbaa28653b647d8c77bd4ed40183b48882e130c1f1ffb73de069fd7"
+checksum = "2c0df63cb2955042487fad3aefd2c6e3ae7389ac5dc1beb28921de0b69f779d4"
 
 [[package]]
 name = "async-trait"
@@ -165,9 +165,9 @@ dependencies = [
 
 [[package]]
 name = "const_fn"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c478836e029dcef17fb47c89023448c64f781a046e0300e257ad8225ae59afab"
+checksum = "cd51eab21ab4fd6a3bf889e2d0958c0a6e3a61ad04260325e919e652a2a62826"
 
 [[package]]
 name = "criterion"
@@ -607,9 +607,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.80"
+version = "0.2.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d58d1b70b004888f764dfbf6a26a3b0342a1632d33968e4a179d8011c760614"
+checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
 
 [[package]]
 name = "linked-hash-map"
@@ -628,9 +628,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be716eb6878ca2263eb5d00a781aa13264a794f519fe6af4fbb2668b2d5441c0"
+checksum = "3abe07af102235a56ac9a6dd904aab1e05483e2e8afdfffec3598be55b1b7606"
 dependencies = [
  "hashbrown",
 ]
@@ -1201,9 +1201,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.53"
+version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8833e20724c24de12bbaba5ad230ea61c3eafb05b881c7c9d3cfe8638b187e68"
+checksum = "9a2af957a63d6bd42255c359c93d9bfdb97076bd3b820897ce55ffbfbf107f44"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1307,9 +1307,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28c0f299ee89149992d30f2783e966bc6fc497f5a02fc470f8b0182851c04632"
+checksum = "609ada6f5bf21315925c6e43d78dc51fba5c5968a995f95345b4781cc06f37eb"
 dependencies = [
  "rustls",
  "tokio",
@@ -1374,7 +1374,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#028ac68ee016c1b5d92366ee5fe6661f6132de4d"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
 dependencies = [
  "cfg-if 1.0.0",
  "chrono",
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-https"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#028ac68ee016c1b5d92366ee5fe6661f6132de4d"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
 dependencies = [
  "bytes 0.6.0",
  "cfg-if 1.0.0",
@@ -1415,7 +1415,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#028ac68ee016c1b5d92366ee5fe6661f6132de4d"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
 dependencies = [
  "async-trait",
  "cfg-if 1.0.0",
@@ -1429,6 +1429,7 @@ dependencies = [
  "lazy_static",
  "log",
  "rand",
+ "serde",
  "smallvec",
  "thiserror",
  "tokio",
@@ -1438,7 +1439,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-rustls"
 version = "0.20.0-alpha.3"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#028ac68ee016c1b5d92366ee5fe6661f6132de4d"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#866d985dbeeb6faded2af16f2052e654d04200a1"
 dependencies = [
  "futures-channel",
  "futures-io",
