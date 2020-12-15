@@ -24,14 +24,12 @@ use super::{
 };
 use crate::Label;
 use hashbrown::HashSet;
-#[cfg(feature = "serde-cfg")]
 use serde::Deserialize;
 use trust_dns_proto::rr::record_type::RecordType;
 
 /// Actions to take
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone)]
+#[serde(rename_all = "lowercase")]
+#[derive(Clone, Deserialize)]
 pub enum ParsedAction {
     /// Set response to a message that "disables" requestor to retry.
     Disable,
@@ -54,18 +52,20 @@ impl ParsedAction {
     }
 }
 
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[cfg(feature = "geoip")]
+/// Arguments of the GeoIp.
 pub struct ParsedGeoIp {
+    /// What to match on
     on: GeoIpTarget,
+    /// Country codes to match on
     codes: HashSet<String>,
 }
 
 /// Matchers to use
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum ParsedMatcher {
     /// Matches any query
     Any,
@@ -95,28 +95,27 @@ impl ParsedMatcher {
 }
 
 /// A rule composed of tag name, matcher, and branches.
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[derive(Clone)]
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct ParsedRule {
     /// The tag name of the rule
     pub tag: Label,
 
     /// The matcher rule uses.
-    #[cfg_attr(feature = "serde-cfg", serde(rename = "if"))]
+    #[serde(rename = "if")]
     pub matcher: ParsedMatcher,
 
     /// If matcher matches, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[cfg_attr(feature = "serde-cfg", serde(default = "default_branch"))]
-    #[cfg_attr(feature = "serde-cfg", serde(rename = "then"))]
+    #[serde(default = "default_branch")]
+    #[serde(rename = "then")]
     pub on_match: (ParsedAction, Label),
 
     /// If matcher doesn't, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[cfg_attr(feature = "serde-cfg", serde(default = "default_branch"))]
-    #[cfg_attr(feature = "serde-cfg", serde(rename = "else"))]
+    #[serde(default = "default_branch")]
+    #[serde(rename = "else")]
     pub no_match: (ParsedAction, Label),
 }
 
-#[cfg(feature = "serde-cfg")]
 fn default_branch() -> (ParsedAction, Label) {
     (ParsedAction::Skip, "end".into())
 }

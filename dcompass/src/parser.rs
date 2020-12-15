@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use droute::{ParsedRule, Upstream};
+use droute::parsed::{ParsedRule, ParsedUpstream};
 use log::LevelFilter;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -35,7 +35,7 @@ enum LevelFilterDef {
 #[derive(Deserialize, Clone)]
 pub struct Parsed {
     pub table: Vec<ParsedRule>,
-    pub upstreams: Vec<Upstream>,
+    pub upstreams: Vec<ParsedUpstream>,
     pub address: SocketAddr,
     pub cache_size: usize,
     #[serde(with = "LevelFilterDef")]

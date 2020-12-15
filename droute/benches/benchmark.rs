@@ -3,10 +3,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use droute::{
     actions::{Query as ActQuery, Skip},
+    client_pool::Udp,
     matchers::Any,
-    Router, Rule, Table, Upstream,
-    UpstreamKind::Udp,
-    Upstreams,
+    Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
 };
 use lazy_static::lazy_static;
 use std::{net::SocketAddr, thread};
@@ -27,14 +26,16 @@ const BUILD: fn(usize) -> Router = |c| {
             (Box::new(Skip::default()), "end".into()),
         )])
         .unwrap(),
-        block_on(Upstreams::new(
-            vec![Upstream {
-                timeout: 10,
-                method: Udp("127.0.0.1:53533".parse().unwrap()),
-                tag: "mock".into(),
-            }],
-            c,
-        ))
+        Upstreams::new(vec![(
+            "mock".into(),
+            Upstream::new(
+                10,
+                UpstreamKind::Client(Box::new(
+                    block_on(Udp::new(&"127.0.0.1:53533".parse().unwrap())).unwrap(),
+                )),
+                c,
+            ),
+        )])
         .unwrap(),
     )
     .unwrap()

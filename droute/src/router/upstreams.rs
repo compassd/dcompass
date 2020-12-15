@@ -15,150 +15,58 @@
 
 //! Upstream defines how droute resolves queries ultimately.
 
-mod client_cache;
+/// Module which contains builtin client implementations and the trait for implement your own.
+pub mod client_pool;
 /// Module which contains the error type for the `upstreams` section.
 pub mod error;
+#[cfg(feature = "serde-cfg")]
+pub mod parsed;
 mod resp_cache;
+mod upstream;
 
-use self::{
-    client_cache::ClientCache,
-    error::{Result, UpstreamError},
-    resp_cache::{RecordStatus::*, RespCache},
-};
+pub use upstream::*;
+
+use self::error::{Result, UpstreamError};
+#[cfg(feature = "serde-cfg")]
+use self::parsed::ParsedUpstream;
 use crate::Label;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
-#[cfg(feature = "serde-cfg")]
-use serde::{Deserialize, Serialize};
-use std::{borrow::Borrow, net::SocketAddr};
-use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
-use trust_dns_proto::xfer::dns_handle::DnsHandle;
-
-#[cfg_attr(feature = "serde-cfg", derive(Serialize, Deserialize))]
-#[derive(Clone)]
-/// Information needed for an upstream.
-pub struct Upstream {
-    /// The destination (tag) associated with the upstream.
-    pub tag: Label,
-    /// Querying method.
-    pub method: UpstreamKind,
-    /// How long to timeout.
-    #[cfg_attr(feature = "serde-cfg", serde(default = "default_timeout"))]
-    pub timeout: u64,
-}
-
-impl Upstream {
-    // Send the query and handle caching schemes.
-    async fn query(
-        u: impl Borrow<Upstream>,
-        client_cache: impl Borrow<ClientCache>,
-        resp_cache: impl Borrow<RespCache>,
-        msg: Message,
-    ) -> Result<Message> {
-        let (u, client_cache, resp_cache) =
-            (u.borrow(), client_cache.borrow(), resp_cache.borrow());
-
-        let mut client = client_cache.get_client(u).await?;
-        let r = Message::from(timeout(Duration::from_secs(u.timeout), client.send(msg)).await??);
-
-        // If the response can be obtained sucessfully, we then push back the client to the client cache
-        client_cache.return_back(client);
-        resp_cache.put(r.clone());
-        Ok(r)
-    }
-
-    pub(self) async fn resolve(
-        &self,
-        resp_cache: &RespCache,
-        client_cache: &ClientCache,
-        msg: &Message,
-    ) -> Result<Message> {
-        let id = msg.id();
-
-        // Check if cache exists
-        let mut r = match resp_cache.get(&msg) {
-            // Cache available within TTL constraints
-            Some(Alive(r)) => r,
-            Some(Expired(r)) => {
-                // Cache records exists, but TTL exceeded.
-                // We try to update the cache and return back the outdated value.
-                tokio::spawn(Self::query(
-                    self.clone(),
-                    client_cache.clone(),
-                    resp_cache.clone(),
-                    msg.clone(),
-                ));
-                r
-            }
-            None => Self::query(self, client_cache, resp_cache, msg.clone()).await?,
-        };
-        r.set_id(id);
-        Ok(r)
-    }
-}
-
-// Default value for timeout
-#[cfg(feature = "serde-cfg")]
-fn default_timeout() -> u64 {
-    5
-}
-
-#[cfg_attr(feature = "serde-cfg", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone)]
-/// The methods of querying
-pub enum UpstreamKind {
-    /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
-    Hybrid(Vec<Label>),
-    /// DNS over HTTPS (DoH).
-    #[cfg(feature = "doh")]
-    Https {
-        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
-        name: String,
-        /// The address of the server. e.g. `1.1.1.1:443` for Cloudflare DNS.
-        addr: SocketAddr,
-        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
-        no_sni: bool,
-    },
-    /// DNS over TLS (DoT).
-    #[cfg(feature = "dot")]
-    Tls {
-        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
-        name: String,
-        /// The address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
-        addr: SocketAddr,
-        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
-        no_sni: bool,
-    },
-    /// UDP connection.
-    Udp(SocketAddr),
-}
 
 /// `Upstream` aggregated, used to create `Router`.
 pub struct Upstreams {
-    upstreams: HashMap<Label, (Upstream, ClientCache, RespCache)>,
+    upstreams: HashMap<Label, Upstream>,
 }
 
 impl Upstreams {
-    /// Create a new `Upstreams` by passing a bunch of `Upstream`s and cache capacity.
-    pub async fn new(upstreams: Vec<Upstream>, size: usize) -> Result<Self> {
+    /// Create a new `Upstreams` by passing a bunch of `Upstream`s, with their respective labels, and cache capacity.
+    pub fn new(upstreams: Vec<(Label, Upstream)>) -> Result<Self> {
         let mut r = HashMap::new();
         for u in upstreams {
             // Check if there is multiple definitions being passed in.
-            match r.get(&u.tag) {
-                Some(_) => return Err(UpstreamError::MultipleDef(u.tag)),
+            match r.get(&u.0) {
+                Some(_) => return Err(UpstreamError::MultipleDef(u.0)),
                 None => {
-                    r.insert(
-                        u.tag.clone(),
-                        (u.clone(), ClientCache::new(&u).await?, RespCache::new(size)),
-                    );
+                    r.insert(u.0, u.1);
                 }
             };
         }
         let u = Self { upstreams: r };
         u.check()?;
         Ok(u)
+    }
+
+    /// Create a new `Upstreams` with a set of ParsedUpstream.
+    #[cfg(feature = "serde-cfg")]
+    pub async fn with_parsed(upstreams: Vec<ParsedUpstream>, size: usize) -> Result<Self> {
+        Self::new({
+            let mut v = Vec::new();
+            for u in upstreams {
+                v.push((u.tag.clone(), Upstream::with_parsed(u, size).await?));
+            }
+            v
+        })
     }
 
     // Check any upstream types
@@ -170,12 +78,11 @@ impl Upstreams {
         } else {
             l.insert(tag.clone());
 
-            if let UpstreamKind::Hybrid(v) = &self
+            if let Some(v) = &self
                 .upstreams
                 .get(&tag)
                 .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?
-                .0
-                .method
+                .try_hybrid()
             {
                 // Check if it is empty.
                 if v.is_empty() {
@@ -218,13 +125,12 @@ impl Upstreams {
     ) -> BoxFuture<'a, Result<Message>> {
         async move {
             let u = self.upstreams.get(tag).unwrap();
-            Ok(match &u.0.method {
-                UpstreamKind::Hybrid(v) => {
-                    let v = v.iter().map(|t| self.resolve(t, msg));
-                    let (r, _) = select_ok(v.clone()).await?;
-                    r
-                }
-                _ => u.0.resolve(&u.2, &u.1, msg).await?,
+            Ok(if let Some(v) = u.try_hybrid() {
+                let v = v.iter().map(|t| self.resolve(t, msg));
+                let (r, _) = select_ok(v.clone()).await?;
+                r
+            } else {
+                u.resolve(msg).await?
             })
         }
         .boxed()

@@ -18,10 +18,9 @@
 pub mod table;
 pub mod upstreams;
 
-use self::{
-    table::{parsed::ParsedRule, Table},
-    upstreams::{Upstream, Upstreams},
-};
+#[cfg(feature = "serde-cfg")]
+use self::{table::parsed::ParsedRule, upstreams::parsed::ParsedUpstream};
+use self::{table::Table, upstreams::Upstreams};
 use crate::error::Result;
 use log::warn;
 use std::net::SocketAddr;
@@ -42,13 +41,14 @@ impl Router {
     }
 
     /// Create a new `Router` from parsed configuration and check the validity. `data` is the content of the configuration file.
+    #[cfg(feature = "serde-cfg")]
     pub async fn with_parsed(
         cache_size: usize,
         rules: Vec<ParsedRule>,
-        upstreams: Vec<Upstream>,
+        upstreams: Vec<ParsedUpstream>,
     ) -> Result<Self> {
         let table = Table::with_parsed(rules).await?;
-        let upstreams = Upstreams::new(upstreams, cache_size).await?;
+        let upstreams = Upstreams::with_parsed(upstreams, cache_size).await?;
         Self::new(table, upstreams)
     }
 
@@ -93,7 +93,7 @@ mod tests {
             },
             Table,
         },
-        upstreams::{Upstream, UpstreamKind::Udp, Upstreams},
+        upstreams::{client_pool::Udp, Upstream, UpstreamKind, Upstreams},
         Router,
     };
     use lazy_static::lazy_static;
@@ -178,15 +178,16 @@ mod tests {
                 (Box::new(Skip::default()), "end".into()),
             )])
             .unwrap(),
-            Upstreams::new(
-                vec![Upstream {
-                    timeout: 10,
-                    method: Udp("127.0.0.1:53533".parse().unwrap()),
-                    tag: "mock".into(),
-                }],
-                0,
-            )
-            .await
+            Upstreams::new(vec![(
+                "mock".into(),
+                Upstream::new(
+                    10,
+                    UpstreamKind::Client(Box::new(
+                        Udp::new(&"127.0.0.1:53533".parse().unwrap()).await.unwrap(),
+                    )),
+                    0,
+                ),
+            )])
             .unwrap(),
         )
         .unwrap();

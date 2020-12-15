@@ -21,11 +21,9 @@ pub mod actions;
 pub mod matchers;
 
 use self::{actions::Action, matchers::Matcher};
-use super::{
-    super::upstreams::Upstreams,
-    parsed::{ParsedAction, ParsedMatcher, ParsedRule},
-    Result, State,
-};
+#[cfg(feature = "serde-cfg")]
+use super::parsed::{ParsedAction, ParsedMatcher, ParsedRule};
+use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
 use hashbrown::HashSet;
 use log::*;
@@ -59,6 +57,7 @@ impl Rule {
     }
 
     // Shall not be used by end-users. visible under `Router`.
+    #[cfg(feature = "serde-cfg")]
     pub(in super::super) async fn with_parsed(rules: ParsedRule) -> Result<Self> {
         Ok(Self::new(
             rules.tag,

@@ -14,17 +14,17 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /// Structures used for serialize/deserialize information needed to create router and more.
+#[cfg(feature = "serde-cfg")]
 pub mod parsed;
 pub mod rule;
 
-use self::{
-    parsed::ParsedRule,
-    rule::{actions::ActionError, matchers::MatchError, Rule},
-};
+use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
 use crate::Label;
 use hashbrown::{HashMap, HashSet};
 use log::*;
+#[cfg(feature = "serde-cfg")]
+use parsed::ParsedRule;
 use std::net::SocketAddr;
 use thiserror::Error;
 use trust_dns_client::op::Message;
@@ -61,6 +61,7 @@ pub enum TableError {
 pub struct State {
     resp: Message,
     query: Message,
+    #[allow(dead_code)]
     src: Option<SocketAddr>,
 }
 
@@ -86,6 +87,7 @@ impl Table {
     }
 
     // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
+    #[cfg(feature = "serde-cfg")]
     pub(super) async fn with_parsed(parsed_rules: Vec<ParsedRule>) -> Result<Self> {
         let mut rules = Vec::new();
         for r in parsed_rules {

@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::client_pool::ClientPoolError;
 use crate::Label;
 use std::fmt::Debug;
 use thiserror::Error;
@@ -44,6 +45,10 @@ pub enum UpstreamError {
     /// Error forwarded from `trust-dns-client`.
     #[error(transparent)]
     ClientError(#[from] ClientError),
+
+    /// Error originated from client pools.
+    #[error(transparent)]
+    ClientPoolError(#[from] ClientPoolError),
 
     /// Error forwarded from `trust-dns-proto`.
     #[error(transparent)]

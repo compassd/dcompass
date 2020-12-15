@@ -32,7 +32,6 @@ trust-dns-https = { version = "0.20.0-alpha.3", optional = true }
 trust-dns-proto = "0.20.0-alpha.3"
 trust-dns-rustls = { version = "0.20.0-alpha.3", optional = true }
 rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
-async-trait = "^0.1"
 webpki-roots = { version = "^0.20", optional = true }
 webpki = { version = "^0.21", optional = true }
 
@@ -50,6 +49,8 @@ serde = { version = "^1.0", features = ["derive", "rc"], optional = true }
 lru = "^0.6"
 thiserror = "^1.0"
 lazy_static = "^1.0"
+async-trait = "^0.1"
+dyn-clonable = "^0.9"
 
 [dev-dependencies]
 tokio-test = "^0.3"
@@ -58,3 +59,13 @@ criterion = "^0.3"
 [[bench]]
 name = "benchmark"
 harness = false
+
+[package.metadata.cargo-all-features]
+skip_feature_sets = [
+    ["crypto", "tcp"],
+    ["tcp"],
+    ["crypto"],
+]
+
+# If your crate has a large number of optional dependencies, skip them for speed
+skip_optional_dependencies = true

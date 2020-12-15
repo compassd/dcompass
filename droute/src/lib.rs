@@ -21,13 +21,16 @@ pub mod error;
 mod router;
 
 #[cfg(feature = "serde-cfg")]
-pub use self::router::table::parsed::{ParsedAction, ParsedMatcher, ParsedRule};
+/// This module contains the data structures with serialization supports.
+pub mod parsed {
+    pub use super::router::{table::parsed::*, upstreams::parsed::*};
+}
 pub use self::router::{
     table::{
         rule::{actions, matchers, Rule},
         Table,
     },
-    upstreams::{Upstream, UpstreamKind, Upstreams},
+    upstreams::{client_pool, Upstream, UpstreamKind, Upstreams},
     Router,
 };
 
