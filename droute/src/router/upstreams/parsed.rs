@@ -30,9 +30,6 @@ pub struct ParsedUpstream {
     pub tag: Label,
     /// Querying method.
     pub method: ParsedUpstreamKind,
-    /// How long to timeout.
-    #[serde(default = "default_timeout")]
-    pub timeout: u64,
 }
 
 // Default value for timeout
@@ -56,6 +53,9 @@ pub enum ParsedUpstreamKind {
         addr: SocketAddr,
         /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
         no_sni: bool,
+        /// Timeout length
+        #[serde(default = "default_timeout")]
+        timeout: u64,
     },
     /// DNS over TLS (DoT).
     #[cfg(feature = "dot")]
@@ -66,9 +66,18 @@ pub enum ParsedUpstreamKind {
         addr: SocketAddr,
         /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
         no_sni: bool,
+        /// Timeout length
+        #[serde(default = "default_timeout")]
+        timeout: u64,
     },
     /// UDP connection.
-    Udp(SocketAddr),
+    Udp {
+        /// Address of the remote server
+        addr: SocketAddr,
+        /// Timeout length
+        #[serde(default = "default_timeout")]
+        timeout: u64,
+    },
 }
 
 impl ParsedUpstreamKind {
@@ -76,11 +85,30 @@ impl ParsedUpstreamKind {
     pub(super) async fn convert(self) -> Result<UpstreamKind> {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
-            Self::Udp(s) => Client(Box::new(Udp::new(&s).await?)),
+            Self::Udp { addr, timeout } => Client {
+                pool: Box::new(Udp::new(&addr).await?),
+                timeout,
+            },
             #[cfg(feature = "doh")]
-            Self::Https { name, addr, no_sni } => Client(Box::new(Https::new(name, addr, no_sni))),
+            Self::Https {
+                name,
+                addr,
+                no_sni,
+                timeout,
+            } => Client {
+                pool: Box::new(Https::new(name, addr, no_sni)),
+                timeout,
+            },
             #[cfg(feature = "dot")]
-            Self::Tls { name, addr, no_sni } => Client(Box::new(Tls::new(name, addr, no_sni))),
+            Self::Tls {
+                name,
+                addr,
+                no_sni,
+                timeout,
+            } => Client {
+                pool: Box::new(Tls::new(name, addr, no_sni)),
+                timeout,
+            },
         })
     }
 }

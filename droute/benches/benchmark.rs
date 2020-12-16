@@ -29,10 +29,12 @@ const BUILD: fn(usize) -> Router = |c| {
         Upstreams::new(vec![(
             "mock".into(),
             Upstream::new(
-                10,
-                UpstreamKind::Client(Box::new(
-                    block_on(Udp::new(&"127.0.0.1:53533".parse().unwrap())).unwrap(),
-                )),
+                UpstreamKind::Client {
+                    pool: Box::new(
+                        block_on(Udp::new(&"127.0.0.1:53533".parse().unwrap())).unwrap(),
+                    ),
+                    timeout: 10,
+                },
                 c,
             ),
         )])

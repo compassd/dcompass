@@ -16,9 +16,10 @@ table:
   - query: secure
   - end
 upstreams:
-- timeout: 1
-  method:
-    udp: 114.114.114.114:53
+- method:
+    udp:
+      addr: 114.114.114.114:53
+      timeout: 1
   tag: domestic
 - timeout: 2
   method:

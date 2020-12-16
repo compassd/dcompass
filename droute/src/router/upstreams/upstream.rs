@@ -32,13 +32,17 @@ pub enum UpstreamKind {
     /// A hybrid upstream (no real client implementation included)
     Hybrid(Vec<Label>),
     /// A real client implementation
-    Client(Box<dyn ClientPool>),
+    Client {
+        /// Client pool
+        pool: Box<dyn ClientPool>,
+        /// Timeout length
+        timeout: u64,
+    },
 }
 
 /// A single upstream. Opposite to the `Upstreams`.
 #[derive(Clone)]
 pub struct Upstream {
-    timeout: u64,
     inner: UpstreamKind,
     cache: RespCache,
 }
@@ -48,9 +52,8 @@ impl Upstream {
     /// - `timeout`: timeout length.
     /// - `inner`: type of the upstream.
     /// - `size`: response cache size.
-    pub fn new(timeout: u64, inner: UpstreamKind, size: usize) -> Self {
+    pub fn new(inner: UpstreamKind, size: usize) -> Self {
         Self {
-            timeout,
             inner,
             cache: RespCache::new(size),
         }
@@ -60,7 +63,6 @@ impl Upstream {
     #[cfg(feature = "serde-cfg")]
     pub async fn with_parsed(u: ParsedUpstream, size: usize) -> Result<Self> {
         Ok(Self {
-            timeout: u.timeout,
             inner: u.method.convert().await?,
             cache: RespCache::new(size),
         })
@@ -69,7 +71,10 @@ impl Upstream {
     pub(super) fn try_hybrid(&self) -> Option<Vec<Label>> {
         match &self.inner {
             UpstreamKind::Hybrid(v) => Some(v.clone()),
-            UpstreamKind::Client(_) => None,
+            UpstreamKind::Client {
+                pool: _,
+                timeout: _,
+            } => None,
         }
     }
 
@@ -78,17 +83,17 @@ impl Upstream {
     async fn query(u: impl Borrow<Upstream>, msg: Message) -> Result<Message> {
         let u = u.borrow();
 
-        let inner = match &u.inner {
+        let (pool, t) = match &u.inner {
             // This method shall not be called
             UpstreamKind::Hybrid(_) => unreachable!(),
-            UpstreamKind::Client(c) => c,
+            UpstreamKind::Client { pool, timeout } => (pool, timeout),
         };
 
-        let mut client = inner.get_client().await?;
-        let r = Message::from(timeout(Duration::from_secs(u.timeout), client.send(msg)).await??);
+        let mut client = pool.get_client().await?;
+        let r = Message::from(timeout(Duration::from_secs(*t), client.send(msg)).await??);
 
         // If the response can be obtained sucessfully, we then push back the client to the client cache
-        inner.return_client(client).await;
+        pool.return_client(client).await;
         u.cache.put(r.clone());
         Ok(r)
     }

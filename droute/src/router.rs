@@ -181,11 +181,13 @@ mod tests {
             Upstreams::new(vec![(
                 "mock".into(),
                 Upstream::new(
+                    UpstreamKind::Client {
+                        pool: Box::new(
+                            Udp::new(&"127.0.0.1:53533".parse().unwrap()).await.unwrap(),
+                        ),
+                        timeout: 1,
+                    },
                     10,
-                    UpstreamKind::Client(Box::new(
-                        Udp::new(&"127.0.0.1:53533".parse().unwrap()).await.unwrap(),
-                    )),
-                    0,
                 ),
             )])
             .unwrap(),
