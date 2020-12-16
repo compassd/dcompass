@@ -90,6 +90,7 @@ impl Rule {
         h
     }
 
+    // Returns the label of the next rule.
     pub(in super::super) async fn route(
         &self,
         state: &mut State,

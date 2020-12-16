@@ -68,9 +68,9 @@ impl Upstream {
         })
     }
 
-    pub(super) fn try_hybrid(&self) -> Option<Vec<Label>> {
+    pub(super) fn try_hybrid(&self) -> Option<Vec<&Label>> {
         match &self.inner {
-            UpstreamKind::Hybrid(v) => Some(v.clone()),
+            UpstreamKind::Hybrid(v) => Some(v.iter().collect()),
             UpstreamKind::Client {
                 pool: _,
                 timeout: _,

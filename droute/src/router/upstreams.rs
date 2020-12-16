@@ -72,15 +72,15 @@ impl Upstreams {
     // Check any upstream types
     // tag: current upstream node's tag
     // l: visited tags
-    fn traverse(&self, l: &mut HashSet<Label>, tag: Label) -> Result<()> {
-        if l.contains(&tag) {
-            return Err(UpstreamError::HybridRecursion(tag));
+    fn traverse(&self, l: &mut HashSet<Label>, tag: &Label) -> Result<()> {
+        if l.contains(tag) {
+            return Err(UpstreamError::HybridRecursion(tag.clone()));
         } else {
             l.insert(tag.clone());
 
             if let Some(v) = &self
                 .upstreams
-                .get(&tag)
+                .get(tag)
                 .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?
                 .try_hybrid()
             {
@@ -91,7 +91,7 @@ impl Upstreams {
 
                 // Check if it is recursively defined.
                 for t in v {
-                    self.traverse(l, t.clone())?
+                    self.traverse(l, t)?
                 }
             }
         }
@@ -102,7 +102,7 @@ impl Upstreams {
     /// Check if the upstream is legitimate. This is automatically done when you create a new `Upstreams`.
     pub fn check(&self) -> Result<bool> {
         for (tag, _) in self.upstreams.iter() {
-            self.traverse(&mut HashSet::new(), tag.clone())?
+            self.traverse(&mut HashSet::new(), tag)?
         }
         Ok(true)
     }
