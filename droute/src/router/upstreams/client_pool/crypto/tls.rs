@@ -59,7 +59,7 @@ impl ClientPool for Tls {
             if p.is_empty() {
                 None
             } else {
-                log::info!("HTTPS client cache hit");
+                log::info!("TLS client cache hit");
                 // queue is not empty
                 Some(p.pop_front().unwrap())
             }
