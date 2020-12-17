@@ -15,7 +15,7 @@
 - 纯 Rust 实现，占用低且内存安全
 
 # 注意
-目前程序处于活跃开发阶段，时刻可能发生不向后兼容的变动，请以 [example.yaml](example.yaml) 为准。
+目前程序处于活跃开发阶段，时刻可能发生不向后兼容的变动，请以 [example.yaml](configs/example.yaml) 为准。
 
 # 用法
 ```
@@ -51,7 +51,7 @@ Different querying methods:
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
-一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](example.yaml)。  
+一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](configs/example.yaml)。  
 
 使用 GeoIP 来防污染的路由表（table）样例
 

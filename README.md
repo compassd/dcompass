@@ -50,7 +50,7 @@ Different querying methods:
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
-See [example.yaml](example.yaml) for a pre-configured out-of-box anti-pollution configuration.  
+See [example.yaml](configs/example.yaml) for a pre-configured out-of-box anti-pollution configuration.  
 
 Table example of using GeoIP to mitigate pollution
 
