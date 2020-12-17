@@ -29,7 +29,8 @@ pub async fn worker(
 ) -> Result<()> {
     let request = Message::from_vec(buf)?;
 
-    info!("Received message: {:?}", request);
+    debug!("Received message: {:?}", request);
+    info!("Received queries: {:?}", request.queries());
     socket
         .send_to(&router.resolve(Some(src), request).await?.to_vec()?, src)
         .await
