@@ -117,10 +117,21 @@ mod tests {
     use tokio_test::block_on;
 
     #[test]
-    fn parse() {
+    fn check_default() {
         assert_eq!(
             block_on(init(
                 serde_yaml::from_str(include_str!("../../configs/default.json")).unwrap()
+            ))
+            .is_ok(),
+            true
+        );
+    }
+
+    #[test]
+    fn check_example() {
+        assert_eq!(
+            block_on(init(
+                serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap()
             ))
             .is_ok(),
             true

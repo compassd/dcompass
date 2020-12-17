@@ -1,35 +1,36 @@
 # dcompass
-![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)  
-Your DNS supercharged! A high-performance DNS server with freestyle routing scheme support, DoT/DoH functionalities built-in.  
+![自动构建](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)  
+一个高性能的 DNS 服务器，支持插件式路由规则，DoT 以及 DoH  
 [中文版](README-CN.md)
 
-# Features
-- Fast (~2500 qps in wild where upstream perf is about the same)
-- Fearless hot switch between network environments
-- Freestyle routing rules that are easy to compose and maintain
-- DoH/DoT/UDP supports
-- "Always-on" cache mechanism to ensure DNS quality under severe network environments.
-- Option to send no SNI indication to better counter censorship
-- Option to disable AAAA query for those having network with incomplete IPv6 supports
-- Written in pure Rust
+# 特色
+- 高速 (实测约 2500 qps, 接近上游当前环境下的性能上限）
+- 无需畏惧网络环境的切换（如 4G 切换到 Wi-Fi ）
+- 自由路由规则编写，简洁易维护的规则语法
+- 丰富的匹配器，作用器插件来实现大部分的需求
+- DoH/DoT/UDP 协议支持
+- 惰性 Cache 实现，在尽可能遵守 TTL 的前提下提高返回速度，保障恶劣网络环境下的使用体验
+- 可选不发送 SNI 来防止连接被切断
+- 原生跨平台实现，支持 Linux (ARM/x86)/Windows/macOS
+- 纯 Rust 实现，占用低且内存安全
 
-# Notice
-Breaking changes happened as new routing scheme has been adopted, see configuration section below to adapt.
+# 注意
+目前程序处于活跃开发阶段，时刻可能发生不向后兼容的变动，请以 [example.yaml](example.yaml) 为准。
 
-# Usages
+# 用法
 ```
-dcompass -c path/to/config.json # Or YAML
+dcompass -c path/to/config.json # 或 YAML 配置文件
 ```
 
-# Packages
-1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases). Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`).
-2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+# 软件包
+1. Github Action 会自动每天按照 main branch 和最新的 maxmind GeoIP 数据库对一些平台进行编译并上传到 [release page](https://github.com/LEXUGE/dcompass/releases)。如果是 Raspberry Pi 用户，建议尝试 `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`。
+2. NixOS 打包文件在[这里](https://github.com/icebox-nix/netkit.nix). 同时，对于 NixOS 用户，我们提供了一个包含 systemd 服务的 NixOS module 来方便用户配置。
 
-# Configuration
-Configuration file contains different fields:
-- `cache_size`: Size of the DNS cache system. Larger size implies higher cache capacity (use LRU algorithm as the backend).
-- `verbosity`: Log level filter. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
-- `address`: The address to bind on.
+# 配置（待翻译）
+配置文件包含不同的 fields
+- `cache_size`: DNS Cache 的大小. Larger size implies higher cache capacity (use LRU algorithm as the backend).
+- `verbosity`: Log 等级. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
+- `address`: 监听的地址。
 - `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`. Each rule contains `tag`, `if`, `then`, and `else`. Latter two of which are tuples of the form `(action, next)`, which means take the action first and goto the next rule with the tag specified.
 - `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
 
@@ -50,9 +51,9 @@ Different querying methods:
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
-See [example.yaml](example.yaml) for a pre-configured out-of-box anti-pollution configuration.  
+一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](example.yaml)。  
 
-Table example of using GeoIP to mitigate pollution
+使用 GeoIP 来防污染的路由表（table）样例
 
 ```yaml
 table:
@@ -72,12 +73,12 @@ table:
   - end
 ```
 
-# Behind the scene details
-- if one incoming DNS message contains more than one DNS query (which is impossible in wild), matchers only care about the first one.
-- If a cache record is expired, we return back the expired cache and start a background query to update the cache, if which failed, the expired cache would be still returned back and background query would start again for next query on the same domain. The cache only gets purged if the internal LRU cache system purges it. This ensures cache is always available while dcompass complies TTL.
+# 值得说明的细节
+- 如果一个数据包包含有多个 DNS 请求（实际几乎不可能），匹配器只会对多个 DNS 请求的第一个进行匹配。
+- Cache record 一旦存在，只有在 LRU 算法将其丢弃时才会被丢弃，否则即使过期，还是会被返回，并且后台会并发一个任务来尝试更新这个 cache。
 
 # Benchmark
-Mocked benchmark:
+模拟测试（忽略网络请求的时间）:
 ```
 non_cache_resolve       time:   [10.624 us 10.650 us 10.679 us]
                         change: [-0.9733% -0.0478% +0.8159%] (p = 0.93 > 0.05)
@@ -96,15 +97,15 @@ Found 10 outliers among 100 measurements (10.00%)
   1 (1.00%) high severe
 ```
 
-Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.
+下面是实测，不具有统计学意义
 - On `i7-10710U`, dnsperf gets out `~760 qps` with `0.12s avg latency` and `0.27% ServFail` rate for a test of `15004` queries.
 - As a reference SmartDNS gets `~640 qps` for the same test on the same hardware.
 
-# TODO-list
-- [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
-- [ ] IP-CIDR matcher for both source address and response address
-- [x] GeoIP matcher for source address
-- [ ] Custom response action
+# 计划
+- [ ] 支持自由配置的 inbound server 选项，包括 `DoH`, `DoT`, `TCP`, 和 `UDP`。
+- [ ] IP-CIDR 匹配器，可用于 source IP 或 response IP
+- [x] GeoIP 匹配器，可用于 source IP 或 response IP
+- [ ] 支持自由返回结果的上游（upstream）
 
 # License
 All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.
