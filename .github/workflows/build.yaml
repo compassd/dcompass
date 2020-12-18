@@ -99,8 +99,29 @@ jobs:
         version: latest
         use-tool-cache: true
 
-    - name: Build
-      run: cross build --release --locked --target ${{ matrix.target }}
+    - name: Build full
+      run: |
+        cross build --release --locked --target ${{ matrix.target }} --features "geoip-maxmind"
+        if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
+        then
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-full.exe
+        else
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-full
+        fi
+        cross build --release --locked --target ${{ matrix.target }} --features "geoip-cn"
+        if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
+        then
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-cn.exe
+        else
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-cn
+        fi
+        cross build --release --locked --target ${{ matrix.target }}
+        if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
+        then
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-min.exe
+        else
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-min
+        fi
 
     - name: Strip x86
       if: contains(matrix.target, 'x86')
@@ -108,31 +129,43 @@ jobs:
       run: |
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          strip ./target/${{ matrix.target }}/release/dcompass.exe
+          strip ./dcompass-${{ matrix.target }}-full.exe
+          strip ./dcompass-${{ matrix.target }}-cn.exe
+          strip ./dcompass-${{ matrix.target }}-min.exe
         else
-          strip ./target/${{ matrix.target }}/release/dcompass
+          strip ./dcompass-${{ matrix.target }}-full
+          strip ./dcompass-${{ matrix.target }}-cn
+          strip ./dcompass-${{ matrix.target }}-min
         fi
 
     - name: Strip arm
       if: contains(matrix.target, 'arm')
       shell: bash
-      run: arm-linux-gnueabihf-strip ./target/${{ matrix.target }}/release/dcompass
+      run: |
+        arm-linux-gnueabihf-strip ./dcompass-${{ matrix.target }}-full
+        arm-linux-gnueabihf-strip ./dcompass-${{ matrix.target }}-cn
+        arm-linux-gnueabihf-strip ./dcompass-${{ matrix.target }}-min
 
     - name: Strip aarch64
       if: contains(matrix.target, 'aarch64')
       shell: bash
-      run: aarch64-linux-gnu-strip ./target/${{ matrix.target }}/release/dcompass
+      run: |
+        aarch64-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
+        aarch64-linux-gnu-strip ./dcompass-${{ matrix.target }}-cn
+        aarch64-linux-gnu-strip ./dcompass-${{ matrix.target }}-min
 
     - name: Package
       shell: bash
       run: |
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          upx ./target/${{ matrix.target }}/release/dcompass.exe || true
-          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}.exe
+          upx ./dcompass-${{ matrix.target }}-full.exe || true
+          upx ./dcompass-${{ matrix.target }}-cn.exe || true
+          upx ./dcompass-${{ matrix.target }}-min.exe || true
         else
-          upx ./target/${{ matrix.target }}/release/dcompass || true
-          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}
+          upx ./dcompass-${{ matrix.target }}-full || true
+          upx ./dcompass-${{ matrix.target }}-cn || true
+          upx ./dcompass-${{ matrix.target }}-min || true
         fi
 
     - name: Publish
