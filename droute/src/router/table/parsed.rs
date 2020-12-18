@@ -14,23 +14,39 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #[cfg(feature = "geoip")]
-use super::rule::matchers::{GeoIpTarget, Geoip as MatGeoip};
-use super::{
-    rule::{
-        actions::{Action, Disable as ActDisable, Query as ActQuery, Skip as ActSkip},
-        matchers::{Any as MatAny, Domain as MatDomain, Matcher, QType as MatQType},
-    },
-    Result,
+use super::rule::matchers::{GeoIp, GeoIpTarget};
+use super::rule::{
+    actions::{Action, Disable, Query, Result as ActionResult, Skip},
+    matchers::{Any, Domain, Matcher, QType, Result as MatcherResult},
 };
 use crate::Label;
+use async_trait::async_trait;
 use hashbrown::HashSet;
 use serde::Deserialize;
+#[cfg(feature = "geoip")]
+use std::path::PathBuf;
 use trust_dns_proto::rr::record_type::RecordType;
 
-/// Actions to take
+/// Trait for structs/enums that can convert themselves to matchers
+#[async_trait]
+pub trait ParMatcher {
+    /// Convert itself to a boxed matcher
+    async fn build(self) -> MatcherResult<Box<dyn Matcher>>;
+}
+
+/// Trait for structs/enums that can convert themselves to actions.
+#[async_trait]
+pub trait ParAction: Default {
+    /// Convert itself to a boxed action
+    async fn build(self) -> ActionResult<Box<dyn Action>>;
+}
+
+/// Def(ault) Par(sed) Action
+/// This is a default enum which implements serde's deserialize trait to help you parse stuff into an action.
+/// You can rewrite your own parsed enum to support customized action and more functionalities on your needs.
 #[serde(rename_all = "lowercase")]
 #[derive(Clone, Deserialize)]
-pub enum ParsedAction {
+pub enum DefParAction {
     /// Set response to a message that "disables" requestor to retry.
     Disable,
 
@@ -41,14 +57,21 @@ pub enum ParsedAction {
     Query(Label),
 }
 
-impl ParsedAction {
+#[async_trait]
+impl ParAction for DefParAction {
     // Should only be accessible from `Rule`.
-    pub(super) fn convert(self) -> Box<dyn Action> {
-        match self {
-            Self::Disable => Box::new(ActDisable::default()),
-            Self::Skip => Box::new(ActSkip::default()),
-            Self::Query(t) => Box::new(ActQuery::new(t)),
-        }
+    async fn build(self) -> ActionResult<Box<dyn Action>> {
+        Ok(match self {
+            Self::Disable => Box::new(Disable::default()),
+            Self::Skip => Box::new(Skip::default()),
+            Self::Query(t) => Box::new(Query::new(t)),
+        })
+    }
+}
+
+impl Default for DefParAction {
+    fn default() -> Self {
+        Self::Skip
     }
 }
 
@@ -56,17 +79,27 @@ impl ParsedAction {
 #[serde(rename_all = "lowercase")]
 #[cfg(feature = "geoip")]
 /// Arguments of the GeoIp.
-pub struct ParsedGeoIp {
+pub struct ParGeoIp {
     /// What to match on
-    on: GeoIpTarget,
+    pub on: GeoIpTarget,
     /// Country codes to match on
-    codes: HashSet<String>,
+    pub codes: HashSet<String>,
+    /// Path
+    #[serde(default = "default_geoip_path")]
+    pub path: Option<PathBuf>,
 }
 
-/// Matchers to use
+#[cfg(feature = "geoip")]
+fn default_geoip_path() -> Option<PathBuf> {
+    None
+}
+
+/// Def(ault) Par(sed) Matcher
+/// This is a default enum which implements serde's deserialize trait to help you parse stuff into a matcher.
+/// You can rewrite your own parsed enum to support customized matcher and more functionalities on your needs.
 #[derive(Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum ParsedMatcher {
+pub enum DefParMatcher {
     /// Matches any query
     Any,
 
@@ -78,18 +111,19 @@ pub enum ParsedMatcher {
 
     /// Matches if IP address in the record of the first response is in the list of countries. If specified, this can also match against source IP.
     #[cfg(feature = "geoip")]
-    Geoip(ParsedGeoIp),
+    GeoIp(ParGeoIp),
 }
 
-impl ParsedMatcher {
-    // Should only be accessible from `Rule`.
-    pub(super) async fn convert(self) -> Result<Box<dyn Matcher>> {
+#[async_trait]
+impl ParMatcher for DefParMatcher {
+    async fn build(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Any => Box::new(MatAny::default()),
-            Self::Domain(v) => Box::new(MatDomain::new(v).await?),
-            Self::QType(types) => Box::new(MatQType::new(types)?),
+            Self::Any => Box::new(Any::default()),
+            Self::Domain(v) => Box::new(Domain::new(v).await?),
+            Self::QType(types) => Box::new(QType::new(types)?),
+            // By default, we don't provide any builtin database.
             #[cfg(feature = "geoip")]
-            Self::Geoip(s) => Box::new(MatGeoip::new(s.on, s.codes)?),
+            Self::GeoIp(s) => Box::new(GeoIp::new(s.on, s.codes, s.path, None)?),
         })
     }
 }
@@ -97,25 +131,25 @@ impl ParsedMatcher {
 /// A rule composed of tag name, matcher, and branches.
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
-pub struct ParsedRule {
+pub struct ParRule<M: ParMatcher, A: ParAction> {
     /// The tag name of the rule
     pub tag: Label,
 
     /// The matcher rule uses.
     #[serde(rename = "if")]
-    pub matcher: ParsedMatcher,
+    pub matcher: M,
 
     /// If matcher matches, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
     #[serde(default = "default_branch")]
     #[serde(rename = "then")]
-    pub on_match: (ParsedAction, Label),
+    pub on_match: (A, Label),
 
     /// If matcher doesn't, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
     #[serde(default = "default_branch")]
     #[serde(rename = "else")]
-    pub no_match: (ParsedAction, Label),
+    pub no_match: (A, Label),
 }
 
-fn default_branch() -> (ParsedAction, Label) {
-    (ParsedAction::Skip, "end".into())
+fn default_branch<A: ParAction>() -> (A, Label) {
+    (A::default(), "end".into())
 }

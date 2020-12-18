@@ -13,13 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, Matcher, Result};
+use super::{super::super::State, MatchError::NoBuiltInDb, Matcher, Result};
 use hashbrown::HashSet;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
 #[cfg(feature = "serde-cfg")]
 use serde::Deserialize;
-use std::net::IpAddr;
+use std::{net::IpAddr, path::PathBuf};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 #[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
@@ -34,26 +34,37 @@ pub enum GeoIpTarget {
 }
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
-pub struct Geoip {
+pub struct GeoIp {
     db: Reader<Vec<u8>>,
     list: HashSet<String>,
     on: GeoIpTarget,
 }
 
-impl Geoip {
+impl GeoIp {
     /// Create a new `Geoip` matcher from a set of ISO country codes like `CN`, `AU`.
-    pub fn new(on: GeoIpTarget, list: HashSet<String>) -> Result<Self> {
+    pub fn new(
+        on: GeoIpTarget,
+        list: HashSet<String>,
+        path: Option<PathBuf>,
+        default: Option<Vec<u8>>,
+    ) -> Result<Self> {
         Ok(Self {
             on,
             list,
-            db: Reader::from_source(
-                include_bytes!("../../../../../../data/Country.mmdb").to_vec(),
-            )?,
+            db: if let Some(p) = path {
+                Reader::open_readfile(p)?
+            } else {
+                Reader::from_source(if let Some(d) = default {
+                    d
+                } else {
+                    return Err(NoBuiltInDb);
+                })?
+            },
         })
     }
 }
 
-impl Matcher for Geoip {
+impl Matcher for GeoIp {
     fn matches(&self, state: &State) -> bool {
         if let Some(ip) = match self.on {
             GeoIpTarget::Src => state.src.map(|i| i.ip()),
@@ -90,23 +101,94 @@ impl Matcher for Geoip {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::Matcher, GeoIpTarget::*, Geoip, State};
-    use std::str::FromStr;
+    use super::{super::Matcher, GeoIp, GeoIpTarget::*, State};
+    use lazy_static::lazy_static;
+    use std::{path::PathBuf, str::FromStr};
     use trust_dns_proto::{
         op::Message,
         rr::{resource::Record, Name, RData},
     };
 
+    // Starting from droute's crate root
+    lazy_static! {
+        static ref PATH: Option<PathBuf> = Some("../data/full.mmdb".into());
+        static ref CNPATH: Option<PathBuf> = Some("../data/cn.mmdb".into());
+        static ref RECORD_NOT_CHINA: Record = {
+            Record::from_rdata(
+                Name::from_str("apple.com").unwrap(),
+                10,
+                RData::A("1.1.1.1".parse().unwrap()),
+            )
+        };
+        static ref RECORD_CHINA: Record = {
+            Record::from_rdata(
+                Name::from_str("baidu.com").unwrap(),
+                10,
+                RData::A("36.152.44.95".parse().unwrap()),
+            )
+        };
+    }
+
+    fn create_state(v: Vec<Record>) -> State {
+        State {
+            resp: {
+                let mut m = Message::new();
+                m.insert_answers(v);
+                m
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn builtin_db_not_china() {
+        assert_eq!(
+            GeoIp::new(
+                Resp,
+                vec!["CN".to_string()].into_iter().collect(),
+                None,
+                Some(include_bytes!("../../../../../../data/full.mmdb").to_vec())
+            )
+            .unwrap()
+            .matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
+            false
+        )
+    }
+
+    #[test]
+    fn cndb_src_is_china() {
+        assert_eq!(
+            GeoIp::new(
+                Src,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*CNPATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&State {
+                // Port if not important here.
+                src: Some("36.152.44.95:1".parse().unwrap()),
+                ..Default::default()
+            }),
+            true
+        )
+    }
+
     #[test]
     fn src_is_china() {
         assert_eq!(
-            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State {
-                    // Port if not important here.
-                    src: Some("36.152.44.95:1".parse().unwrap()),
-                    ..Default::default()
-                }),
+            GeoIp::new(
+                Src,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&State {
+                // Port if not important here.
+                src: Some("36.152.44.95:1".parse().unwrap()),
+                ..Default::default()
+            }),
             true
         )
     }
@@ -114,12 +196,17 @@ mod tests {
     #[test]
     fn src_is_not_china() {
         assert_eq!(
-            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State {
-                    src: Some("1.1.1.1:1".parse().unwrap()),
-                    ..Default::default()
-                }),
+            GeoIp::new(
+                Src,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&State {
+                src: Some("1.1.1.1:1".parse().unwrap()),
+                ..Default::default()
+            }),
             false
         )
     }
@@ -127,9 +214,14 @@ mod tests {
     #[test]
     fn empty_src() {
         assert_eq!(
-            Geoip::new(Src, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State::default()),
+            GeoIp::new(
+                Src,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&State::default()),
             false
         )
     }
@@ -137,70 +229,35 @@ mod tests {
     #[test]
     fn not_china() {
         assert_eq!(
-            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State {
-                    resp: {
-                        let mut m = Message::new();
-                        m.insert_answers(
-                            [Record::from_rdata(
-                                Name::from_str("apple.com").unwrap(),
-                                10,
-                                RData::A("1.1.1.1".parse().unwrap()),
-                            )]
-                            .to_vec(),
-                        );
-                        m
-                    },
-                    ..Default::default()
-                }),
+            GeoIp::new(
+                Resp,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
             false
         )
     }
 
     #[test]
     fn mixed() {
-        let geoip = Geoip::new(
+        let geoip = GeoIp::new(
             Resp,
             vec!["CN".to_string(), "AU".to_string()]
                 .into_iter()
                 .collect(),
+            (*PATH).clone(),
+            None,
         )
         .unwrap();
         assert_eq!(
-            geoip.matches(&State {
-                resp: {
-                    let mut m = Message::new();
-                    m.insert_answers(
-                        [Record::from_rdata(
-                            Name::from_str("apple.com").unwrap(),
-                            10,
-                            RData::A("1.1.1.1".parse().unwrap()),
-                        )]
-                        .to_vec(),
-                    );
-                    m
-                },
-                ..Default::default()
-            }),
+            geoip.matches(&create_state(vec![(*RECORD_CHINA).clone()])),
             true
         );
         assert_eq!(
-            geoip.matches(&State {
-                resp: {
-                    let mut m = Message::new();
-                    m.insert_answers(
-                        [Record::from_rdata(
-                            Name::from_str("baidu.com").unwrap(),
-                            10,
-                            RData::A("36.152.44.95".parse().unwrap()),
-                        )]
-                        .to_vec(),
-                    );
-                    m
-                },
-                ..Default::default()
-            }),
+            geoip.matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
             true
         )
     }
@@ -208,9 +265,14 @@ mod tests {
     #[test]
     fn empty_records() {
         assert_eq!(
-            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State::default()),
+            GeoIp::new(
+                Resp,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&State::default()),
             false,
         )
     }
@@ -218,23 +280,14 @@ mod tests {
     #[test]
     fn is_china() {
         assert_eq!(
-            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State {
-                    resp: {
-                        let mut m = Message::new();
-                        m.insert_answers(
-                            [Record::from_rdata(
-                                Name::from_str("baidu.com").unwrap(),
-                                10,
-                                RData::A("36.152.44.95".parse().unwrap()),
-                            )]
-                            .to_vec(),
-                        );
-                        m
-                    },
-                    ..Default::default()
-                }),
+            GeoIp::new(
+                Resp,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&create_state(vec![(*RECORD_CHINA).clone()])),
             true
         )
     }
@@ -242,35 +295,22 @@ mod tests {
     #[test]
     fn unordered_is_china() {
         assert_eq!(
-            Geoip::new(Resp, vec!["CN".to_string()].into_iter().collect())
-                .unwrap()
-                .matches(&State {
-                    resp: {
-                        let mut m = Message::new();
-                        m.insert_answers(
-                            [
-                                Record::from_rdata(
-                                    Name::from_str("baidu.com").unwrap(),
-                                    10,
-                                    RData::CNAME(Name::from_str("baidu.com").unwrap()),
-                                ),
-                                Record::from_rdata(
-                                    Name::from_str("baidu.com").unwrap(),
-                                    10,
-                                    RData::A("36.152.44.95".parse().unwrap()),
-                                ),
-                                Record::from_rdata(
-                                    Name::from_str("baidu.com").unwrap(),
-                                    10,
-                                    RData::NS(Name::from_str("baidu.com").unwrap()),
-                                ),
-                            ]
-                            .to_vec(),
-                        );
-                        m
-                    },
-                    ..Default::default()
-                }),
+            GeoIp::new(
+                Resp,
+                vec!["CN".to_string()].into_iter().collect(),
+                (*PATH).clone(),
+                None
+            )
+            .unwrap()
+            .matches(&create_state(vec![
+                (*RECORD_CHINA).clone(),
+                (*RECORD_NOT_CHINA).clone(),
+                Record::from_rdata(
+                    Name::from_str("baidu.com").unwrap(),
+                    10,
+                    RData::NS(Name::from_str("baidu.com").unwrap()),
+                ),
+            ])),
             true
         )
     }

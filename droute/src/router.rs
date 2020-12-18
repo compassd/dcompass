@@ -19,7 +19,10 @@ pub mod table;
 pub mod upstreams;
 
 #[cfg(feature = "serde-cfg")]
-use self::{table::parsed::ParsedRule, upstreams::parsed::ParsedUpstream};
+use self::{
+    table::parsed::{ParAction, ParMatcher, ParRule},
+    upstreams::parsed::{ParUpstream, ParUpstreamKind},
+};
 use self::{table::Table, upstreams::Upstreams};
 use crate::error::Result;
 use log::warn;
@@ -42,13 +45,13 @@ impl Router {
 
     /// Create a new `Router` from parsed configuration and check the validity. `data` is the content of the configuration file.
     #[cfg(feature = "serde-cfg")]
-    pub async fn with_parsed(
+    pub async fn parse(
         cache_size: usize,
-        rules: Vec<ParsedRule>,
-        upstreams: Vec<ParsedUpstream>,
+        rules: Vec<ParRule<impl ParMatcher, impl ParAction>>,
+        upstreams: Vec<ParUpstream<impl ParUpstreamKind>>,
     ) -> Result<Self> {
-        let table = Table::with_parsed(rules).await?;
-        let upstreams = Upstreams::with_parsed(upstreams, cache_size).await?;
+        let table = Table::parse(rules).await?;
+        let upstreams = Upstreams::parse(upstreams, cache_size).await?;
         Self::new(table, upstreams)
     }
 

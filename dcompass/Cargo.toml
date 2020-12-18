@@ -7,7 +7,13 @@ description = "Rule-based high performance DNS server with multi-upstreams, DoT 
 repository = "https://github.com/LEXUGE/dcompass"
 license = "GPL-3.0"
 
+[features]
+geoip-cn = []
+geoip-maxmind = []
+
 [dependencies]
+async-trait = "^0.1"
+hashbrown = "^0.9"
 trust-dns-proto = { version = "0.20.0-alpha.3", default-features = false }
 droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["all"]}
 futures = "^0.3"

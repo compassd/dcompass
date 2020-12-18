@@ -19,17 +19,26 @@ use super::{
     upstream::{UpstreamKind, UpstreamKind::*},
 };
 use crate::Label;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
+/// A trait to help you to setup a customized upstream kind.
+#[async_trait]
+pub trait ParUpstreamKind {
+    /// Convert itself to an upstream kind.
+    async fn build(self) -> Result<UpstreamKind>;
+}
+
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
-/// Information needed for an upstream.
-pub struct ParsedUpstream {
+/// Def(ault) Par(sed) Upstream
+/// Information needed for an upstream. This implements deserialize to help you to parse data and construct `Upstream`
+pub struct ParUpstream<K: ParUpstreamKind> {
     /// The destination (tag) associated with the upstream.
     pub tag: Label,
     /// Querying method.
-    pub method: ParsedUpstreamKind,
+    pub method: K,
 }
 
 // Default value for timeout
@@ -38,10 +47,11 @@ fn default_timeout() -> u64 {
     5
 }
 
+// A struct that helps us to parse into the actual UpstreamKind
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
 /// The methods of querying
-pub enum ParsedUpstreamKind {
+pub enum DefParUpstreamKind {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
     Hybrid(Vec<Label>),
     /// DNS over HTTPS (DoH).
@@ -80,9 +90,9 @@ pub enum ParsedUpstreamKind {
     },
 }
 
-impl ParsedUpstreamKind {
-    // Shall not be accessible by external callers.
-    pub(super) async fn convert(self) -> Result<UpstreamKind> {
+#[async_trait]
+impl ParUpstreamKind for DefParUpstreamKind {
+    async fn build(self) -> Result<UpstreamKind> {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
             Self::Udp { addr, timeout } => Client {

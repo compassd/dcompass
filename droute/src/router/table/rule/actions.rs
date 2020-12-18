@@ -28,7 +28,8 @@ use async_trait::async_trait;
 use std::fmt::Debug;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, ActionError>;
+/// A shorthand for returning action error.
+pub type Result<T> = std::result::Result<T, ActionError>;
 
 #[derive(Error, Debug)]
 /// Errors may caused by `Action`.
@@ -36,6 +37,10 @@ pub enum ActionError {
     /// Error forwarded from `UpstreamError`.
     #[error(transparent)]
     UpstreamError(#[from] UpstreamError),
+
+    /// Other error.
+    #[error("An error encountered in action: {0}")]
+    Other(String),
 }
 
 #[async_trait]

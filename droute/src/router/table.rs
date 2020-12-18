@@ -24,7 +24,7 @@ use crate::Label;
 use hashbrown::{HashMap, HashSet};
 use log::*;
 #[cfg(feature = "serde-cfg")]
-use parsed::ParsedRule;
+use parsed::{ParAction, ParMatcher, ParRule};
 use std::net::SocketAddr;
 use thiserror::Error;
 use trust_dns_client::op::Message;
@@ -88,10 +88,12 @@ impl Table {
 
     // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
     #[cfg(feature = "serde-cfg")]
-    pub(super) async fn with_parsed(parsed_rules: Vec<ParsedRule>) -> Result<Self> {
+    pub(super) async fn parse(
+        parsed_rules: Vec<ParRule<impl ParMatcher, impl ParAction>>,
+    ) -> Result<Self> {
         let mut rules = Vec::new();
         for r in parsed_rules {
-            rules.push(Rule::with_parsed(r).await?);
+            rules.push(Rule::parse(r).await?);
         }
         Self::new(rules)
     }

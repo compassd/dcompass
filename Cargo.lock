@@ -284,9 +284,11 @@ name = "dcompass"
 version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "dmatcher",
  "droute",
  "futures",
+ "hashbrown",
  "log",
  "ratelimit",
  "serde",

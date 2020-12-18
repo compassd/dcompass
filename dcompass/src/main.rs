@@ -38,7 +38,7 @@ struct DcompassOpts {
 
 async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
     Ok((
-        Router::with_parsed(p.cache_size, p.table, p.upstreams).await?,
+        Router::parse(p.cache_size, p.table, p.upstreams).await?,
         p.address,
         p.verbosity,
         p.ratelimit,
@@ -114,71 +114,78 @@ async fn main() -> Result<()> {
 mod tests {
     use super::init;
     use droute::error::*;
-    use tokio_test::block_on;
 
-    #[test]
-    fn check_default() {
+    #[tokio::test]
+    async fn check_default() {
         assert_eq!(
-            block_on(init(
-                serde_yaml::from_str(include_str!("../../configs/default.json")).unwrap()
-            ))
-            .is_ok(),
+            init(serde_yaml::from_str(include_str!("../../configs/default.json")).unwrap())
+                .await
+                .is_ok(),
             true
         );
     }
 
-    #[test]
-    fn check_example() {
+    #[cfg(all(feature = "geoip-maxmind", not(feature = "geoip-cn")))]
+    #[tokio::test]
+    async fn check_example_maxmind() {
         assert_eq!(
-            block_on(init(
-                serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap()
-            ))
-            .is_ok(),
+            init(serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap())
+                .await
+                .is_ok(),
             true
         );
     }
 
-    #[test]
-    fn check_success_rule() {
+    #[cfg(all(feature = "geoip-cn", not(feature = "geoip-maxmind")))]
+    #[tokio::test]
+    async fn check_example_cn() {
         assert_eq!(
-            block_on(init(
-                serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap()
-            ))
-            .is_ok(),
+            init(serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap())
+                .await
+                .is_ok(),
             true
         );
     }
 
-    #[test]
-    fn check_success_geoip() {
+    #[tokio::test]
+    async fn check_success_rule() {
         assert_eq!(
-            block_on(init(
-                serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap()
-            ))
-            .is_ok(),
+            init(serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap())
+                .await
+                .is_ok(),
             true
         );
     }
 
-    #[test]
-    fn check_success_rule_yaml() {
+    #[tokio::test]
+    async fn check_success_geoip() {
         assert_eq!(
-            block_on(init(
+            init(serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap())
+                .await
+                .is_ok(),
+            true
+        );
+    }
+
+    #[tokio::test]
+    async fn check_success_rule_yaml() {
+        assert_eq!(
+            init(
                 serde_yaml::from_str(include_str!("../../configs/success_rule_yaml.yaml")).unwrap()
-            ))
+            )
+            .await
             .is_ok(),
             true
         );
     }
 
-    #[test]
-    fn check_fail_undef() {
+    #[tokio::test]
+    async fn check_fail_undef() {
         assert_eq!(
-            match block_on(init(
-                serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap()
-            ))
-            .err()
-            .unwrap()
+            match init(serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap())
+                .await
+                .err()
+                .unwrap()
             {
                 DrouteError::UpstreamError(UpstreamError::MissingTag(tag)) => tag,
                 e => panic!("Not the right error type: {}", e),
@@ -187,24 +194,24 @@ mod tests {
         );
     }
 
-    #[test]
-    fn check_fail_recursion() {
-        match block_on(init(
-            serde_yaml::from_str(include_str!("../../configs/fail_recursion.json")).unwrap(),
-        ))
-        .err()
-        .unwrap()
+    #[tokio::test]
+    async fn check_fail_recursion() {
+        match init(serde_yaml::from_str(include_str!("../../configs/fail_recursion.json")).unwrap())
+            .await
+            .err()
+            .unwrap()
         {
             DrouteError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
             e => panic!("Not the right error type: {}", e),
         };
     }
 
-    #[test]
-    fn check_fail_multiple_def() {
-        match block_on(init(
+    #[tokio::test]
+    async fn check_fail_multiple_def() {
+        match init(
             serde_yaml::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap(),
-        ))
+        )
+        .await
         .err()
         .unwrap()
         {

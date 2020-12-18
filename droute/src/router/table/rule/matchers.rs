@@ -20,7 +20,7 @@ mod geoip;
 mod qtype;
 
 #[cfg(feature = "geoip")]
-pub use self::geoip::{GeoIpTarget, Geoip};
+pub use self::geoip::{GeoIp, GeoIpTarget};
 pub use self::{any::Any, domain::Domain, qtype::QType};
 
 use super::super::State;
@@ -29,7 +29,8 @@ use maxminddb::MaxMindDBError;
 use std::fmt::Debug;
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, MatchError>;
+/// A shorthand for returning action error.
+pub type Result<T> = std::result::Result<T, MatchError>;
 
 #[derive(Error, Debug)]
 /// All possible errors that may incur when using matchers.
@@ -46,6 +47,15 @@ pub enum MatchError {
     /// Malformatted file provided to a matcher.
     #[error("File provided for matcher(s) is malformatted.")]
     Malformatted,
+
+    /// No path to GeoIP database specified while no builtin database is provided.
+    #[cfg(feature = "geoip")]
+    #[error("This build doesn't contain a built-in GeoIP database, please specify your own database or use other builds.")]
+    NoBuiltInDb,
+
+    /// Other error.
+    #[error("An error encountered in matcher: {0}")]
+    Other(String),
 }
 
 /// A matcher determines if something matches or not given the current state.

@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #[cfg(feature = "serde-cfg")]
-use super::parsed::ParsedUpstream;
+use super::parsed::{ParUpstream, ParUpstreamKind};
 use super::{
     client_pool::ClientPool,
     error::Result,
@@ -59,11 +59,11 @@ impl Upstream {
         }
     }
 
-    /// Create an upstream with `ParsedUpstream`.
+    /// Create an upstream with `ParUpstream`.
     #[cfg(feature = "serde-cfg")]
-    pub async fn with_parsed(u: ParsedUpstream, size: usize) -> Result<Self> {
+    pub async fn parse(u: ParUpstream<impl ParUpstreamKind>, size: usize) -> Result<Self> {
         Ok(Self {
-            inner: u.method.convert().await?,
+            inner: u.method.build().await?,
             cache: RespCache::new(size),
         })
     }

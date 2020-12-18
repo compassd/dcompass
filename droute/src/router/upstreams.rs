@@ -28,7 +28,7 @@ pub use upstream::*;
 
 use self::error::{Result, UpstreamError};
 #[cfg(feature = "serde-cfg")]
-use self::parsed::ParsedUpstream;
+use self::parsed::{ParUpstream, ParUpstreamKind};
 use crate::Label;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
@@ -57,13 +57,16 @@ impl Upstreams {
         Ok(u)
     }
 
-    /// Create a new `Upstreams` with a set of ParsedUpstream.
+    /// Create a new `Upstreams` with a set of ParUpstream.
     #[cfg(feature = "serde-cfg")]
-    pub async fn with_parsed(upstreams: Vec<ParsedUpstream>, size: usize) -> Result<Self> {
+    pub async fn parse(
+        upstreams: Vec<ParUpstream<impl ParUpstreamKind>>,
+        size: usize,
+    ) -> Result<Self> {
         Self::new({
             let mut v = Vec::new();
             for u in upstreams {
-                v.push((u.tag.clone(), Upstream::with_parsed(u, size).await?));
+                v.push((u.tag.clone(), Upstream::parse(u, size).await?));
             }
             v
         })
