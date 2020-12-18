@@ -101,29 +101,27 @@ jobs:
 
     - name: Build full
       run: |
-        cd dcompass
-        cross build --release --locked --target ${{ matrix.target }} --features "geoip-maxmind"
+        cross build --manifest-path ./dcompass/Cargo.toml --release --locked --target ${{ matrix.target }} --features "geoip-maxmind"
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          cp ../target/${{ matrix.target }}/release/dcompass.exe ../dcompass-${{ matrix.target }}-full.exe
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-full.exe
         else
-          cp ../target/${{ matrix.target }}/release/dcompass ../dcompass-${{ matrix.target }}-full
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-full
         fi
-        cross build --release --locked --target ${{ matrix.target }} --features "geoip-cn"
+        cross build --manifest-path ./dcompass/Cargo.toml --release --locked --target ${{ matrix.target }} --features "geoip-cn"
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          cp ../target/${{ matrix.target }}/release/dcompass.exe ../dcompass-${{ matrix.target }}-cn.exe
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-cn.exe
         else
-          cp ../target/${{ matrix.target }}/release/dcompass ../dcompass-${{ matrix.target }}-cn
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-cn
         fi
-        cross build --release --locked --target ${{ matrix.target }}
+        cross build --manifest-path ./dcompass/Cargo.toml --release --locked --target ${{ matrix.target }}
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
-          cp ../target/${{ matrix.target }}/release/dcompass.exe ../dcompass-${{ matrix.target }}-min.exe
+          cp ./target/${{ matrix.target }}/release/dcompass.exe ./dcompass-${{ matrix.target }}-min.exe
         else
-          cp ../target/${{ matrix.target }}/release/dcompass ../dcompass-${{ matrix.target }}-min
+          cp ./target/${{ matrix.target }}/release/dcompass ./dcompass-${{ matrix.target }}-min
         fi
-        cd ../
 
     - name: Strip x86
       if: contains(matrix.target, 'x86')
