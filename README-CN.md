@@ -23,7 +23,7 @@ dcompass -c path/to/config.json # 或 YAML 配置文件
 ```
 
 # 软件包
-1. Github Action 会自动每天按照 main branch 和最新的 maxmind GeoIP 数据库对一些平台进行编译并上传到 [release page](https://github.com/LEXUGE/dcompass/releases)。如果是 Raspberry Pi 用户，建议尝试 `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`。
+1. Github Action 会自动每天按照 main branch 和最新的 maxmind GeoIP 数据库对一些平台进行编译并上传到 [release page](https://github.com/LEXUGE/dcompass/releases)。如果是 Raspberry Pi 用户，建议尝试 `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`。每个 target 都带有 `full`, `cn`, `min` 三个版本， `full` 包含 maxmind GeoIP2 database, `cn` 包含 GeoIP2-CN databse （只含有中国 IP）， `min` 不内置数据库。
 2. NixOS 打包文件在[这里](https://github.com/icebox-nix/netkit.nix). 同时，对于 NixOS 用户，我们提供了一个包含 systemd 服务的 NixOS module 来方便用户配置。
 
 # 配置（待翻译）
@@ -43,7 +43,7 @@ Different matchers: (More matchers to come, including `cidr`)
 - `any`: Matches anything.
 - `domain(list of file paths)`: Matches domain in specified domain lists
 - `qtype(list of record types)`: Matches record type specified.
-- `geoip(list of ISO country codes)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
+- `geoip(on: resp or src, codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
 
 Different querying methods:
 - `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
@@ -51,7 +51,7 @@ Different querying methods:
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
 
-一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](configs/example.yaml)。  
+一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](configs/example.yaml)（只支持 `full` 和 `cn`， `min` 如需使用此配置需要自带 GeoIP database）。  
 
 使用 GeoIP 来防污染的路由表（table）样例
 
