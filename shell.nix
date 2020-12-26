@@ -5,7 +5,7 @@ let
 
   stableRust = nixpkgs.latest.rustChannels.stable.rust;
   nightlyRust = (nixpkgs.rustChannelOf {
-    date = "2020-11-18";
+    date = "2020-12-20";
     channel = "nightly";
   }).rust.override { extensions = [ "rustfmt-preview" ]; };
 
