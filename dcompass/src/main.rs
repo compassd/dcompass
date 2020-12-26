@@ -156,6 +156,16 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn check_success_ipcidr() {
+        assert_eq!(
+            init(serde_yaml::from_str(include_str!("../../configs/success_cidr.yaml")).unwrap())
+                .await
+                .is_ok(),
+            true
+        );
+    }
+
     #[cfg(all(feature = "geoip-maxmind", not(feature = "geoip-cn")))]
     #[tokio::test]
     async fn check_example_maxmind() {

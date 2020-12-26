@@ -14,10 +14,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #[cfg(feature = "geoip")]
-use super::rule::matchers::{GeoIp, GeoIpTarget};
+use super::rule::matchers::GeoIp;
 use super::rule::{
     actions::{Action, Disable, Query, Result as ActionResult, Skip},
-    matchers::{Any, Domain, Matcher, QType, Result as MatcherResult},
+    matchers::{Any, Domain, IpCidr, IpTarget, Matcher, QType, Result as MatcherResult},
 };
 use crate::Label;
 use async_trait::async_trait;
@@ -81,12 +81,22 @@ impl Default for DefParAction {
 /// Arguments of the GeoIp.
 pub struct ParGeoIp {
     /// What to match on
-    pub on: GeoIpTarget,
+    pub on: IpTarget,
     /// Country codes to match on
     pub codes: HashSet<String>,
     /// Path
     #[serde(default = "default_geoip_path")]
     pub path: Option<PathBuf>,
+}
+
+#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+/// Arguments of the IP CIDR matcher.
+pub struct ParIpCidr {
+    /// What to match on
+    pub on: IpTarget,
+    /// list of files that contain IP CIDR entries
+    pub path: Vec<String>,
 }
 
 #[cfg(feature = "geoip")]
@@ -112,6 +122,9 @@ pub enum DefParMatcher {
     /// Matches if IP address in the record of the first response is in the list of countries. If specified, this can also match against source IP.
     #[cfg(feature = "geoip")]
     GeoIp(ParGeoIp),
+
+    /// Matches if IP address in the record of the first response is in the list of IP CIDR. If specified, this can also match against source IP.
+    IpCidr(ParIpCidr),
 }
 
 #[async_trait]
@@ -121,6 +134,7 @@ impl ParMatcher for DefParMatcher {
             Self::Any => Box::new(Any::default()),
             Self::Domain(v) => Box::new(Domain::new(v).await?),
             Self::QType(types) => Box::new(QType::new(types)?),
+            Self::IpCidr(s) => Box::new(IpCidr::new(s.on, s.path).await?),
             // By default, we don't provide any builtin database.
             #[cfg(feature = "geoip")]
             Self::GeoIp(s) => Box::new(GeoIp::new(s.on, s.codes, s.path, None)?),

@@ -25,12 +25,17 @@ pub use self::https::Https;
 #[cfg(feature = "dot")]
 pub use self::tls::Tls;
 
+#[cfg(any(feature = "doh", feature = "dot"))]
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
+#[cfg(any(feature = "doh", feature = "dot"))]
 use std::sync::Arc;
 
+// Not used if there is no DoT or DoH enabled.
+#[cfg(any(feature = "doh", feature = "dot"))]
 const ALPN_H2: &[u8] = b"h2";
 
 // Create client config for TLS and HTTPS clients
+#[cfg(any(feature = "doh", feature = "dot"))]
 fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);

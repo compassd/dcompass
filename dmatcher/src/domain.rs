@@ -72,10 +72,7 @@ impl Domain {
 
     /// Pass in a string containing `\n` and get all domains inserted.
     pub fn insert_multi(&mut self, domain: &str) {
-        let lvs: Vec<&str> = domain.split('\n').collect();
-        for lv in lvs {
-            self.insert(lv);
-        }
+        domain.split('\n').for_each(|lv| self.insert(lv));
     }
 
     /// Pass in a domain and insert it into the matcher.

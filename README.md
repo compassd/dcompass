@@ -38,11 +38,12 @@ Different actions:
 - `disable`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
 - `query(tag)`: Send query via upstream with specified tag.
 
-Different matchers: (More matchers to come, including `cidr`)
+Different matchers: (More matchers to come)
 - `any`: Matches anything.
 - `domain(list of file paths)`: Matches domain in specified domain lists
 - `qtype(list of record types)`: Matches record type specified.
 - `geoip(on: resp or src, codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
+- `ipcidr(on: resp or src, list: list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR.
 
 Different querying methods:
 - `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
@@ -102,7 +103,7 @@ Following benchmarks are not mocked, but they are rather based on multiple perfs
 
 # TODO-list
 - [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
-- [ ] IP-CIDR matcher for both source address and response address
+- [x] IP-CIDR matcher for both source address and response address
 - [x] GeoIP matcher for source address
 - [ ] Custom response action
 

@@ -7,6 +7,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
 
 [[package]]
+name = "aho-corasick"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7404febffaa47dac81aa44dba71523c9d069b1bdc50a77db41195149e17f68e5"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -135,6 +144,19 @@ dependencies = [
  "num-traits",
  "time",
  "winapi",
+]
+
+[[package]]
+name = "cidr-utils"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89f7b6372f3c783f6d44c0da283d3694af4104967bf2371cb3bdc9d09e1cfe00"
+dependencies = [
+ "debug-helper",
+ "num-bigint",
+ "num-traits",
+ "once_cell",
+ "regex",
 ]
 
 [[package]]
@@ -301,6 +323,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "debug-helper"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8a5bb894f24f42c247f19b25928a88e31867c0f84552c05df41a9dd527435e"
+
+[[package]]
 name = "dmatcher"
 version = "0.1.11"
 dependencies = [
@@ -313,6 +341,7 @@ name = "droute"
 version = "0.1.0-alpha.1"
 dependencies = [
  "async-trait",
+ "cidr-utils",
  "criterion",
  "dmatcher",
  "dyn-clonable",
@@ -738,6 +767,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e9a41747ae4633fce5adffb4d2e81ffc5e89593cb19917f8fb2cc5ff76507bf"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1002,7 +1042,10 @@ version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38cf2c13ed4745de91a5eb834e11c00bcc3709e773173b2ce4c56c9fbde04b9c"
 dependencies = [
+ "aho-corasick",
+ "memchr",
  "regex-syntax",
+ "thread_local",
 ]
 
 [[package]]
@@ -1267,6 +1310,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "thread_local"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
+dependencies = [
+ "lazy_static",
 ]
 
 [[package]]

@@ -40,6 +40,7 @@ futures = "^0.3"
 tokio = { version = "^0.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
 # Logic-needed dependencies
+cidr-utils = "^0.5"
 hashbrown = "^0.9"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"

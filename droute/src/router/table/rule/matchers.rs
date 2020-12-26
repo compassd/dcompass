@@ -17,20 +17,34 @@ mod any;
 mod domain;
 #[cfg(feature = "geoip")]
 mod geoip;
+mod ipcidr;
 mod qtype;
 
 #[cfg(feature = "geoip")]
-pub use self::geoip::{GeoIp, GeoIpTarget};
-pub use self::{any::Any, domain::Domain, qtype::QType};
+pub use self::geoip::GeoIp;
+pub use self::{any::Any, domain::Domain, ipcidr::IpCidr, qtype::QType};
 
 use super::super::State;
 #[cfg(feature = "geoip")]
 use maxminddb::MaxMindDBError;
+#[cfg(feature = "serde-cfg")]
+use serde::Deserialize;
 use std::fmt::Debug;
 use thiserror::Error;
 
 /// A shorthand for returning action error.
 pub type Result<T> = std::result::Result<T, MatchError>;
+
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[derive(Clone, Eq, PartialEq)]
+/// Target for IP to match on
+pub enum IpTarget {
+    /// Match on the IP of the query sender.
+    Src,
+    /// Match on the response.
+    Resp,
+}
 
 #[derive(Error, Debug)]
 /// All possible errors that may incur when using matchers.
@@ -42,7 +56,11 @@ pub enum MatchError {
     /// Error related to GeoIP usages.
     #[cfg(feature = "geoip")]
     #[error("An error happened when using `geoip` matcher.")]
-    GeoIPError(#[from] MaxMindDBError),
+    GeoIpError(#[from] MaxMindDBError),
+
+    /// Error related to IP CIDR.
+    #[error("An error encountered in the IP CIDR matcher.")]
+    IpCidrError(#[from] cidr_utils::cidr::IpCidrError),
 
     /// Malformatted file provided to a matcher.
     #[error("File provided for matcher(s) is malformatted.")]

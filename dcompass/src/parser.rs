@@ -16,7 +16,9 @@
 use async_trait::async_trait;
 use droute::{
     matchers::*,
-    parsed::{DefParAction, DefParUpstreamKind, ParGeoIp, ParMatcher, ParRule, ParUpstream},
+    parsed::{
+        DefParAction, DefParUpstreamKind, ParGeoIp, ParIpCidr, ParMatcher, ParRule, ParUpstream,
+    },
 };
 use hashbrown::HashSet;
 use log::LevelFilter;
@@ -45,6 +47,7 @@ pub enum MyParMatcher {
     Domain(Vec<String>),
     QType(HashSet<RecordType>),
     GeoIp(ParGeoIp),
+    IpCidr(ParIpCidr),
 }
 
 #[async_trait]
@@ -54,6 +57,7 @@ impl ParMatcher for MyParMatcher {
             Self::Any => Box::new(Any::default()),
             Self::Domain(v) => Box::new(Domain::new(v).await?),
             Self::QType(types) => Box::new(QType::new(types)?),
+            Self::IpCidr(s) => Box::new(IpCidr::new(s.on, s.path).await?),
             Self::GeoIp(s) => Box::new(GeoIp::new(s.on, s.codes, s.path, get_builtin_db())?),
         })
     }

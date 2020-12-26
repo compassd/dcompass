@@ -13,37 +13,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, MatchError::NoBuiltInDb, Matcher, Result};
+use super::{super::super::State, IpTarget, MatchError::NoBuiltInDb, Matcher, Result};
 use hashbrown::HashSet;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
-#[cfg(feature = "serde-cfg")]
-use serde::Deserialize;
 use std::{net::IpAddr, path::PathBuf};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
-
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone, Eq, PartialEq)]
-/// Target for GeoIP to match on
-pub enum GeoIpTarget {
-    /// Match on the IP of the query sender.
-    Src,
-    /// Match on the response.
-    Resp,
-}
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 pub struct GeoIp {
     db: Reader<Vec<u8>>,
     list: HashSet<String>,
-    on: GeoIpTarget,
+    on: IpTarget,
 }
 
 impl GeoIp {
     /// Create a new `Geoip` matcher from a set of ISO country codes like `CN`, `AU`.
     pub fn new(
-        on: GeoIpTarget,
+        on: IpTarget,
         list: HashSet<String>,
         path: Option<PathBuf>,
         default: Option<Vec<u8>>,
@@ -67,8 +54,8 @@ impl GeoIp {
 impl Matcher for GeoIp {
     fn matches(&self, state: &State) -> bool {
         if let Some(ip) = match self.on {
-            GeoIpTarget::Src => state.src.map(|i| i.ip()),
-            GeoIpTarget::Resp => state
+            IpTarget::Src => state.src.map(|i| i.ip()),
+            IpTarget::Resp => state
                 .resp
                 .answers()
                 .iter()
@@ -101,7 +88,7 @@ impl Matcher for GeoIp {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::Matcher, GeoIp, GeoIpTarget::*, State};
+    use super::{super::Matcher, GeoIp, IpTarget::*, State};
     use lazy_static::lazy_static;
     use std::{path::PathBuf, str::FromStr};
     use trust_dns_proto::{
