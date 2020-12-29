@@ -107,6 +107,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0dcbc35f504eb6fc275a6d20e4ebcda18cf50d40ba6fabff8c711fa16cb3b16"
 
 [[package]]
+name = "bytes"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad1f8e949d755f9d79112b5bb46938e0ef9d3804a0b16dfab13aafcaa5f0fa72"
+
+[[package]]
 name = "cast"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -317,7 +323,7 @@ dependencies = [
  "serde_yaml",
  "simple_logger",
  "structopt",
- "tokio",
+ "tokio 1.0.1",
  "tokio-test",
  "trust-dns-proto",
 ]
@@ -354,7 +360,7 @@ dependencies = [
  "rustls",
  "serde",
  "thiserror",
- "tokio",
+ "tokio 1.0.1",
  "tokio-test",
  "trust-dns-client",
  "trust-dns-https",
@@ -556,7 +562,7 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio",
+ "tokio 0.3.6",
  "tokio-util",
  "tracing",
  "tracing-futures",
@@ -1359,28 +1365,42 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12a3eb39ee2c231be64487f1fcbe726c8f2514876a55480a5ab8559fc374252"
+checksum = "720ba21c25078711bf456d607987d95bce90f7c3bea5abe1db587862e7a1e87c"
 dependencies = [
  "autocfg",
  "bytes 0.6.0",
  "futures-core",
- "lazy_static",
  "libc",
  "memchr",
  "mio",
  "num_cpus",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "tokio"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d258221f566b6c803c7b4714abadc080172b272090cdc5e244a6d4dd13c3a6bd"
+dependencies = [
+ "autocfg",
+ "bytes 1.0.0",
+ "libc",
+ "memchr",
+ "mio",
+ "num_cpus",
+ "pin-project-lite",
  "tokio-macros",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "0.3.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21d30fdbb5dc2d8f91049691aa1a9d4d4ae422a21c334ce8936e5886d30c5c45"
+checksum = "42517d2975ca3114b22a16192634e8241dc5cc1f130be194645970cc1c371494"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1394,7 +1414,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "609ada6f5bf21315925c6e43d78dc51fba5c5968a995f95345b4781cc06f37eb"
 dependencies = [
  "rustls",
- "tokio",
+ "tokio 0.3.6",
  "webpki",
 ]
 
@@ -1406,7 +1426,7 @@ checksum = "7edc5a2b13a713b9134debc9aa1265b0a1ccf6a81fa05af2ba26e4aee56cdf1a"
 dependencies = [
  "bytes 0.5.6",
  "futures-core",
- "tokio",
+ "tokio 0.3.6",
 ]
 
 [[package]]
@@ -1420,7 +1440,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
- "tokio",
+ "tokio 0.3.6",
 ]
 
 [[package]]
@@ -1468,7 +1488,7 @@ dependencies = [
  "radix_trie",
  "rand",
  "thiserror",
- "tokio",
+ "tokio 0.3.6",
  "trust-dns-proto",
 ]
 
@@ -1486,7 +1506,7 @@ dependencies = [
  "log",
  "rustls",
  "thiserror",
- "tokio",
+ "tokio 0.3.6",
  "tokio-rustls",
  "trust-dns-proto",
  "trust-dns-rustls",
@@ -1514,7 +1534,7 @@ dependencies = [
  "serde",
  "smallvec",
  "thiserror",
- "tokio",
+ "tokio 0.3.6",
  "url",
 ]
 
@@ -1528,7 +1548,7 @@ dependencies = [
  "futures-util",
  "log",
  "rustls",
- "tokio",
+ "tokio 0.3.6",
  "tokio-rustls",
  "trust-dns-proto",
  "webpki",
