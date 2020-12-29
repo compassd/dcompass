@@ -23,7 +23,7 @@ use log::*;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
 use structopt::StructOpt;
-use tokio::{fs::File, net::UdpSocket, prelude::*};
+use tokio::{fs::File, io::AsyncReadExt, net::UdpSocket};
 
 #[derive(Debug, StructOpt)]
 #[structopt(

@@ -15,7 +15,7 @@
 
 use super::{super::super::State, Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
-use tokio::{fs::File, prelude::*};
+use tokio::{fs::File, io::AsyncReadExt};
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);

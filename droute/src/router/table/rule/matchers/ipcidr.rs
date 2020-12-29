@@ -19,7 +19,7 @@ use cidr_utils::{
     utils::IpCidrCombiner as CidrCombiner,
 };
 use std::net::IpAddr;
-use tokio::{fs::File, prelude::*};
+use tokio::{fs::File, io::AsyncReadExt};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches the IP on src or dst as specified.
