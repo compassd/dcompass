@@ -28,4 +28,4 @@ structopt = "^0.3"
 ratelimit = "^0.4"
 
 [dev-dependencies]
-tokio-test = "^0.3"
+tokio-test = "^0.4"
