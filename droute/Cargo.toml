@@ -33,7 +33,7 @@ rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = 
 webpki-roots = { version = "^0.21", optional = true }
 webpki = { version = "^0.21", optional = true }
 
-maxminddb = { version = "^0.16", optional = true }
+maxminddb = { version = "^0.17", optional = true }
 
 # Async-aware dependencies
 futures = "^0.3"
