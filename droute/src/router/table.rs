@@ -103,24 +103,29 @@ impl Table {
         &self.used
     }
 
+    // Traverse and validate the routing table.
     fn traverse(
+        // Rule set given
         rules: &HashMap<Label, Rule>,
-        l: &mut HashSet<Label>,
+        // Traversed tag names
+        traversed: &mut HashSet<Label>,
+        // The upstreams used by rules
         used: &mut HashSet<Label>,
         tag: &Label,
     ) -> Result<()> {
         if let Some(r) = rules.get(tag) {
-            if l.contains(tag) {
+            if traversed.contains(tag) {
                 Err(TableError::RuleRecursion(tag.clone()))
             } else {
-                l.insert(tag.clone());
+                traversed.insert(tag.clone());
                 if r.on_match_next() != &"end".into() {
-                    Self::traverse(rules, l, used, r.on_match_next())?;
+                    Self::traverse(rules, traversed, used, r.on_match_next())?;
                 }
                 if r.no_match_next() != &"end".into() {
-                    Self::traverse(rules, l, used, r.no_match_next())?;
+                    Self::traverse(rules, traversed, used, r.no_match_next())?;
                 }
                 used.extend(r.used_upstreams());
+                traversed.remove(tag);
                 Ok(())
             }
         } else {
@@ -166,6 +171,26 @@ mod tests {
         },
         Table, TableError,
     };
+
+    #[tokio::test]
+    async fn is_not_recursion() {
+        Table::new(vec![
+            Rule::new(
+                "start".into(),
+                Box::new(Any::default()),
+                (Box::new(Skip::default()), "foo".into()),
+                (Box::new(Skip::default()), "foo".into()),
+            ),
+            Rule::new(
+                "foo".into(),
+                Box::new(Any::default()),
+                (Box::new(Skip::default()), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
+            ),
+        ])
+        .ok()
+        .unwrap();
+    }
 
     #[tokio::test]
     async fn fail_table_recursion() {

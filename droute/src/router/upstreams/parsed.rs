@@ -20,6 +20,7 @@ use super::{
 };
 use crate::Label;
 use async_trait::async_trait;
+use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
@@ -53,7 +54,7 @@ fn default_timeout() -> u64 {
 /// The methods of querying
 pub enum DefParUpstreamKind {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
-    Hybrid(Vec<Label>),
+    Hybrid(HashSet<Label>),
     /// DNS over HTTPS (DoH).
     #[cfg(feature = "doh")]
     Https {

@@ -21,6 +21,7 @@ use super::{
     resp_cache::{RecordStatus::*, RespCache},
 };
 use crate::Label;
+use hashbrown::HashSet;
 use std::borrow::Borrow;
 use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
@@ -30,7 +31,7 @@ use trust_dns_proto::xfer::dns_handle::DnsHandle;
 #[derive(Clone)]
 pub enum UpstreamKind {
     /// A hybrid upstream (no real client implementation included)
-    Hybrid(Vec<Label>),
+    Hybrid(HashSet<Label>),
     /// A real client implementation
     Client {
         /// Client pool
@@ -68,7 +69,7 @@ impl Upstream {
         })
     }
 
-    pub(super) fn try_hybrid(&self) -> Option<Vec<&Label>> {
+    pub(super) fn try_hybrid(&self) -> Option<HashSet<&Label>> {
         match &self.inner {
             UpstreamKind::Hybrid(v) => Some(v.iter().collect()),
             UpstreamKind::Client {

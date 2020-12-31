@@ -97,8 +97,8 @@ impl Upstreams {
                     self.traverse(l, t)?
                 }
             }
+            l.remove(tag);
         }
-
         Ok(())
     }
 
@@ -137,5 +137,48 @@ impl Upstreams {
             })
         }
         .boxed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{client_pool::Udp, Upstream, UpstreamKind, Upstreams};
+
+    #[tokio::test]
+    async fn should_not_fail_recursion() {
+        // This should not fail because for the hybrid1, graph is like hybrid1 -> ((hybrid2 -> foo), foo), which is not recursive.
+        // Previous detection algorithm mistakingly identifies this as recursion.
+        Upstreams::new(vec![
+            (
+                "udp".into(),
+                Upstream::new(
+                    UpstreamKind::Client {
+                        pool: Box::new(
+                            Udp::new(&"127.0.0.1:53533".parse().unwrap()).await.unwrap(),
+                        ),
+                        timeout: 1,
+                    },
+                    10,
+                ),
+            ),
+            (
+                "hybrid1".into(),
+                Upstream::new(
+                    UpstreamKind::Hybrid(
+                        vec!["udp".into(), "hybrid2".into()].into_iter().collect(),
+                    ),
+                    10,
+                ),
+            ),
+            (
+                "hybrid2".into(),
+                Upstream::new(
+                    UpstreamKind::Hybrid(vec!["udp".into()].into_iter().collect()),
+                    10,
+                ),
+            ),
+        ])
+        .ok()
+        .unwrap();
     }
 }
