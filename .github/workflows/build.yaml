@@ -101,6 +101,7 @@ jobs:
 
     - name: Build full
       run: |
+        cargo update
         cross build --manifest-path ./dcompass/Cargo.toml --release --locked --target ${{ matrix.target }} --features "geoip-maxmind"
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
