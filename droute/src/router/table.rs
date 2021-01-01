@@ -20,7 +20,7 @@ pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::Label;
+use crate::{Label, Validatable};
 use hashbrown::{HashMap, HashSet};
 use log::*;
 #[cfg(feature = "serde-cfg")]
@@ -69,6 +69,14 @@ pub struct State {
 pub struct Table {
     rules: HashMap<Label, Rule>,
     used: HashSet<Label>,
+}
+
+impl Validatable for Table {
+    type Error = TableError;
+    fn validate(&self) -> Result<()> {
+        // We have already ensured the Table instance cannot be created with errors as we traversed through the whole table during the creation process.
+        Ok(())
+    }
 }
 
 impl Table {

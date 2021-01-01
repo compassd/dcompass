@@ -29,7 +29,7 @@ pub use upstream::*;
 use self::error::{Result, UpstreamError};
 #[cfg(feature = "serde-cfg")]
 use self::parsed::{ParUpstream, ParUpstreamKind};
-use crate::Label;
+use crate::{Label, Validatable};
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use hashbrown::{HashMap, HashSet};
 use trust_dns_client::op::Message;
@@ -37,6 +37,16 @@ use trust_dns_client::op::Message;
 /// `Upstream` aggregated, used to create `Router`.
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
+}
+
+impl Validatable for Upstreams {
+    type Error = UpstreamError;
+    fn validate(&self) -> Result<()> {
+        for (tag, _) in self.upstreams.iter() {
+            self.traverse(&mut HashSet::new(), tag)?
+        }
+        Ok(())
+    }
 }
 
 impl Upstreams {
@@ -53,7 +63,7 @@ impl Upstreams {
             };
         }
         let u = Self { upstreams: r };
-        u.check()?;
+        u.validate()?;
         Ok(u)
     }
 
@@ -102,15 +112,7 @@ impl Upstreams {
         Ok(())
     }
 
-    /// Check if the upstream is legitimate. This is automatically done when you create a new `Upstreams`.
-    pub fn check(&self) -> Result<bool> {
-        for (tag, _) in self.upstreams.iter() {
-            self.traverse(&mut HashSet::new(), tag)?
-        }
-        Ok(true)
-    }
-
-    // Make it only visible in side `router`
+    // Make it only visible inside `router`
     pub(super) fn exists(&self, tag: &Label) -> Result<bool> {
         if self.upstreams.contains_key(tag) {
             Ok(true)

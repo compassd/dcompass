@@ -24,7 +24,10 @@ use self::{
     upstreams::parsed::{ParUpstream, ParUpstreamKind},
 };
 use self::{table::Table, upstreams::Upstreams};
-use crate::error::Result;
+use crate::{
+    error::{DrouteError, Result},
+    Validatable,
+};
 use log::warn;
 use std::net::SocketAddr;
 use trust_dns_client::op::{Message, ResponseCode};
@@ -35,11 +38,23 @@ pub struct Router {
     upstreams: Upstreams,
 }
 
+impl Validatable for Router {
+    type Error = DrouteError;
+    fn validate(&self) -> Result<()> {
+        self.upstreams.validate()?;
+        self.table.validate()?;
+        for dst in self.table.used() {
+            self.upstreams.exists(dst)?;
+        }
+        Ok(())
+    }
+}
+
 impl Router {
     /// Create a new `Router` from raw
     pub fn new(table: Table, upstreams: Upstreams) -> Result<Self> {
         let router = Self { table, upstreams };
-        router.check()?;
+        router.validate()?;
         Ok(router)
     }
 
@@ -56,13 +71,6 @@ impl Router {
     }
 
     /// Validate the internal rules defined. This is automatically performed by `new` method.
-    pub fn check(&self) -> Result<bool> {
-        self.upstreams.check()?;
-        for dst in self.table.used() {
-            self.upstreams.exists(dst)?;
-        }
-        Ok(true)
-    }
 
     /// Resolve the DNS query with routing rules defined.
     pub async fn resolve(&self, src: Option<SocketAddr>, msg: Message) -> Result<Message> {

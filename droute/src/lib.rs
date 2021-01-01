@@ -41,3 +41,11 @@ use std::sync::Arc;
 const MAX_TTL: u32 = 86400_u32;
 
 type Label = Arc<str>;
+
+/// A object that can be validated
+pub trait Validatable {
+    /// The possible errors from the validation.
+    type Error;
+    /// Validate oneself.
+    fn validate(&self) -> std::result::Result<(), Self::Error>;
+}
