@@ -28,7 +28,7 @@ pub type Result<T> = std::result::Result<T, UpstreamError>;
 #[derive(Error, Debug)]
 pub enum UpstreamError {
     /// Tag missing in upstream definition for either the destination of a rule or the `default_tag`
-    #[error("No upstream with tag {0} found")]
+    #[error("No upstream with tag `{0}` found")]
     MissingTag(Label),
 
     /// There are multiple definitions of rules of the same destination or upstreams of the same tag name.
@@ -40,7 +40,7 @@ pub enum UpstreamError {
     HybridRecursion(Label),
 
     /// There is no destinations in hybrid's destination list.
-    #[error("`hybrid` upstream method with tag {0} contains no upstreams to race")]
+    #[error("`hybrid` upstream method with tag `{0}` contains no upstreams to race")]
     EmptyHybrid(Label),
 
     /// Error forwarded from `trust-dns-client`.

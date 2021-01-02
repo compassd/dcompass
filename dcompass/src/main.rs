@@ -31,9 +31,13 @@ use tokio::{fs::File, io::AsyncReadExt, net::UdpSocket};
     about = "High-performance DNS server with freestyle routing scheme support and DoT/DoH functionalities built-in."
 )]
 struct DcompassOpts {
-    // Path to configuration file. Use built-in if not provided.
+    /// Path to the configuration file. Use built-in if not provided.
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
+
+    /// Set this flag to validate the configuration file only.
+    #[structopt(short, long, parse(from_flag))]
+    validate: bool,
 }
 
 async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
@@ -96,6 +100,12 @@ async fn main() -> Result<()> {
             .with_context(|| "Failed to parse the configuration file".to_string())?,
     )
     .await?;
+
+    // If we are only required to validate the config, we shall be safe to exit now.
+    if args.validate {
+        println!("The configuration provided is valid.");
+        return Ok(());
+    }
 
     // Start logging
     SimpleLogger::new().with_level(verbosity).init()?;

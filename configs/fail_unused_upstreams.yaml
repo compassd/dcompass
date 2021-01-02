@@ -4,9 +4,7 @@ cache_size: 4096
 address: 0.0.0.0:2053
 table:
 - tag: start
-  if:
-    domain:
-    - "../data/china.txt"
+  if: any
   then:
   - query: domestic
   - end
