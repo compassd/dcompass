@@ -26,8 +26,9 @@ use self::{
 use self::{table::Table, upstreams::Upstreams};
 use crate::{
     error::{DrouteError, Result},
-    Validatable,
+    Label, Validatable,
 };
+use hashbrown::HashSet;
 use log::warn;
 use std::net::SocketAddr;
 use trust_dns_client::op::{Message, ResponseCode};
@@ -40,14 +41,9 @@ pub struct Router {
 
 impl Validatable for Router {
     type Error = DrouteError;
-    fn validate(&self) -> Result<()> {
-        // Validate for each oneself
-        self.upstreams.validate()?;
-        self.table.validate()?;
-        // Check if upstreams used exist.
-        for dst in self.table.used_upstreams() {
-            self.upstreams.exists(dst)?;
-        }
+    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
+        self.table.validate(None)?;
+        self.upstreams.validate(Some(self.table.used_upstreams()))?;
         Ok(())
     }
 }
@@ -56,7 +52,7 @@ impl Router {
     /// Create a new `Router` from raw
     pub fn new(table: Table, upstreams: Upstreams) -> Result<Self> {
         let router = Self { table, upstreams };
-        router.validate()?;
+        router.validate(None)?;
         Ok(router)
     }
 

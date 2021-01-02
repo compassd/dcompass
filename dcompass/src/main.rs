@@ -260,4 +260,18 @@ mod tests {
             e => panic!("Not the right error type: {}", e),
         };
     }
+
+    #[tokio::test]
+    async fn fail_unused_upstreams() {
+        match init(
+            serde_yaml::from_str(include_str!("../../configs/fail_unused_upstreams.yaml")).unwrap(),
+        )
+        .await
+        .err()
+        .unwrap()
+        {
+            DrouteError::UpstreamError(UpstreamError::UnusedUpstreams(_)) => {}
+            e => panic!("Not the right error type: {}", e),
+        };
+    }
 }

@@ -20,6 +20,8 @@
 pub mod error;
 mod router;
 
+use hashbrown::HashSet;
+
 #[cfg(feature = "serde-cfg")]
 /// This module contains the data structures with serialization supports.
 pub mod parsed {
@@ -47,5 +49,6 @@ pub trait Validatable {
     /// The possible errors from the validation.
     type Error;
     /// Validate oneself.
-    fn validate(&self) -> std::result::Result<(), Self::Error>;
+    /// `used`: some of the tags used by other parts, which should be existed.
+    fn validate(&self, used: Option<&HashSet<Label>>) -> std::result::Result<(), Self::Error>;
 }

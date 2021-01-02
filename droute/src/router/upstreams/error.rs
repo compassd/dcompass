@@ -15,6 +15,7 @@
 
 use super::client_pool::ClientPoolError;
 use crate::Label;
+use hashbrown::HashSet;
 use std::fmt::Debug;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
@@ -57,4 +58,8 @@ pub enum UpstreamError {
     /// Error forwarded from `tokio::time::error`. This indicates a timeout probably.
     #[error(transparent)]
     TimeError(#[from] Elapsed),
+
+    /// Some of the upstreams are unused.
+    #[error("Some of the upstreams are not used: {0:?}")]
+    UnusedUpstreams(HashSet<Label>),
 }

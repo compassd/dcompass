@@ -41,11 +41,18 @@ pub struct Upstreams {
 
 impl Validatable for Upstreams {
     type Error = UpstreamError;
-    fn validate(&self) -> Result<()> {
-        for (tag, _) in self.upstreams.iter() {
-            self.traverse(&mut HashSet::new(), tag)?
+    fn validate(&self, used: Option<&HashSet<Label>>) -> Result<()> {
+        let mut keys = self.upstreams.keys().collect::<HashSet<&Label>>();
+        for tag in used.unwrap_or(&HashSet::new()) {
+            self.traverse(tag, &mut HashSet::new(), &mut keys)?
         }
-        Ok(())
+        if keys.is_empty() {
+            Ok(())
+        } else {
+            Err(UpstreamError::UnusedUpstreams(
+                keys.into_iter().cloned().collect(),
+            ))
+        }
     }
 }
 
@@ -63,7 +70,8 @@ impl Upstreams {
             };
         }
         let u = Self { upstreams: r };
-        u.validate()?;
+        // Validate on the assumption that every upstream is gonna be used.
+        u.validate(Some(&u.tags()))?;
         Ok(u)
     }
 
@@ -88,13 +96,17 @@ impl Upstreams {
     }
 
     // Check any upstream types
-    // tag: current upstream node's tag
-    // l: visited tags
-    fn traverse(&self, l: &mut HashSet<Label>, tag: &Label) -> Result<()> {
-        if l.contains(tag) {
+    fn traverse(
+        &self,
+        tag: &Label,
+        traversed: &mut HashSet<Label>,
+        unused: &mut HashSet<&Label>,
+    ) -> Result<()> {
+        if traversed.contains(tag) {
             return Err(UpstreamError::HybridRecursion(tag.clone()));
         } else {
-            l.insert(tag.clone());
+            unused.remove(tag);
+            traversed.insert(tag.clone());
 
             if let Some(v) = &self
                 .upstreams
@@ -109,21 +121,12 @@ impl Upstreams {
 
                 // Check if it is recursively defined.
                 for t in v {
-                    self.traverse(l, t)?
+                    self.traverse(t, traversed, unused)?
                 }
             }
-            l.remove(tag);
+            traversed.remove(tag);
         }
         Ok(())
-    }
-
-    // Make it only visible inside `router`
-    pub(super) fn exists(&self, tag: &Label) -> Result<bool> {
-        if self.upstreams.contains_key(tag) {
-            Ok(true)
-        } else {
-            Err(UpstreamError::MissingTag(tag.clone()))
-        }
     }
 
     // Write out in this way to allow recursion for async functions

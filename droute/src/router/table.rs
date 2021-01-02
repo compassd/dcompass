@@ -75,8 +75,9 @@ fn traverse(
     rules: &HashMap<Label, Rule>,
     // Traversed tag names
     traversed: &mut HashSet<Label>,
-    // The rules that can actually be reached.
-    used: &mut HashSet<Label>,
+    // The tags of the rules unused until now.
+    unused: &mut HashSet<&Label>,
+    // Tag of the rule that we are currently on.
     tag: &Label,
 ) -> Result<()> {
     if let Some(r) = rules.get(tag) {
@@ -85,12 +86,12 @@ fn traverse(
         } else {
             traversed.insert(tag.clone());
             if r.on_match_next() != &"end".into() {
-                traverse(rules, traversed, used, r.on_match_next())?;
+                traverse(rules, traversed, unused, r.on_match_next())?;
             }
             if r.no_match_next() != &"end".into() {
-                traverse(rules, traversed, used, r.no_match_next())?;
+                traverse(rules, traversed, unused, r.no_match_next())?;
             }
-            used.insert(tag.clone());
+            unused.remove(tag);
             traversed.remove(tag);
             Ok(())
         }
@@ -101,20 +102,13 @@ fn traverse(
 
 impl Validatable for HashMap<Label, Rule> {
     type Error = TableError;
-    fn validate(&self) -> Result<()> {
-        let mut used = HashSet::new();
-        traverse(&self, &mut HashSet::new(), &mut used, &"start".into())?;
-        let diff: HashSet<Label> = self
-            .keys()
-            .cloned()
-            .collect::<HashSet<Label>>()
-            .difference(&used)
-            .cloned()
-            .collect();
-        match diff.iter().peekable().peek() {
-            Some(_) => Err(TableError::UnusedRules(diff)),
-            // We don't have to worry about undefined tags as `traverse` has already taken care of that business.
-            None => Ok(()),
+    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
+        let mut keys = self.keys().collect::<HashSet<&Label>>();
+        traverse(&self, &mut HashSet::new(), &mut keys, &"start".into())?;
+        if keys.is_empty() {
+            Ok(())
+        } else {
+            Err(TableError::UnusedRules(keys.into_iter().cloned().collect()))
         }
     }
 }
@@ -128,8 +122,8 @@ pub struct Table {
 
 impl Validatable for Table {
     type Error = TableError;
-    fn validate(&self) -> Result<()> {
-        self.rules.validate()
+    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
+        self.rules.validate(None)
     }
 }
 
@@ -143,7 +137,7 @@ impl Table {
                 None => table.insert(r.tag().clone(), r),
             };
         }
-        table.validate()?;
+        table.validate(None)?;
         let used_upstreams = table.iter().flat_map(|(_, v)| v.used_upstreams()).collect();
         Ok(Self {
             rules: table,
