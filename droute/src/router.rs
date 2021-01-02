@@ -41,9 +41,11 @@ pub struct Router {
 impl Validatable for Router {
     type Error = DrouteError;
     fn validate(&self) -> Result<()> {
+        // Validate for each oneself
         self.upstreams.validate()?;
         self.table.validate()?;
-        for dst in self.table.used() {
+        // Check if upstreams used exist.
+        for dst in self.table.used_upstreams() {
             self.upstreams.exists(dst)?;
         }
         Ok(())

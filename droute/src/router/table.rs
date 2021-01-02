@@ -42,6 +42,10 @@ pub enum TableError {
     #[error(transparent)]
     ActionError(#[from] ActionError),
 
+    /// Some of the table rules are unused.
+    #[error("Some of the rules in table are not used: {0:?}")]
+    UnusedRules(HashSet<Label>),
+
     /// Rules are defined recursively, which is prohibited.
     #[error("The `rule` block with tag `{0}` is being recursively called in the `table` section")]
     RuleRecursion(Label),
@@ -65,17 +69,67 @@ pub struct State {
     src: Option<SocketAddr>,
 }
 
+// Traverse and validate the routing table.
+fn traverse(
+    // Rule set given
+    rules: &HashMap<Label, Rule>,
+    // Traversed tag names
+    traversed: &mut HashSet<Label>,
+    // The rules that can actually be reached.
+    used: &mut HashSet<Label>,
+    tag: &Label,
+) -> Result<()> {
+    if let Some(r) = rules.get(tag) {
+        if traversed.contains(tag) {
+            Err(TableError::RuleRecursion(tag.clone()))
+        } else {
+            traversed.insert(tag.clone());
+            if r.on_match_next() != &"end".into() {
+                traverse(rules, traversed, used, r.on_match_next())?;
+            }
+            if r.no_match_next() != &"end".into() {
+                traverse(rules, traversed, used, r.no_match_next())?;
+            }
+            used.insert(tag.clone());
+            traversed.remove(tag);
+            Ok(())
+        }
+    } else {
+        Err(TableError::UndefinedTag(tag.clone()))
+    }
+}
+
+impl Validatable for HashMap<Label, Rule> {
+    type Error = TableError;
+    fn validate(&self) -> Result<()> {
+        let mut used = HashSet::new();
+        traverse(&self, &mut HashSet::new(), &mut used, &"start".into())?;
+        let diff: HashSet<Label> = self
+            .keys()
+            .cloned()
+            .collect::<HashSet<Label>>()
+            .difference(&used)
+            .cloned()
+            .collect();
+        match diff.iter().peekable().peek() {
+            Some(_) => Err(TableError::UnusedRules(diff)),
+            // We don't have to worry about undefined tags as `traverse` has already taken care of that business.
+            None => Ok(()),
+        }
+    }
+}
+
 /// A simple routing table.
 pub struct Table {
     rules: HashMap<Label, Rule>,
-    used: HashSet<Label>,
+    // Upstreams used in this table.
+    used_upstreams: HashSet<Label>,
 }
 
 impl Validatable for Table {
     type Error = TableError;
     fn validate(&self) -> Result<()> {
-        // We have already ensured the Table instance cannot be created with errors as we traversed through the whole table during the creation process.
-        Ok(())
+        self.rules.validate()
     }
 }
 
@@ -89,9 +143,12 @@ impl Table {
                 None => table.insert(r.tag().clone(), r),
             };
         }
-        let mut used = HashSet::new();
-        Self::traverse(&table, &mut HashSet::new(), &mut used, &"start".into())?;
-        Ok(Self { rules: table, used })
+        table.validate()?;
+        let used_upstreams = table.iter().flat_map(|(_, v)| v.used_upstreams()).collect();
+        Ok(Self {
+            rules: table,
+            used_upstreams,
+        })
     }
 
     // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
@@ -107,38 +164,8 @@ impl Table {
     }
 
     // Not intended to be used by end-users
-    pub(super) fn used(&self) -> &HashSet<Label> {
-        &self.used
-    }
-
-    // Traverse and validate the routing table.
-    fn traverse(
-        // Rule set given
-        rules: &HashMap<Label, Rule>,
-        // Traversed tag names
-        traversed: &mut HashSet<Label>,
-        // The upstreams used by rules
-        used: &mut HashSet<Label>,
-        tag: &Label,
-    ) -> Result<()> {
-        if let Some(r) = rules.get(tag) {
-            if traversed.contains(tag) {
-                Err(TableError::RuleRecursion(tag.clone()))
-            } else {
-                traversed.insert(tag.clone());
-                if r.on_match_next() != &"end".into() {
-                    Self::traverse(rules, traversed, used, r.on_match_next())?;
-                }
-                if r.no_match_next() != &"end".into() {
-                    Self::traverse(rules, traversed, used, r.no_match_next())?;
-                }
-                used.extend(r.used_upstreams());
-                traversed.remove(tag);
-                Ok(())
-            }
-        } else {
-            Err(TableError::UndefinedTag(tag.clone()))
-        }
+    pub(super) fn used_upstreams(&self) -> &HashSet<Label> {
+        &self.used_upstreams
     }
 
     // Not intended to be used by end-users
@@ -179,6 +206,7 @@ mod tests {
         },
         Table, TableError,
     };
+    use crate::Label;
 
     #[tokio::test]
     async fn is_not_recursion() {
@@ -222,20 +250,58 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Query::new("mock".into())), "end".into()),
-                (Box::new(Skip::default()), "start".into()),
+                (Box::new(Skip::default()), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
             ),
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Query::new("mock".into())), "end".into()),
-                (Box::new(Skip::default()), "start".into()),
+                (Box::new(Skip::default()), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
             ),
         ])
         .err()
         .unwrap()
         {
             TableError::MultipleDef(_) => {}
+            e => panic!("Not the right error type: {}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn fail_unused_rules() {
+        match Table::new(vec![
+            Rule::new(
+                "start".into(),
+                Box::new(Any::default()),
+                (Box::new(Query::new("mock".into())), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
+            ),
+            Rule::new(
+                "mock".into(),
+                Box::new(Any::default()),
+                (Box::new(Skip::default()), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
+            ),
+            Rule::new(
+                "unused".into(),
+                Box::new(Any::default()),
+                (Box::new(Skip::default()), "end".into()),
+                (Box::new(Skip::default()), "end".into()),
+            ),
+        ])
+        .err()
+        .unwrap()
+        {
+            TableError::UnusedRules(v) => {
+                assert_eq!(
+                    v,
+                    vec!["mock", "unused"]
+                        .into_iter()
+                        .map(|s| Label::from(s))
+                        .collect()
+                )
+            }
             e => panic!("Not the right error type: {}", e),
         }
     }

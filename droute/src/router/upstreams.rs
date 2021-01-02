@@ -82,6 +82,11 @@ impl Upstreams {
         })
     }
 
+    /// Return the tags of all the upstreams.
+    pub fn tags(&self) -> HashSet<Label> {
+        self.upstreams.keys().cloned().collect()
+    }
+
     // Check any upstream types
     // tag: current upstream node's tag
     // l: visited tags
