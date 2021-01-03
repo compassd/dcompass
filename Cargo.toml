@@ -5,9 +5,3 @@ members = [
     "dmatcher",
     "droute",
 ]
-
-[patch.crates-io]
-trust-dns-client = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-https = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-proto = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }
-trust-dns-rustls = { git = "https://github.com/bluejekyll/trust-dns", branch = "main" }

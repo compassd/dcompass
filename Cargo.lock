@@ -1235,9 +1235,9 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "smallvec"
-version = "1.5.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae524f056d7d770e174287294f562e95044c68e88dec909a00d2094805db9d75"
+checksum = "1a55ca5f3b68e41c979bf8c46a6f1da892ca4db8f94023ce0bd32407573b1ac0"
 
 [[package]]
 name = "socket2"
@@ -1288,9 +1288,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.56"
+version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9802ddde94170d186eeee5005b798d9c159fa970403f1be19976d0cfb939b72"
+checksum = "4211ce9909eb971f111059df92c45640aad50a619cf55cd76476be803c4c68e6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1482,7 +1482,8 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.20.0"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#fc58a4fe20da679727a3d9137a7ce833faa60dd0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498e4de74132fb535c0608d0f221a3e64ddf6585717296afb2baf5925b38f31f"
 dependencies = [
  "cfg-if 1.0.0",
  "chrono",
@@ -1501,7 +1502,8 @@ dependencies = [
 [[package]]
 name = "trust-dns-https"
 version = "0.20.0"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#fc58a4fe20da679727a3d9137a7ce833faa60dd0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2663f69cd36a5e99a93825d1f3aff834de2bb3cca2989316f3c9504a63a0c0a5"
 dependencies = [
  "bytes 1.0.0",
  "cfg-if 1.0.0",
@@ -1523,7 +1525,8 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.20.0"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#fc58a4fe20da679727a3d9137a7ce833faa60dd0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98a0381b2864c2978db7f8e17c7b23cca5a3a5f99241076e13002261a8ecbabd"
 dependencies = [
  "async-trait",
  "cfg-if 1.0.0",
@@ -1547,7 +1550,8 @@ dependencies = [
 [[package]]
 name = "trust-dns-rustls"
 version = "0.20.0"
-source = "git+https://github.com/bluejekyll/trust-dns?branch=main#fc58a4fe20da679727a3d9137a7ce833faa60dd0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "094ff0f3c89393b47a7bb6837a97b28688ef01e57a2400949db1bbb98c932502"
 dependencies = [
  "futures-channel",
  "futures-io",
