@@ -177,6 +177,12 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  remove-release:
+    name: Clean up release(s)
+    if: (startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
     - name: Clean-up releases
       uses: dev-drprasad/delete-older-releases@v0.1.0
       with:
