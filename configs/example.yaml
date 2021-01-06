@@ -8,15 +8,20 @@ table:
     qtype:
       - AAAA
   then:
+  # A list of actions is allowed here
+  -
     - disable
-    - end
+  # The next tag to go
+  - end
   else:
+  -
     - skip
-    - dispatch
+  - dispatch
 - tag: dispatch
   if: any
   then:
-  - query: domestic
+  -
+    - query: domestic
   - check_secure
 - tag: check_secure
   if:
@@ -25,7 +30,8 @@ table:
       codes:
         - CN
   else:
-  - query: secure
+  -
+    - query: secure
   - end
 
 upstreams:

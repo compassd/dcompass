@@ -6,10 +6,12 @@ table:
 - tag: start
   if: any
   then:
-  - query: domestic
+  -
+    - query: domestic
   - end
   else:
-  - query: secure
+  -
+    - query: secure
   - end
 upstreams:
 - method:

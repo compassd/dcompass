@@ -33,20 +33,20 @@ pub struct Rule {
     tag: Label,
     matcher: Box<dyn Matcher>,
     // In the form of (Action, Next)
-    on_match: (Box<dyn Action>, Label),
-    no_match: (Box<dyn Action>, Label),
+    on_match: (Vec<Box<dyn Action>>, Label),
+    no_match: (Vec<Box<dyn Action>>, Label),
 }
 
 impl Rule {
     /// Create a `Rule` from directly.
     /// - `tag`: the name of the `Rule`, which may be refered by other rules.
     /// - `matcher`: A trait object implementing the `Matcher` trait. It determines the action to take and what the next rule is.
-    /// - `on_match` and `no_match`: The action to take and what the next rule is based on if it matches or not.
+    /// - `on_match` and `no_match`: A sequence of actions to take and what the next rule is based on if it matches or not.
     pub fn new(
         tag: Label,
         matcher: Box<dyn Matcher>,
-        on_match: (Box<dyn Action>, Label),
-        no_match: (Box<dyn Action>, Label),
+        on_match: (Vec<Box<dyn Action>>, Label),
+        no_match: (Vec<Box<dyn Action>>, Label),
     ) -> Self {
         Self {
             tag,
@@ -62,36 +62,36 @@ impl Rule {
         rules: ParRule<impl ParMatcher, impl ParAction>,
     ) -> Result<Self> {
         let matcher = rules.matcher.build().await?;
-        let on_match = rules.on_match.0.build().await?;
-        let no_match = rules.no_match.0.build().await?;
-        Ok(Self::new(
-            rules.tag,
-            matcher,
-            (on_match, rules.on_match.1),
-            (no_match, rules.no_match.1),
-        ))
+        let on_match = rules.on_match.build().await?;
+        let no_match = rules.no_match.build().await?;
+        Ok(Self::new(rules.tag, matcher, on_match, no_match))
     }
 
     pub(in super::super) fn tag(&self) -> &Label {
         &self.tag
     }
 
+    // The destination if the rule is matched
     pub(in super::super) fn on_match_next(&self) -> &Label {
         &self.on_match.1
     }
 
+    // The destination if the rule is not matched
     pub(in super::super) fn no_match_next(&self) -> &Label {
         &self.no_match.1
     }
 
     pub(in super::super) fn used_upstreams(&self) -> HashSet<Label> {
         let mut h = HashSet::new();
-        if let Some(l) = self.on_match.0.used_upstream() {
-            h.insert(l);
-        }
-        if let Some(l) = self.no_match.0.used_upstream() {
-            h.insert(l);
-        }
+        self.on_match
+            .0
+            .iter()
+            .chain(self.no_match.0.iter()) // Put two iterators together
+            .for_each(|a| {
+                if let Some(l) = a.used_upstream() {
+                    h.insert(l);
+                }
+            });
         h
     }
 
@@ -105,12 +105,16 @@ impl Rule {
     ) -> Result<Label> {
         if self.matcher.matches(&state) {
             info!("Domain \"{}\" matches at rule `{}`", name, tag_name);
-            self.on_match.0.act(state, upstreams).await?;
+            for action in &self.on_match.0 {
+                action.act(state, upstreams).await?;
+            }
             Ok(self.on_match.1.clone())
         } else {
             info!("Domain \"{}\" doesn't match at rule `{}`", name, tag_name);
-            self.no_match.0.act(state, upstreams).await?;
-            Ok(self.no_match.1.clone())
+            for action in &self.on_match.0 {
+                action.act(state, upstreams).await?;
+            }
+            Ok(self.on_match.1.clone())
         }
     }
 }

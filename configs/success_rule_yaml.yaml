@@ -8,10 +8,12 @@ table:
     domain:
     - "../data/china.txt"
   then:
-  - query: domestic
+  -
+    - query: domestic
   - end
   else:
-  - query: secure
+  -
+    - query: secure
   - end
 upstreams:
 - method:

@@ -37,8 +37,8 @@ const BUILD: fn(usize) -> Router = |c| {
         Table::new(vec![Rule::new(
             "start".into(),
             Box::new(Any::default()),
-            (Box::new(ActQuery::new("mock".into())), "end".into()),
-            (Box::new(Skip::default()), "end".into()),
+            (vec![Box::new(ActQuery::new("mock".into()))], "end".into()),
+            (vec![Box::new(Skip::default())], "end".into()),
         )])
         .unwrap(),
         Upstreams::new(vec![(

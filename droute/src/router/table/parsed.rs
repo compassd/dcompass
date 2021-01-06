@@ -142,6 +142,29 @@ impl ParMatcher for DefParMatcher {
     }
 }
 
+/// A parsed branch of a rule.
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub struct ParMatchArm<A: ParAction>(Vec<A>, Label);
+
+impl<A: ParAction> ParMatchArm<A> {
+    // Build the ParMatchArm into the internal used tuple by `Rule`.
+    pub(super) async fn build(self) -> ActionResult<(Vec<Box<dyn Action>>, Label)> {
+        let mut built: Vec<Box<dyn Action>> = Vec::new();
+        for a in self.0 {
+            // TODO: Can we make this into a map?
+            built.push(a.build().await?);
+        }
+        Ok((built, self.1))
+    }
+}
+
+impl<A: ParAction> Default for ParMatchArm<A> {
+    fn default() -> Self {
+        Self(vec![A::default()], "end".into())
+    }
+}
+
 /// A rule composed of tag name, matcher, and branches.
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -154,16 +177,12 @@ pub struct ParRule<M: ParMatcher, A: ParAction> {
     pub matcher: M,
 
     /// If matcher matches, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[serde(default = "default_branch")]
+    #[serde(default)]
     #[serde(rename = "then")]
-    pub on_match: (A, Label),
+    pub on_match: ParMatchArm<A>,
 
     /// If matcher doesn't, this branch specifies action and next rule name to route. Defaut to `(ParsedAction::Skip, "end".into())`
-    #[serde(default = "default_branch")]
+    #[serde(default)]
     #[serde(rename = "else")]
-    pub no_match: (A, Label),
-}
-
-fn default_branch<A: ParAction>() -> (A, Label) {
-    (A::default(), "end".into())
+    pub no_match: ParMatchArm<A>,
 }

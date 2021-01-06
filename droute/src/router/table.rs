@@ -208,14 +208,14 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "foo".into()),
-                (Box::new(Skip::default()), "foo".into()),
+                (vec![Box::new(Skip::default())], "foo".into()),
+                (vec![Box::new(Skip::default())], "foo".into()),
             ),
             Rule::new(
                 "foo".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
         ])
         .ok()
@@ -227,8 +227,8 @@ mod tests {
         match Table::new(vec![Rule::new(
             "start".into(),
             Box::new(Any::default()),
-            (Box::new(Query::new("mock".into())), "end".into()),
-            (Box::new(Skip::default()), "start".into()),
+            (vec![Box::new(Query::new("mock".into()))], "end".into()),
+            (vec![Box::new(Skip::default())], "start".into()),
         )])
         .err()
         .unwrap()
@@ -244,14 +244,14 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
         ])
         .err()
@@ -268,20 +268,20 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (Box::new(Query::new("mock".into())), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Query::new("mock".into()))], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
             Rule::new(
                 "mock".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
             Rule::new(
                 "unused".into(),
                 Box::new(Any::default()),
-                (Box::new(Skip::default()), "end".into()),
-                (Box::new(Skip::default()), "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![Box::new(Skip::default())], "end".into()),
             ),
         ])
         .err()
@@ -309,8 +309,11 @@ mod tests {
                     .await
                     .unwrap(),
             ),
-            (Box::new(Query::new("mock".into())), "end".into()),
-            (Box::new(Query::new("another_mock".into())), "end".into()),
+            (vec![Box::new(Query::new("mock".into()))], "end".into()),
+            (
+                vec![Box::new(Query::new("another_mock".into()))],
+                "end".into(),
+            ),
         )])
         .ok()
         .unwrap();

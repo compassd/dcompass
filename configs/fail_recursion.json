@@ -7,9 +7,10 @@
             "tag": "start",
             "if": "any",
             "then": [
-                {
+                [
+		    {
                     "query": "secure"
-                },
+                }],
                 "end"
             ]
         }
