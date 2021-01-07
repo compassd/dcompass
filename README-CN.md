@@ -27,6 +27,7 @@ dcompass -c path/to/config.json # 或 YAML 配置文件
 2. NixOS 打包文件在[这里](https://github.com/icebox-nix/netkit.nix). 同时，对于 NixOS 用户，我们提供了一个包含 systemd 服务的 NixOS module 来方便用户配置。
 
 # 配置（待翻译）
+**Please refer to the latest English version for up-to-date information.**
 配置文件包含不同的 fields
 - `cache_size`: DNS Cache 的大小. Larger size implies higher cache capacity (use LRU algorithm as the backend).
 - `verbosity`: Log 等级. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.

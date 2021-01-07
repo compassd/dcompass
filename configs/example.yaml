@@ -13,7 +13,6 @@ table:
   # The next tag to go
   - end
   else:
-  - skip
   - dispatch
 - tag: dispatch
   if: any

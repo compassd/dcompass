@@ -189,7 +189,9 @@ impl<'de, A: ParAction + Deserialize<'de>> Deserialize<'de> for ParMatchArm<A> {
 
                 // Verify that this is indeed the last element.
                 if sv.next_element::<Either<A>>()?.is_some() {
-                    return Err(V::Error::custom("Extra element after the tag"));
+                    return Err(V::Error::custom(
+                        "Extra element after the rule tag specified at last",
+                    ));
                 }
 
                 Ok(Self::Value { seq, next })
