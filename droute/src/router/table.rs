@@ -194,7 +194,7 @@ impl Table {
 mod tests {
     use super::{
         rule::{
-            actions::{Query, Skip},
+            actions::Query,
             matchers::{Any, Domain},
             Rule,
         },
@@ -208,14 +208,14 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "foo".into()),
-                (vec![Box::new(Skip::default())], "foo".into()),
+                (vec![], "foo".into()),
+                (vec![], "foo".into()),
             ),
             Rule::new(
                 "foo".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
+                (vec![], "end".into()),
             ),
         ])
         .ok()
@@ -228,7 +228,7 @@ mod tests {
             "start".into(),
             Box::new(Any::default()),
             (vec![Box::new(Query::new("mock".into()))], "end".into()),
-            (vec![Box::new(Skip::default())], "start".into()),
+            (vec![], "start".into()),
         )])
         .err()
         .unwrap()
@@ -244,14 +244,14 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
+                (vec![], "end".into()),
             ),
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
+                (vec![], "end".into()),
             ),
         ])
         .err()
@@ -269,19 +269,19 @@ mod tests {
                 "start".into(),
                 Box::new(Any::default()),
                 (vec![Box::new(Query::new("mock".into()))], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
             ),
             Rule::new(
                 "mock".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
+                (vec![], "end".into()),
             ),
             Rule::new(
                 "unused".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Skip::default())], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
+                (vec![], "end".into()),
             ),
         ])
         .err()

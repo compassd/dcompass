@@ -73,6 +73,7 @@ fn get_builtin_db() -> Option<Vec<u8>> {
 }
 
 #[derive(Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Parsed {
     pub table: Vec<ParRule<MyParMatcher, DefParAction>>,
     pub upstreams: Vec<ParUpstream<DefParUpstreamKind>>,

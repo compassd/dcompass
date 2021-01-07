@@ -95,11 +95,7 @@ impl Router {
 mod tests {
     use super::{
         table::{
-            rule::{
-                actions::{Query as ActQuery, Skip},
-                matchers::Any,
-                Rule,
-            },
+            rule::{actions::Query as ActQuery, matchers::Any, Rule},
             Table,
         },
         upstreams::{client_pool::Udp, Upstream, UpstreamKind, Upstreams},
@@ -184,7 +180,7 @@ mod tests {
                 "start".into(),
                 Box::new(Any::default()),
                 (vec![Box::new(ActQuery::new("mock".into()))], "end".into()),
-                (vec![Box::new(Skip::default())], "end".into()),
+                (vec![], "end".into()),
             )])
             .unwrap(),
             Upstreams::new(vec![(

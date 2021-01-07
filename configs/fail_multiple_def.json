@@ -7,9 +7,9 @@
             "tag": "start",
             "if": "any",
             "then": [
-                [{
+                {
                     "query": "domestic"
-                }],
+                },
                 "end"
             ]
         }

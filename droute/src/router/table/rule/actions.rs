@@ -15,9 +15,8 @@
 
 mod disable;
 mod query;
-mod skip;
 
-pub use self::{disable::Disable, query::Query, skip::Skip};
+pub use self::{disable::Disable, query::Query};
 
 use super::super::{
     super::upstreams::{error::UpstreamError, Upstreams},

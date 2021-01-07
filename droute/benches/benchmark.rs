@@ -17,10 +17,8 @@
 // Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
 use droute::{
-    actions::{Query as ActQuery, Skip},
-    client_pool::Udp,
-    matchers::Any,
-    Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
+    actions::Query as ActQuery, client_pool::Udp, matchers::Any, Router, Rule, Table, Upstream,
+    UpstreamKind, Upstreams,
 };
 use lazy_static::lazy_static;
 use std::{net::SocketAddr, thread};
@@ -38,7 +36,7 @@ const BUILD: fn(usize) -> Router = |c| {
             "start".into(),
             Box::new(Any::default()),
             (vec![Box::new(ActQuery::new("mock".into()))], "end".into()),
-            (vec![Box::new(Skip::default())], "end".into()),
+            (vec![], "end".into()),
         )])
         .unwrap(),
         Upstreams::new(vec![(

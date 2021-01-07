@@ -10,12 +10,10 @@ table:
         - ../data/ipcn.txt
       on: src
   then:
-  -
-    - query: domestic
+  - query: domestic
   - end
   else:
-  -
-    - query: secure
+  - query: secure
   - end
 upstreams:
 - method:

@@ -7,11 +7,11 @@
             "tag": "start",
             "if": "any",
             "then": [
-                [{
+                {
                     "query": "undefined"
-                }],
+                },
                 "end"
-            ]
+            ],
         }
     ],
     "upstreams": [

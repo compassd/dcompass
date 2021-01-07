@@ -11,15 +11,15 @@
                 ]
             },
             "then": [
-                [{
+                {
                     "query": "domestic"
-                }],
+                },
                 "end"
             ],
             "else": [
-                [{
+                {
                     "query": "secure"
-                }],
+                },
                 "end"
             ]
         }
