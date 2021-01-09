@@ -5,8 +5,8 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 
 # Why Do I Ever Need It?
 Imagine you are living in a county where your ISP constantly hijacks your DNS requests and responses.  
-There are solutions like DNS-over-HTTPS or DNS-over-TLS over there. You can use software like [CoreDNS](https://coredns.io) or stubby, but they don't simply solve the problem as only using DoT/DoH are slower in most cases.  
-In order to concurrently query and not be trapped by ISP, you might then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone have their own story, those preset rules don't fit all at once.  
+There are solutions like DNS-over-HTTPS or DNS-over-TLS. You can use software like [CoreDNS](https://coredns.io) or stubby, but they don't simply solve the problem as only using DoT/DoH is slower in most cases.  
+In order to concurrently query and not be trapped by ISP, you then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone have their own story, those preset rules don't fit all at once.  
 What's even worse is that you probably want to have DNS-level ad-blocking functionality, do you really want to add another layer of AdGuard Home? Can you do all of these at once?  
 Indeed, you can. `dcompass` gives you full-freedom in matching and handling every DNS requests via custom routing table, and also finely-grained control over usages of upstreams.  
 

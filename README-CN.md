@@ -3,6 +3,9 @@
 一个高性能的 DNS 服务器，支持插件式路由规则，DoT 以及 DoH  
 [中文版](README-CN.md)
 
+# Why Do You Ever Need It
+如果你对 [SmartDNS](https://github.com/pymumu/smartdns) 或 [Overture](https://github.com/shawn1m/overture) 的逻辑或速度不满，不妨尝试一下 `dcompass`
+
 # 特色
 - 高速 (实测约 2500 qps, 接近上游当前环境下的性能上限）
 - 无需畏惧网络环境的切换（如 4G 切换到 Wi-Fi ）
@@ -21,6 +24,7 @@
 ```
 dcompass -c path/to/config.json # 或 YAML 配置文件
 ```
+你也可以直接在配置文件 (config.yml) 相同的文件夹下直接运行 `dcompass`
 
 # 软件包
 1. Github Action 会自动每天按照 main branch 和最新的 maxmind GeoIP 数据库对一些平台进行编译并上传到 [release page](https://github.com/LEXUGE/dcompass/releases)。如果是 Raspberry Pi 用户，建议尝试 `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`。每个 target 都带有 `full`, `cn`, `min` 三个版本， `full` 包含 maxmind GeoIP2 database, `cn` 包含 GeoIP2-CN databse （只含有中国 IP）， `min` 不内置数据库。
