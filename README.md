@@ -3,10 +3,19 @@
 Your DNS supercharged! A high-performance DNS server with freestyle routing scheme support, DoT/DoH functionalities built-in.  
 [中文版](README-CN.md)
 
+# Why Do I Ever Need It?
+Imagine you are living in a county where your ISP constantly hijacks your DNS requests and responses.  
+There are solutions like DNS-over-HTTPS or DNS-over-TLS over there. You can use software like [CoreDNS](https://coredns.io) or stubby, but they don't simply solve the problem as only using DoT/DoH are slower in most cases.  
+In order to concurrently query and not be trapped by ISP, you might then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone have their own story, those preset rules don't fit all at once.  
+What's even worse is that you probably want to have DNS-level ad-blocking functionality, do you really want to add another layer of AdGuard Home? Can you do all of these at once?  
+Indeed, you can. `dcompass` gives you full-freedom in matching and handling every DNS requests via custom routing table, and also finely-grained control over usages of upstreams.  
+
+In short, `dcompass` enables you to write your own logic of how your DNS server should behave, as simple as possible.
+
 # Features
 - Fast (~2500 qps in wild where upstream perf is about the same)
 - Fearless hot switch between network environments
-- Freestyle routing rules that are easy to compose and maintain
+- Customized routing rules that are easy to compose and maintain
 - DoH/DoT/UDP supports
 - "Always-on" cache mechanism to ensure DNS quality under severe network environments.
 - Option to send no SNI indication to better counter censorship
@@ -20,10 +29,19 @@ Breaking changes happened as new routing scheme has been adopted, see configurat
 ```
 dcompass -c path/to/config.json # Or YAML
 ```
+Or you can simply run `dcompass` from the folder where your configuration file named `config.yml` resides.  
+You can also validate your configuration
+```
+dcompass -c path/to/config.json -v
+```
 
 # Packages
-1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases). Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has three different versions, namely `full`, `cn`, `min`. `full` version includes the full maxmind GeoIP2 database, while `cn` includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only. `min` includes no database at all.
+You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases).
+1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has three different versions, namely `full`, `cn`, `min`. `full` version includes the full maxmind GeoIP2 database, while `cn` includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only. `min` includes no database at all.
 2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+
+# Quickstart
+See [example.yaml](configs/example.yaml)
 
 # Configuration
 Configuration file contains different fields:
