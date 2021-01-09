@@ -65,7 +65,6 @@ pub enum TableError {
 pub struct State {
     resp: Message,
     query: Message,
-    #[allow(dead_code)]
     src: Option<SocketAddr>,
 }
 
@@ -182,7 +181,7 @@ impl Table {
                 .rules
                 .get(&tag)
                 .unwrap()
-                .route(&mut s, upstreams, &name, &tag)
+                .route(&mut s, upstreams, &name)
                 .await?;
         }
         info!("Domain \"{}\" has finished routing", name);

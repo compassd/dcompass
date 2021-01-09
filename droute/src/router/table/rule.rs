@@ -101,20 +101,48 @@ impl Rule {
         state: &mut State,
         upstreams: &Upstreams,
         name: &str,
-        tag_name: &Label,
     ) -> Result<Label> {
         if self.matcher.matches(&state) {
-            info!("Domain \"{}\" matches at rule `{}`", name, tag_name);
+            info!("Domain \"{}\" matches at rule `{}`", name, &self.tag);
             for action in &self.on_match.0 {
                 action.act(state, upstreams).await?;
             }
             Ok(self.on_match.1.clone())
         } else {
-            info!("Domain \"{}\" doesn't match at rule `{}`", name, tag_name);
-            for action in &self.on_match.0 {
+            info!("Domain \"{}\" doesn't match at rule `{}`", name, &self.tag);
+            for action in &self.no_match.0 {
                 action.act(state, upstreams).await?;
             }
-            Ok(self.on_match.1.clone())
+            Ok(self.no_match.1.clone())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        super::{State, Upstreams},
+        matchers::Any,
+        Rule,
+    };
+
+    #[tokio::test]
+    async fn rule_logic() {
+        let rule = Rule::new(
+            "start".into(),
+            Box::new(Any::default()),
+            (vec![], "yes".into()),
+            (vec![], "no".into()),
+        );
+        assert_eq!(
+            rule.route(
+                &mut State::default(),
+                &Upstreams::new(vec![]).unwrap(),
+                "foo"
+            )
+            .await
+            .unwrap(),
+            "yes".into()
+        );
     }
 }
