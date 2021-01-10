@@ -76,7 +76,7 @@ jobs:
       run: sudo apt-get install musl-tools
 
     - name: Install i686 tools
-      if: contains(matrix.target, 'aarch64')
+      if: contains(matrix.target, 'i686')
       run: sudo apt-get install binutils-i686-linux-gnu
 
     - name: Install aarch64 tools
