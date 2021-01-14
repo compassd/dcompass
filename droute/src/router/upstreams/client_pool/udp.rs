@@ -15,30 +15,55 @@
 
 use super::super::client_pool::{ClientPool, Result};
 use async_trait::async_trait;
-use std::net::SocketAddr;
+use std::{
+    collections::VecDeque,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 use tokio::net::UdpSocket;
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 
 /// Client pool for UDP connections
 #[derive(Clone)]
 pub struct Udp {
-    client: AsyncClient,
+    addr: SocketAddr,
+    // We are using client pool for UDP connection here bacause trust-dns seems have irrecoverable underlying channel congestion once the channel is full. Therefore, we have to drop client in order to recover the service.
+    pool: Arc<Mutex<VecDeque<AsyncClient>>>,
 }
 
 impl Udp {
     /// Create a new UDP client pool with the given remote server address.
-    pub async fn new(addr: &SocketAddr) -> Result<Self> {
-        let stream = UdpClientStream::<UdpSocket>::new(*addr);
-        let (client, bg) = AsyncClient::connect(stream).await?;
-        tokio::spawn(bg);
-        Ok(Self { client })
+    pub fn new(addr: SocketAddr) -> Self {
+        Self {
+            addr,
+            pool: Arc::new(Mutex::new(VecDeque::new())),
+        }
     }
 }
 
 #[async_trait]
 impl ClientPool for Udp {
     async fn get_client(&self) -> Result<AsyncClient> {
-        Ok(self.client.clone())
+        Ok({
+            // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
+            let mut p = self.pool.lock().unwrap();
+            if p.is_empty() {
+                None
+            } else {
+                log::info!("UDP client cache hit");
+                // queue is not empty
+                Some(p.pop_front().unwrap())
+            }
+        }
+        .unwrap_or({
+            let stream = UdpClientStream::<UdpSocket>::new(self.addr);
+            let (client, bg) = AsyncClient::connect(stream).await?;
+            tokio::spawn(bg);
+            client
+        }))
     }
-    async fn return_client(&self, _: AsyncClient) {}
+    async fn return_client(&self, c: AsyncClient) {
+        let mut p = self.pool.lock().unwrap();
+        p.push_back(c);
+    }
 }

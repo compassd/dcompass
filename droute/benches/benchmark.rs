@@ -43,9 +43,7 @@ const BUILD: fn(usize) -> Router = |c| {
             "mock".into(),
             Upstream::new(
                 UpstreamKind::Client {
-                    pool: Box::new(
-                        block_on(Udp::new(&"127.0.0.1:53533".parse().unwrap())).unwrap(),
-                    ),
+                    pool: Box::new(Udp::new("127.0.0.1:53533".parse().unwrap())),
                     timeout: 10,
                 },
                 c,

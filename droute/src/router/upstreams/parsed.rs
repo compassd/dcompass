@@ -97,7 +97,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
             Self::Udp { addr, timeout } => Client {
-                pool: Box::new(Udp::new(&addr).await?),
+                pool: Box::new(Udp::new(addr)),
                 timeout,
             },
             #[cfg(feature = "doh")]

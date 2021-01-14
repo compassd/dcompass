@@ -163,9 +163,7 @@ mod tests {
                 "udp".into(),
                 Upstream::new(
                     UpstreamKind::Client {
-                        pool: Box::new(
-                            Udp::new(&"127.0.0.1:53533".parse().unwrap()).await.unwrap(),
-                        ),
+                        pool: Box::new(Udp::new("127.0.0.1:53533".parse().unwrap())),
                         timeout: 1,
                     },
                     10,
