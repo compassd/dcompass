@@ -15,6 +15,10 @@
 
 use async_trait::async_trait;
 use dyn_clonable::*;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_proto::error::ProtoError;
@@ -51,4 +55,35 @@ pub trait ClientPool: Sync + Send + Clone {
     async fn get_client(&self) -> Result<AsyncClient>;
     /// Return back the used client for reuse (if appropriate).
     async fn return_client(&self, c: AsyncClient);
+}
+
+#[derive(Clone)]
+pub(self) struct Pool<T> {
+    inner: Arc<Mutex<VecDeque<T>>>,
+}
+
+impl<T> Pool<T> {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    pub fn get(&self) -> Option<T> {
+        {
+            // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
+            let mut p = self.inner.lock().unwrap();
+            if p.is_empty() {
+                None
+            } else {
+                // queue is not empty
+                Some(p.pop_front().unwrap())
+            }
+        }
+    }
+
+    pub fn put(&self, c: T) {
+        let mut p = self.inner.lock().unwrap();
+        p.push_back(c);
+    }
 }

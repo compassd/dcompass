@@ -14,15 +14,11 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::{ClientPool, Result},
+    super::{ClientPool, Pool, Result},
     create_client_config,
 };
 use async_trait::async_trait;
-use std::{
-    collections::VecDeque,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::net::SocketAddr;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
@@ -32,7 +28,7 @@ pub struct Tls {
     name: String,
     addr: SocketAddr,
     no_sni: bool,
-    pool: Arc<Mutex<VecDeque<AsyncClient>>>,
+    pool: Pool<AsyncClient>,
 }
 
 impl Tls {
@@ -45,7 +41,7 @@ impl Tls {
             name,
             addr,
             no_sni,
-            pool: Arc::new(Mutex::new(VecDeque::new())),
+            pool: Pool::new(),
         }
     }
 }
@@ -53,18 +49,8 @@ impl Tls {
 #[async_trait]
 impl ClientPool for Tls {
     async fn get_client(&self) -> Result<AsyncClient> {
-        Ok({
-            // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
-            let mut p = self.pool.lock().unwrap();
-            if p.is_empty() {
-                None
-            } else {
-                log::info!("TLS client cache hit");
-                // queue is not empty
-                Some(p.pop_front().unwrap())
-            }
-        }
-        .unwrap_or({
+        Ok(self.pool.get().unwrap_or({
+            log::info!("HTTPS Client cache missed, creating a new one.");
             let (stream, sender) = tls_client_connect(
                 self.addr,
                 self.name.clone(),
@@ -77,7 +63,6 @@ impl ClientPool for Tls {
     }
 
     async fn return_client(&self, c: AsyncClient) {
-        let mut p = self.pool.lock().unwrap();
-        p.push_back(c);
+        self.pool.put(c);
     }
 }
