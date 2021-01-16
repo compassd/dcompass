@@ -16,7 +16,7 @@
 #[cfg(feature = "serde-cfg")]
 use super::parsed::{ParUpstream, ParUpstreamKind};
 use super::{
-    client_pool::ClientPool,
+    client_pool::{ClientPool, ClientState::*},
     error::Result,
     resp_cache::{RecordStatus::*, RespCache},
 };
@@ -95,13 +95,13 @@ impl Upstream {
             Ok(m) => m,
             Err(e) => {
                 // Renew the client as it errored. Currently it is only applicable for UDP.
-                pool.renew().await?;
+                pool.return_client(client, Failed).await?;
                 return Err(e.into());
             }
         });
 
         // If the response can be obtained sucessfully, we then push back the client to the client cache
-        pool.return_client(client).await;
+        pool.return_client(client, Succeeded).await?;
         u.cache.put(r.clone());
         Ok(r)
     }

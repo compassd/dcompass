@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::{ClientPool, Result},
+    super::{ClientPool, ClientState, Result},
     create_client_config, Pool,
 };
 use async_trait::async_trait;
@@ -62,12 +62,12 @@ impl ClientPool for Https {
         }))
     }
 
-    async fn return_client(&self, c: AsyncClient) {
-        self.pool.put(c);
-    }
-
-    async fn renew(&self) -> Result<()> {
-        // We don't need to renew anything cause if it errored out it won't be returned. Next time we are gonna create a new client on fly.
+    async fn return_client(&self, c: AsyncClient, state: ClientState) -> Result<()> {
+        match state {
+            ClientState::Succeeded => self.pool.put(c),
+            // We don't need to renew anything cause if it errored out it won't be returned. Next time we are gonna create a new client on fly.
+            ClientState::Failed => (),
+        }
         Ok(())
     }
 }

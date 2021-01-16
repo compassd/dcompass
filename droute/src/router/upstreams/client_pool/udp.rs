@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::super::client_pool::{ClientPool, Result};
+use super::{ClientPool, ClientState, Result};
 use async_trait::async_trait;
 use std::{
     net::SocketAddr,
@@ -48,16 +48,18 @@ impl ClientPool for Udp {
         Ok(self.client.lock().unwrap().clone())
     }
 
-    async fn return_client(&self, _: AsyncClient) {
-        // We don't need to return client cause all clients distrubuted are clones of the one held here.
-    }
-
-    async fn renew(&self) -> Result<()> {
-        log::info!("Renewing the UDP client");
-        let stream = UdpClientStream::<UdpSocket>::new(self.addr);
-        let (client, bg) = AsyncClient::connect(stream).await?;
-        tokio::spawn(bg);
-        *self.client.lock().unwrap() = client;
+    async fn return_client(&self, _: AsyncClient, state: ClientState) -> Result<()> {
+        match state {
+            ClientState::Failed => {
+                log::info!("Renewing the UDP client");
+                let stream = UdpClientStream::<UdpSocket>::new(self.addr);
+                let (client, bg) = AsyncClient::connect(stream).await?;
+                tokio::spawn(bg);
+                *self.client.lock().unwrap() = client;
+            }
+            // We don't need to return client cause all clients distrubuted are clones of the one held here.
+            ClientState::Succeeded => (),
+        }
         Ok(())
     }
 }

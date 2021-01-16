@@ -43,6 +43,14 @@ pub enum ClientPoolError {
 
 type Result<T> = std::result::Result<T, ClientPoolError>;
 
+/// State of the client returned (used).
+pub enum ClientState {
+    /// Client failed to send message
+    Failed,
+    /// Client sent message successfully.
+    Succeeded,
+}
+
 /// Client pool triat
 #[async_trait]
 #[clonable]
@@ -50,7 +58,5 @@ pub trait ClientPool: Sync + Send + Clone {
     /// Get a client from the client pool.
     async fn get_client(&self) -> Result<AsyncClient>;
     /// Return back the used client for reuse (if appropriate).
-    async fn return_client(&self, c: AsyncClient);
-    /// Renew the underlying clients (if appropriate).
-    async fn renew(&self) -> Result<()>;
+    async fn return_client(&self, c: AsyncClient, state: ClientState) -> Result<()>;
 }
