@@ -7,6 +7,7 @@ git pull
 find . -type f -name '*.sh' -exec shellcheck {} +
 find . -type f -name '*.sh' -exec shfmt -w {} +
 find . -type f -name '*.nix' -exec nixfmt {} +
+cargo update
 cargo fmt -- --check
 cargo build --all-features
 cargo test

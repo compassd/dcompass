@@ -15,6 +15,7 @@
 
 // This module is under feature gate `crypto`.
 
+use std::{collections::VecDeque, sync::Mutex};
 #[cfg(feature = "doh")]
 mod https;
 #[cfg(feature = "dot")]
@@ -49,4 +50,38 @@ fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
     client_config.enable_sni = !no_sni; // Disable SNI on need.
 
     Arc::new(client_config)
+}
+
+const MAX_INSTANCE_NUM: usize = 128;
+
+#[derive(Clone)]
+pub(self) struct Pool<T> {
+    inner: Arc<Mutex<VecDeque<T>>>,
+}
+
+impl<T> Pool<T> {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    pub fn get(&self) -> Option<T> {
+        {
+            // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
+            let mut p = self.inner.lock().unwrap();
+            if p.is_empty() {
+                None
+            } else {
+                // queue is not empty
+                Some(p.pop_front().unwrap())
+            }
+        }
+    }
+
+    pub fn put(&self, c: T) {
+        let mut p = self.inner.lock().unwrap();
+        p.push_back(c);
+        p.truncate(MAX_INSTANCE_NUM);
+    }
 }

@@ -22,7 +22,7 @@ use crate::Label;
 use async_trait::async_trait;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 /// A trait to help you to setup a customized upstream kind.
 #[async_trait]
@@ -97,8 +97,8 @@ impl ParUpstreamKind for DefParUpstreamKind {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
             Self::Udp { addr, timeout } => Client {
-                pool: Box::new(Udp::new(addr)),
-                timeout,
+                pool: Box::new(Udp::new(addr).await?),
+                timeout: Duration::from_secs(timeout),
             },
             #[cfg(feature = "doh")]
             Self::Https {
@@ -108,7 +108,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 timeout,
             } => Client {
                 pool: Box::new(Https::new(name, addr, no_sni)),
-                timeout,
+                timeout: Duration::from_secs(timeout),
             },
             #[cfg(feature = "dot")]
             Self::Tls {
@@ -118,7 +118,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 timeout,
             } => Client {
                 pool: Box::new(Tls::new(name, addr, no_sni)),
-                timeout,
+                timeout: Duration::from_secs(timeout),
             },
         })
     }

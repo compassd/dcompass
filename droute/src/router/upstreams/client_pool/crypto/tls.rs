@@ -14,8 +14,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::{ClientPool, Pool, Result},
-    create_client_config,
+    super::{ClientPool, Result},
+    create_client_config, Pool,
 };
 use async_trait::async_trait;
 use std::net::SocketAddr;
@@ -64,5 +64,10 @@ impl ClientPool for Tls {
 
     async fn return_client(&self, c: AsyncClient) {
         self.pool.put(c);
+    }
+
+    async fn renew(&self) -> Result<()> {
+        // We don't need to renew anything cause if it errored out it won't be returned. Next time we are gonna create a new client on fly.
+        Ok(())
     }
 }

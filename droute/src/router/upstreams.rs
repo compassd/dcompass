@@ -153,6 +153,7 @@ impl Upstreams {
 #[cfg(test)]
 mod tests {
     use super::{client_pool::Udp, Upstream, UpstreamKind, Upstreams};
+    use std::time::Duration;
 
     #[tokio::test]
     async fn should_not_fail_recursion() {
@@ -163,8 +164,8 @@ mod tests {
                 "udp".into(),
                 Upstream::new(
                     UpstreamKind::Client {
-                        pool: Box::new(Udp::new("127.0.0.1:53533".parse().unwrap())),
-                        timeout: 1,
+                        pool: Box::new(Udp::new("127.0.0.1:53533".parse().unwrap()).await.unwrap()),
+                        timeout: Duration::from_secs(1),
                     },
                     10,
                 ),

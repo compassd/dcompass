@@ -37,7 +37,7 @@ pub enum UpstreamKind {
         /// Client pool
         pool: Box<dyn ClientPool>,
         /// Timeout length
-        timeout: u64,
+        timeout: Duration,
     },
 }
 
@@ -91,7 +91,14 @@ impl Upstream {
         };
 
         let mut client = pool.get_client().await?;
-        let r = Message::from(timeout(Duration::from_secs(*t), client.send(msg)).await??);
+        let r = Message::from(match timeout(*t, client.send(msg)).await? {
+            Ok(m) => m,
+            Err(e) => {
+                // Renew the client as it errored. Currently it is only applicable for UDP.
+                pool.renew().await?;
+                return Err(e.into());
+            }
+        });
 
         // If the response can be obtained sucessfully, we then push back the client to the client cache
         pool.return_client(client).await;

@@ -13,12 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{
-    super::client_pool::{ClientPool, Result},
-    Pool,
-};
+use super::super::client_pool::{ClientPool, Result};
 use async_trait::async_trait;
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 use tokio::net::UdpSocket;
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 
@@ -26,33 +26,38 @@ use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 #[derive(Clone)]
 pub struct Udp {
     addr: SocketAddr,
-    // We are using client pool for UDP connection here bacause trust-dns seems have irrecoverable underlying channel congestion once the channel is full. Therefore, we have to drop client in order to recover the service.
-    pool: Pool<AsyncClient>,
+    client: Arc<Mutex<AsyncClient>>,
 }
 
 impl Udp {
     /// Create a new UDP client pool with the given remote server address.
-    pub fn new(addr: SocketAddr) -> Self {
-        Self {
+    pub async fn new(addr: SocketAddr) -> Result<Self> {
+        let stream = UdpClientStream::<UdpSocket>::new(addr);
+        let (client, bg) = AsyncClient::connect(stream).await?;
+        tokio::spawn(bg);
+        Ok(Self {
             addr,
-            pool: Pool::new(),
-        }
+            client: Arc::new(Mutex::new(client)),
+        })
     }
 }
 
 #[async_trait]
 impl ClientPool for Udp {
     async fn get_client(&self) -> Result<AsyncClient> {
-        Ok(self.pool.get().unwrap_or({
-            log::info!("UDP Client cache missed, creating a new one.");
-            let stream = UdpClientStream::<UdpSocket>::new(self.addr);
-            let (client, bg) = AsyncClient::connect(stream).await?;
-            tokio::spawn(bg);
-            client
-        }))
+        Ok(self.client.lock().unwrap().clone())
     }
 
-    async fn return_client(&self, c: AsyncClient) {
-        self.pool.put(c);
+    async fn return_client(&self, _: AsyncClient) {
+        // We don't need to return client cause all clients distrubuted are clones of the one held here.
+    }
+
+    async fn renew(&self) -> Result<()> {
+        log::info!("Renewing the UDP client");
+        let stream = UdpClientStream::<UdpSocket>::new(self.addr);
+        let (client, bg) = AsyncClient::connect(stream).await?;
+        tokio::spawn(bg);
+        *self.client.lock().unwrap() = client;
+        Ok(())
     }
 }
