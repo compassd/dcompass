@@ -57,6 +57,8 @@ pub trait ClientPool: Sync + Send + Clone {
     async fn return_client(&self, c: AsyncClient);
 }
 
+const MAX_INSTANCE_NUM: usize = 128;
+
 #[derive(Clone)]
 pub(self) struct Pool<T> {
     inner: Arc<Mutex<VecDeque<T>>>,
@@ -85,5 +87,6 @@ impl<T> Pool<T> {
     pub fn put(&self, c: T) {
         let mut p = self.inner.lock().unwrap();
         p.push_back(c);
+        p.truncate(MAX_INSTANCE_NUM);
     }
 }
