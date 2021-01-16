@@ -5,3 +5,8 @@ members = [
     "dmatcher",
     "droute",
 ]
+
+[profile.release]
+lto = true
+opt-level = 's'
+codegen-units = 1

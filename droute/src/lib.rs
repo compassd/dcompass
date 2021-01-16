@@ -18,6 +18,7 @@
 // Documentation
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.
 pub mod error;
+#[doc(hidden)]
 pub mod mock;
 mod router;
 

@@ -15,7 +15,6 @@
 
 // This module is under feature gate `crypto`.
 
-use std::{collections::VecDeque, sync::Mutex};
 #[cfg(feature = "doh")]
 mod https;
 #[cfg(feature = "dot")]
@@ -29,7 +28,10 @@ pub use self::tls::Tls;
 #[cfg(any(feature = "doh", feature = "dot"))]
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 #[cfg(any(feature = "doh", feature = "dot"))]
-use std::sync::Arc;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 
 // Not used if there is no DoT or DoH enabled.
 #[cfg(any(feature = "doh", feature = "dot"))]
@@ -52,13 +54,16 @@ fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
     Arc::new(client_config)
 }
 
+#[cfg(any(feature = "doh", feature = "dot"))]
 const MAX_INSTANCE_NUM: usize = 128;
 
+#[cfg(any(feature = "doh", feature = "dot"))]
 #[derive(Clone)]
 pub(self) struct Pool<T> {
     inner: Arc<Mutex<VecDeque<T>>>,
 }
 
+#[cfg(any(feature = "doh", feature = "dot"))]
 impl<T> Pool<T> {
     pub fn new() -> Self {
         Self {
