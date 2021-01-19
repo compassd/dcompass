@@ -14,60 +14,46 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
-    super::{ClientPool, ClientState, Result},
-    create_client_config, Pool,
+    super::{ClientWrapper, Result},
+    create_client_config,
 };
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
-/// Client pool for DNS over TLS.
+/// Client instance for DNS over TLS.
 #[derive(Clone)]
 pub struct Tls {
     name: String,
     addr: SocketAddr,
     no_sni: bool,
-    pool: Pool<AsyncClient>,
 }
 
 impl Tls {
-    /// Create a new DNS over TLS client pool
+    /// Create a new DNS over TLS client creator instance.
     /// - `name`: the domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
     /// - `addr`: the address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
     /// - `no_sni`: set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
     pub fn new(name: String, addr: SocketAddr, no_sni: bool) -> Self {
-        Self {
-            name,
-            addr,
-            no_sni,
-            pool: Pool::new(),
-        }
+        Self { name, addr, no_sni }
     }
 }
 
 #[async_trait]
-impl ClientPool for Tls {
-    async fn get_client(&self) -> Result<AsyncClient> {
-        Ok(self.pool.get().unwrap_or({
-            log::info!("HTTPS Client cache missed, creating a new one.");
-            let (stream, sender) = tls_client_connect(
-                self.addr,
-                self.name.clone(),
-                create_client_config(&self.no_sni),
-            );
-            let (client, bg) = AsyncClient::new(stream, Box::new(sender), None).await?;
-            tokio::spawn(bg);
-            client
-        }))
+impl ClientWrapper for Tls {
+    fn conn_type(&self) -> &'static str {
+        "TLS"
     }
 
-    async fn return_client(&self, c: AsyncClient, state: ClientState) -> Result<()> {
-        match state {
-            ClientState::Succeeded => self.pool.put(c),
-            // We don't need to renew anything cause if it errored out it won't be returned. Next time we are gonna create a new client on fly.
-            ClientState::Failed => (),
-        }
-        Ok(())
+    async fn create(&self) -> Result<AsyncClient> {
+        let (stream, sender) = tls_client_connect(
+            self.addr,
+            self.name.clone(),
+            create_client_config(&self.no_sni),
+        );
+        let (client, bg) = AsyncClient::new(stream, Box::new(sender), None).await?;
+        tokio::spawn(bg);
+        Ok(client)
     }
 }

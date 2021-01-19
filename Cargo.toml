@@ -10,3 +10,9 @@ members = [
 lto = true
 opt-level = 's'
 codegen-units = 1
+
+# [patch.crates-io]
+# trust-dns-client = { path = "../trust-dns/crates/client/" }
+# trust-dns-https = { path = "../trust-dns/crates/https/" }
+# trust-dns-proto = { path = "../trust-dns/crates/proto/" }
+# trust-dns-rustls = { path = "../trust-dns/crates/rustls/" }

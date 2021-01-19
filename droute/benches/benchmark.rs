@@ -17,8 +17,11 @@
 // Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
 use droute::{
-    actions::Query as ActQuery, client_pool::Udp, matchers::Any, mock::Server, Router, Rule, Table,
-    Upstream, UpstreamKind, Upstreams,
+    actions::Query as ActQuery,
+    client_pool::{DefClientPool, Udp},
+    matchers::Any,
+    mock::Server,
+    Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
 };
 use lazy_static::lazy_static;
 use std::time::Duration;
@@ -64,7 +67,9 @@ async fn create_router(c: usize) -> Router {
             "mock".into(),
             Upstream::new(
                 UpstreamKind::Client {
-                    pool: Box::new(Udp::new("127.0.0.1:53533".parse().unwrap()).await.unwrap()),
+                    pool: Box::new(DefClientPool::new(Udp::new(
+                        "127.0.0.1:53533".parse().unwrap(),
+                    ))),
                     timeout: Duration::from_secs(1),
                 },
                 c,

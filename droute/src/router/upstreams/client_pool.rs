@@ -15,6 +15,7 @@
 
 use async_trait::async_trait;
 use dyn_clonable::*;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_proto::error::ProtoError;
@@ -51,12 +52,76 @@ pub enum ClientState {
     Succeeded,
 }
 
-/// Client pool triat
+/// Client pool triat.
 #[async_trait]
 #[clonable]
 pub trait ClientPool: Sync + Send + Clone {
-    /// Get a client from the client pool.
+    /// Get a client from the client pool. This may not indeed create one, instead, it probably only returns a cloned client.
     async fn get_client(&self) -> Result<AsyncClient>;
-    /// Return back the used client for reuse (if appropriate).
+    /// Return back the used client for reuse or renewal (if appropriate).
     async fn return_client(&self, c: AsyncClient, state: ClientState) -> Result<()>;
+}
+
+/// A client wrapper. The difference between this and the `ClientPool` trait that it only cares about how to create a client.
+#[async_trait]
+pub trait ClientWrapper: Sync + Send + Clone {
+    /// Create a client.
+    async fn create(&self) -> Result<AsyncClient>;
+    /// Client (connection) type. e.g. UDP, TCP.
+    fn conn_type(&self) -> &'static str;
+}
+
+/// A client wrapper that makes the underlying `AsyncClient` a `client pool`.
+#[derive(Clone)]
+pub struct DefClientPool<T> {
+    // A client instance used for creating clients
+    client: T,
+    inner: Arc<Mutex<Option<AsyncClient>>>,
+}
+
+impl<T: ClientWrapper> DefClientPool<T> {
+    /// Create a new default client pool given the underlying client instance definition.
+    pub fn new(client: T) -> Self {
+        Self {
+            client,
+            inner: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn get(&self) -> Option<AsyncClient> {
+        self.inner.lock().unwrap().clone()
+    }
+
+    fn set(&self, c: AsyncClient) {
+        *self.inner.lock().unwrap() = Some(c);
+    }
+}
+
+#[async_trait]
+impl<T: ClientWrapper> ClientPool for DefClientPool<T> {
+    async fn get_client(&self) -> Result<AsyncClient> {
+        Ok(if let Some(c) = self.get() {
+            c
+        } else {
+            log::info!(
+                "No {} client in stock, creating a new one",
+                self.client.conn_type()
+            );
+            let c = self.client.create().await?;
+            self.set(c.clone());
+            c
+        })
+    }
+
+    async fn return_client(&self, _: AsyncClient, state: ClientState) -> Result<()> {
+        match state {
+            ClientState::Failed => {
+                log::info!("Renewing the {} client", self.client.conn_type());
+                self.set(self.client.create().await?);
+            }
+            // We don't need to return client cause all clients distrubuted are clones of the one held here.
+            ClientState::Succeeded => {}
+        }
+        Ok(())
+    }
 }

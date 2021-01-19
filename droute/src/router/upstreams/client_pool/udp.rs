@@ -13,53 +13,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ClientPool, ClientState, Result};
+use super::{ClientWrapper, Result};
 use async_trait::async_trait;
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 use trust_dns_client::{client::AsyncClient, udp::UdpClientStream};
 
-/// Client pool for UDP connections
+/// Client instance for UDP connections
 #[derive(Clone)]
 pub struct Udp {
     addr: SocketAddr,
-    client: Arc<Mutex<AsyncClient>>,
 }
 
 impl Udp {
-    /// Create a new UDP client pool with the given remote server address.
-    pub async fn new(addr: SocketAddr) -> Result<Self> {
-        let stream = UdpClientStream::<UdpSocket>::new(addr);
-        let (client, bg) = AsyncClient::connect(stream).await?;
-        tokio::spawn(bg);
-        Ok(Self {
-            addr,
-            client: Arc::new(Mutex::new(client)),
-        })
+    /// Create a new UDP client creator instance. with the given remote server address.
+    pub fn new(addr: SocketAddr) -> Self {
+        Self { addr }
     }
 }
 
 #[async_trait]
-impl ClientPool for Udp {
-    async fn get_client(&self) -> Result<AsyncClient> {
-        Ok(self.client.lock().unwrap().clone())
+impl ClientWrapper for Udp {
+    async fn create(&self) -> Result<AsyncClient> {
+        let stream = UdpClientStream::<UdpSocket>::new(self.addr);
+        let (client, bg) = AsyncClient::connect(stream).await?;
+        tokio::spawn(bg);
+        Ok(client)
     }
 
-    async fn return_client(&self, _: AsyncClient, state: ClientState) -> Result<()> {
-        match state {
-            ClientState::Failed => {
-                log::info!("Renewing the UDP client");
-                let stream = UdpClientStream::<UdpSocket>::new(self.addr);
-                let (client, bg) = AsyncClient::connect(stream).await?;
-                tokio::spawn(bg);
-                *self.client.lock().unwrap() = client;
-            }
-            // We don't need to return client cause all clients distrubuted are clones of the one held here.
-            ClientState::Succeeded => (),
-        }
-        Ok(())
+    fn conn_type(&self) -> &'static str {
+        "UDP"
     }
 }

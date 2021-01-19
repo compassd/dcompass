@@ -14,6 +14,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 mod parser;
+#[cfg(test)]
+mod tests;
 mod worker;
 
 use self::{parser::Parsed, worker::worker};
@@ -148,140 +150,5 @@ async fn main() -> Result<()> {
         });
 
         ratelimit.wait();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::init;
-    use droute::error::*;
-
-    #[tokio::test]
-    async fn check_default() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/default.json")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn check_success_ipcidr() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/success_cidr.yaml")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[cfg(all(feature = "geoip-maxmind", not(feature = "geoip-cn")))]
-    #[tokio::test]
-    async fn check_example_maxmind() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[cfg(all(feature = "geoip-cn", not(feature = "geoip-maxmind")))]
-    #[tokio::test]
-    async fn check_example_cn() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/example.yaml")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn check_success_rule() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn check_success_geoip() {
-        assert_eq!(
-            init(serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap())
-                .await
-                .is_ok(),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn check_success_rule_yaml() {
-        assert_eq!(
-            init(
-                serde_yaml::from_str(include_str!("../../configs/success_rule_yaml.yaml")).unwrap()
-            )
-            .await
-            .is_ok(),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn check_fail_undef() {
-        assert_eq!(
-            match init(serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap())
-                .await
-                .err()
-                .unwrap()
-            {
-                DrouteError::UpstreamError(UpstreamError::MissingTag(tag)) => tag,
-                e => panic!("Not the right error type: {}", e),
-            },
-            "undefined".into()
-        );
-    }
-
-    #[tokio::test]
-    async fn check_fail_recursion() {
-        match init(serde_yaml::from_str(include_str!("../../configs/fail_recursion.json")).unwrap())
-            .await
-            .err()
-            .unwrap()
-        {
-            DrouteError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
-            e => panic!("Not the right error type: {}", e),
-        };
-    }
-
-    #[tokio::test]
-    async fn check_fail_multiple_def() {
-        match init(
-            serde_yaml::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap(),
-        )
-        .await
-        .err()
-        .unwrap()
-        {
-            DrouteError::UpstreamError(UpstreamError::MultipleDef(_)) => {}
-            e => panic!("Not the right error type: {}", e),
-        };
-    }
-
-    #[tokio::test]
-    async fn fail_unused_upstreams() {
-        match init(
-            serde_yaml::from_str(include_str!("../../configs/fail_unused_upstreams.yaml")).unwrap(),
-        )
-        .await
-        .err()
-        .unwrap()
-        {
-            DrouteError::UpstreamError(UpstreamError::UnusedUpstreams(_)) => {}
-            e => panic!("Not the right error type: {}", e),
-        };
     }
 }

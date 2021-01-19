@@ -13,8 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(feature = "doh")]
+use super::client_pool::Https;
+#[cfg(feature = "dot")]
+use super::client_pool::Tls;
 use super::{
-    client_pool::*,
+    client_pool::{DefClientPool, Udp},
     error::Result,
     upstream::{UpstreamKind, UpstreamKind::*},
 };
@@ -97,7 +101,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
             Self::Udp { addr, timeout } => Client {
-                pool: Box::new(Udp::new(addr).await?),
+                pool: Box::new(DefClientPool::new(Udp::new(addr))),
                 timeout: Duration::from_secs(timeout),
             },
             #[cfg(feature = "doh")]
@@ -107,7 +111,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 no_sni,
                 timeout,
             } => Client {
-                pool: Box::new(Https::new(name, addr, no_sni)),
+                pool: Box::new(DefClientPool::new(Https::new(name, addr, no_sni))),
                 timeout: Duration::from_secs(timeout),
             },
             #[cfg(feature = "dot")]
@@ -117,7 +121,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 no_sni,
                 timeout,
             } => Client {
-                pool: Box::new(Tls::new(name, addr, no_sni)),
+                pool: Box::new(DefClientPool::new(Tls::new(name, addr, no_sni))),
                 timeout: Duration::from_secs(timeout),
             },
         })

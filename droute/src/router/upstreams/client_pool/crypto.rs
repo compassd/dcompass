@@ -28,10 +28,7 @@ pub use self::tls::Tls;
 #[cfg(any(feature = "doh", feature = "dot"))]
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 #[cfg(any(feature = "doh", feature = "dot"))]
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
+use std::sync::Arc;
 
 // Not used if there is no DoT or DoH enabled.
 #[cfg(any(feature = "doh", feature = "dot"))]
@@ -52,41 +49,4 @@ fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
     client_config.enable_sni = !no_sni; // Disable SNI on need.
 
     Arc::new(client_config)
-}
-
-#[cfg(any(feature = "doh", feature = "dot"))]
-const MAX_INSTANCE_NUM: usize = 128;
-
-#[cfg(any(feature = "doh", feature = "dot"))]
-#[derive(Clone)]
-pub(self) struct Pool<T> {
-    inner: Arc<Mutex<VecDeque<T>>>,
-}
-
-#[cfg(any(feature = "doh", feature = "dot"))]
-impl<T> Pool<T> {
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-
-    pub fn get(&self) -> Option<T> {
-        {
-            // This ensures during the lock, queue's state is unchanged. (We shall only lock once).
-            let mut p = self.inner.lock().unwrap();
-            if p.is_empty() {
-                None
-            } else {
-                // queue is not empty
-                Some(p.pop_front().unwrap())
-            }
-        }
-    }
-
-    pub fn put(&self, c: T) {
-        let mut p = self.inner.lock().unwrap();
-        p.push_back(c);
-        p.truncate(MAX_INSTANCE_NUM);
-    }
 }
