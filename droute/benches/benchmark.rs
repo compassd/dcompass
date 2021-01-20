@@ -26,7 +26,6 @@ use droute::{
 use lazy_static::lazy_static;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio_test::assert_ok;
 use trust_dns_client::op::Message;
 use trust_dns_proto::{
     op::{header::MessageType, query::Query},
@@ -81,34 +80,39 @@ async fn create_router(c: usize) -> Router {
 }
 
 fn bench_resolve(c: &mut Criterion) {
-    tokio::runtime::Builder::new_multi_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .unwrap()
-        .block_on(async {
-            let socket = UdpSocket::bind(&"127.0.0.1:53533").await.unwrap();
-            let server = Server::new(socket, vec![0; 1024], None);
-            tokio::spawn(server.run(DUMMY_MSG.clone()));
+        .unwrap();
 
-            let router = create_router(0).await;
-            let cached_router = create_router(4096).await;
+    let socket = rt.block_on(UdpSocket::bind(&"127.0.0.1:53533")).unwrap();
+    let server = Server::new(socket, vec![0; 1024], None);
+    rt.spawn(server.run(DUMMY_MSG.clone()));
 
-            c.bench_function("non_cache_resolve", |b| {
-                b.iter(|| async {
-                    // assert_eq!(
-                    //   router.resolve(None, QUERY.clone()).await.unwrap().answers(),
-                    //   DUMMY_MSG.answers()
-                    // );
-                    assert_ok!(router.resolve(None, QUERY.clone()).await);
-                })
-            });
+    let router = rt.block_on(create_router(0));
+    let cached_router = rt.block_on(create_router(4096));
 
-            c.bench_function("cached_resolve", |b| {
-                b.iter(|| async {
-                    assert_ok!(cached_router.resolve(None, QUERY.clone()).await);
-                })
-            });
-        });
+    c.bench_function("non_cache_resolve", |b| {
+        b.to_async(&rt).iter(|| async {
+            assert_eq!(
+                router.resolve(None, QUERY.clone()).await.unwrap().answers(),
+                DUMMY_MSG.answers()
+            );
+        })
+    });
+
+    c.bench_function("cached_resolve", |b| {
+        b.to_async(&rt).iter(|| async {
+            assert_eq!(
+                cached_router
+                    .resolve(None, QUERY.clone())
+                    .await
+                    .unwrap()
+                    .answers(),
+                DUMMY_MSG.answers()
+            );
+        })
+    });
 }
 
 criterion_group!(benches, bench_resolve);

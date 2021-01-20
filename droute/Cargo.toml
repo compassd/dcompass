@@ -53,7 +53,7 @@ dyn-clonable = "^0.9"
 
 [dev-dependencies]
 tokio-test = "^0.4"
-criterion = "^0.3"
+criterion = { version = "^0.3", features = ["async_tokio"]}
 
 [[bench]]
 name = "benchmark"
