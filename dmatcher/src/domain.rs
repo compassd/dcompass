@@ -76,7 +76,16 @@ impl Domain {
     }
 
     /// Pass in a domain and insert it into the matcher.
+    /// This ignores any line containing chars other than A-Z, a-z, 1-9, and -.
+    /// See also: https://tools.ietf.org/html/rfc1035
     pub fn insert(&mut self, domain: &str) {
+        // Check if all the characters are valid.
+        let valid = domain.chars().all(|c| {
+            char::is_ascii_alphabetic(&c) | char::is_ascii_digit(&c) | (c == '-') | (c == '.')
+        });
+        if !valid {
+            return;
+        }
         let lvs: Vec<&str> = domain
             .split('.')
             .filter(|lv| !lv.is_empty())
@@ -127,6 +136,20 @@ mod tests {
         assert_eq!(matcher.matches("store.apple.com"), true);
         assert_eq!(matcher.matches("store.apple.com."), true);
         assert_eq!(matcher.matches("baidu.com"), false);
+        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
+    }
+
+    #[test]
+    fn comment_not_matches() {
+        let mut matcher = Domain::new();
+        matcher.insert("# apple.com"); // This is invalid / a comment.
+        matcher.insert("*** apple.com"); // This is invalid, should be ignored.
+        matcher.insert("apple-cn.com"); // "-" is allowed here.
+        matcher.insert("apple.cn");
+        assert_eq!(matcher.matches("store.apple.com"), false);
+        assert_eq!(matcher.matches("store.apple.com."), false);
+        assert_eq!(matcher.matches("baidu.com"), false);
+        assert_eq!(matcher.matches("store.apple-cn.com"), true);
         assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
     }
 
