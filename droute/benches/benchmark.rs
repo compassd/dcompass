@@ -23,7 +23,7 @@ use droute::{
     mock::Server,
     Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
 };
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use trust_dns_client::op::Message;
@@ -32,26 +32,24 @@ use trust_dns_proto::{
     rr::{record_data::RData, record_type::RecordType, resource::Record, Name},
 };
 
-lazy_static! {
-    static ref DUMMY_MSG: Message = {
-        let mut msg = Message::new();
-        msg.add_answer(Record::from_rdata(
-            Name::from_utf8("www.apple.com").unwrap(),
-            32,
-            RData::A("1.1.1.1".parse().unwrap()),
-        ));
-        msg.set_message_type(MessageType::Response);
-        msg
-    };
-    static ref QUERY: Message = {
-        let mut msg = Message::new();
-        msg.add_query(Query::query(
-            Name::from_utf8("www.apple.com").unwrap(),
-            RecordType::A,
-        ));
-        msg
-    };
-}
+static DUMMY_MSG: Lazy<Message> = Lazy::new(|| {
+    let mut msg = Message::new();
+    msg.add_answer(Record::from_rdata(
+        Name::from_utf8("www.apple.com").unwrap(),
+        32,
+        RData::A("1.1.1.1".parse().unwrap()),
+    ));
+    msg.set_message_type(MessageType::Response);
+    msg
+});
+static QUERY: Lazy<Message> = Lazy::new(|| {
+    let mut msg = Message::new();
+    msg.add_query(Query::query(
+        Name::from_utf8("www.apple.com").unwrap(),
+        RecordType::A,
+    ));
+    msg
+});
 
 async fn create_router(c: usize) -> Router {
     Router::new(

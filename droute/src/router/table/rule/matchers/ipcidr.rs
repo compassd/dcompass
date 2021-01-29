@@ -76,29 +76,27 @@ mod tests {
         super::{IpTarget::*, Matcher, State},
         IpCidr,
     };
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
     use std::str::FromStr;
     use trust_dns_proto::{
         op::Message,
         rr::{resource::Record, Name, RData},
     };
 
-    lazy_static! {
-        static ref RECORD_NOT_CHINA: Record = {
-            Record::from_rdata(
-                Name::from_str("apple.com").unwrap(),
-                10,
-                RData::A("1.1.1.1".parse().unwrap()),
-            )
-        };
-        static ref RECORD_CHINA: Record = {
-            Record::from_rdata(
-                Name::from_str("baidu.com").unwrap(),
-                10,
-                RData::A("36.152.44.95".parse().unwrap()),
-            )
-        };
-    }
+    static RECORD_NOT_CHINA: Lazy<Record> = Lazy::new(|| {
+        Record::from_rdata(
+            Name::from_str("apple.com").unwrap(),
+            10,
+            RData::A("1.1.1.1".parse().unwrap()),
+        )
+    });
+    static RECORD_CHINA: Lazy<Record> = Lazy::new(|| {
+        Record::from_rdata(
+            Name::from_str("baidu.com").unwrap(),
+            10,
+            RData::A("36.152.44.95".parse().unwrap()),
+        )
+    });
 
     fn create_state(v: Vec<Record>) -> State {
         State {

@@ -20,10 +20,9 @@ use droute::{
         DefParAction, DefParUpstreamKind, ParGeoIp, ParIpCidr, ParMatcher, ParRule, ParUpstream,
     },
 };
-use hashbrown::HashSet;
 use log::LevelFilter;
 use serde::Deserialize;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 use trust_dns_proto::rr::record_type::RecordType;
 
 pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;

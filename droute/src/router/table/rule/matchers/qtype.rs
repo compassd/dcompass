@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{super::super::State, Matcher, Result};
-use hashbrown::HashSet;
+use std::collections::HashSet;
 use trust_dns_proto::rr::record_type::RecordType;
 
 /// A matcher that matches if first query is of any of the record types provided.

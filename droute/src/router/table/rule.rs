@@ -25,8 +25,8 @@ use self::{actions::Action, matchers::Matcher};
 use super::parsed::{ParAction, ParMatcher, ParRule};
 use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
-use hashbrown::HashSet;
 use log::*;
+use std::collections::HashSet;
 
 /// A unit that composes the `Table`.
 pub struct Rule {

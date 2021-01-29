@@ -28,9 +28,8 @@ use crate::{
     error::{DrouteError, Result},
     Label, Validatable,
 };
-use hashbrown::HashSet;
 use log::warn;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.

@@ -15,8 +15,7 @@
 
 use super::client_pool::ClientPoolError;
 use crate::Label;
-use hashbrown::HashSet;
-use std::fmt::Debug;
+use std::{collections::HashSet, fmt::Debug};
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 use trust_dns_client::error::ClientError;

@@ -21,8 +21,7 @@ use super::{
     resp_cache::{RecordStatus::*, RespCache},
 };
 use crate::Label;
-use hashbrown::HashSet;
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashSet};
 use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::xfer::dns_handle::DnsHandle;

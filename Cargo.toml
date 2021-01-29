@@ -11,6 +11,6 @@ lto = true
 opt-level = 's'
 codegen-units = 1
 
-[patch.crates-io]
+# [patch.crates-io]
 # to use async features.
-criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "master" }
+# criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "master" }

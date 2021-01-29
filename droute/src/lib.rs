@@ -22,7 +22,7 @@ pub mod error;
 pub mod mock;
 mod router;
 
-use hashbrown::HashSet;
+use std::collections::HashSet;
 
 #[cfg(feature = "serde-cfg")]
 /// This module contains the data structures with serialization supports.

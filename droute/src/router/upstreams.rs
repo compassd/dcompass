@@ -31,7 +31,7 @@ use self::error::{Result, UpstreamError};
 use self::parsed::{ParUpstream, ParUpstreamKind};
 use crate::{Label, Validatable};
 use futures::future::{select_ok, BoxFuture, FutureExt};
-use hashbrown::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use trust_dns_client::op::Message;
 
 /// `Upstream` aggregated, used to create `Router`.

@@ -21,14 +21,13 @@ use super::rule::{
 };
 use crate::Label;
 use async_trait::async_trait;
-use hashbrown::HashSet;
 use serde::{
     de::{Deserializer, Error as _, SeqAccess, Visitor},
     Deserialize,
 };
-use std::marker::PhantomData;
 #[cfg(feature = "geoip")]
 use std::path::PathBuf;
+use std::{collections::HashSet, marker::PhantomData};
 use trust_dns_proto::rr::record_type::RecordType;
 
 /// Trait for structs/enums that can convert themselves to matchers

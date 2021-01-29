@@ -19,23 +19,21 @@ use super::{
 };
 use crate::{Label, MAX_TTL};
 use async_trait::async_trait;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use trust_dns_proto::rr::{rdata::soa::SOA, record_data::RData, resource::Record, Name};
 
 // Data from smartdns. https://github.com/pymumu/smartdns/blob/42b3e98b2a3ca90ea548f8cb5ed19a3da6011b74/src/dns_server.c#L651
-lazy_static! {
-    static ref SOA_RDATA: RData = {
-        RData::SOA(SOA::new(
-            Name::from_utf8("a.gtld-servers.net").unwrap(),
-            Name::from_utf8("nstld.verisign-grs.com").unwrap(),
-            1800,
-            1800,
-            900,
-            604800,
-            86400,
-        ))
-    };
-}
+static SOA_RDATA: Lazy<RData> = Lazy::new(|| {
+    RData::SOA(SOA::new(
+        Name::from_utf8("a.gtld-servers.net").unwrap(),
+        Name::from_utf8("nstld.verisign-grs.com").unwrap(),
+        1800,
+        1800,
+        900,
+        604800,
+        86400,
+    ))
+});
 
 /// An action that sends back the message that may refrain the sender to continue to query.
 pub struct Disable;

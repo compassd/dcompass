@@ -14,10 +14,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{super::super::State, IpTarget, MatchError::NoBuiltInDb, Matcher, Result};
-use hashbrown::HashSet;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
-use std::{net::IpAddr, path::PathBuf};
+use std::{collections::HashSet, net::IpAddr, path::PathBuf};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
@@ -89,7 +88,7 @@ impl Matcher for GeoIp {
 #[cfg(test)]
 mod tests {
     use super::{super::Matcher, GeoIp, IpTarget::*, State};
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
     use std::{path::PathBuf, str::FromStr};
     use trust_dns_proto::{
         op::Message,
@@ -97,24 +96,22 @@ mod tests {
     };
 
     // Starting from droute's crate root
-    lazy_static! {
-        static ref PATH: Option<PathBuf> = Some("../data/full.mmdb".into());
-        static ref CNPATH: Option<PathBuf> = Some("../data/cn.mmdb".into());
-        static ref RECORD_NOT_CHINA: Record = {
-            Record::from_rdata(
-                Name::from_str("apple.com").unwrap(),
-                10,
-                RData::A("1.1.1.1".parse().unwrap()),
-            )
-        };
-        static ref RECORD_CHINA: Record = {
-            Record::from_rdata(
-                Name::from_str("baidu.com").unwrap(),
-                10,
-                RData::A("36.152.44.95".parse().unwrap()),
-            )
-        };
-    }
+    static PATH: Lazy<Option<PathBuf>> = Lazy::new(|| Some("../data/full.mmdb".into()));
+    static CNPATH: Lazy<Option<PathBuf>> = Lazy::new(|| Some("../data/cn.mmdb".into()));
+    static RECORD_NOT_CHINA: Lazy<Record> = Lazy::new(|| {
+        Record::from_rdata(
+            Name::from_str("apple.com").unwrap(),
+            10,
+            RData::A("1.1.1.1".parse().unwrap()),
+        )
+    });
+    static RECORD_CHINA: Lazy<Record> = Lazy::new(|| {
+        Record::from_rdata(
+            Name::from_str("baidu.com").unwrap(),
+            10,
+            RData::A("36.152.44.95".parse().unwrap()),
+        )
+    });
 
     fn create_state(v: Vec<Record>) -> State {
         State {
@@ -137,7 +134,7 @@ mod tests {
                 Some(include_bytes!("../../../../../../data/full.mmdb").to_vec())
             )
             .unwrap()
-            .matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
+            .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
             false
         )
     }
@@ -148,7 +145,7 @@ mod tests {
             GeoIp::new(
                 Src,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*CNPATH).clone(),
+                (CNPATH).clone(),
                 None
             )
             .unwrap()
@@ -167,7 +164,7 @@ mod tests {
             GeoIp::new(
                 Src,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
@@ -186,7 +183,7 @@ mod tests {
             GeoIp::new(
                 Src,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
@@ -204,7 +201,7 @@ mod tests {
             GeoIp::new(
                 Src,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
@@ -219,11 +216,11 @@ mod tests {
             GeoIp::new(
                 Resp,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
-            .matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
+            .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
             false
         )
     }
@@ -235,16 +232,16 @@ mod tests {
             vec!["CN".to_string(), "AU".to_string()]
                 .into_iter()
                 .collect(),
-            (*PATH).clone(),
+            (PATH).clone(),
             None,
         )
         .unwrap();
         assert_eq!(
-            geoip.matches(&create_state(vec![(*RECORD_CHINA).clone()])),
+            geoip.matches(&create_state(vec![(RECORD_CHINA).clone()])),
             true
         );
         assert_eq!(
-            geoip.matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
+            geoip.matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
             true
         )
     }
@@ -255,7 +252,7 @@ mod tests {
             GeoIp::new(
                 Resp,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
@@ -270,11 +267,11 @@ mod tests {
             GeoIp::new(
                 Resp,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
-            .matches(&create_state(vec![(*RECORD_CHINA).clone()])),
+            .matches(&create_state(vec![(RECORD_CHINA).clone()])),
             true
         )
     }
@@ -285,13 +282,13 @@ mod tests {
             GeoIp::new(
                 Resp,
                 vec!["CN".to_string()].into_iter().collect(),
-                (*PATH).clone(),
+                (PATH).clone(),
                 None
             )
             .unwrap()
             .matches(&create_state(vec![
-                (*RECORD_CHINA).clone(),
-                (*RECORD_NOT_CHINA).clone(),
+                (RECORD_CHINA).clone(),
+                (RECORD_NOT_CHINA).clone(),
                 Record::from_rdata(
                     Name::from_str("baidu.com").unwrap(),
                     10,

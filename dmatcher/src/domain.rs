@@ -29,8 +29,7 @@
 //! assert_eq!(matcher.matches("store.apple.com"), true);
 //! ```
 
-use hashbrown::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, PartialEq, Clone)]
 struct LevelNode {
@@ -125,8 +124,7 @@ impl Domain {
 #[cfg(test)]
 mod tests {
     use super::{Domain, LevelNode};
-    use hashbrown::HashMap;
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     #[test]
     fn matches() {

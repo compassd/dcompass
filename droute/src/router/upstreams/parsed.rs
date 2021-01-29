@@ -24,9 +24,8 @@ use super::{
 };
 use crate::Label;
 use async_trait::async_trait;
-use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, time::Duration};
 
 /// A trait to help you to setup a customized upstream kind.
 #[async_trait]

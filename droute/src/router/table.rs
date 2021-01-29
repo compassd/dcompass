@@ -21,11 +21,13 @@ pub mod rule;
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
 use crate::{Label, Validatable};
-use hashbrown::{HashMap, HashSet};
 use log::*;
 #[cfg(feature = "serde-cfg")]
 use parsed::{ParAction, ParMatcher, ParRule};
-use std::net::SocketAddr;
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 use thiserror::Error;
 use trust_dns_client::op::Message;
 
