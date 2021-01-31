@@ -85,14 +85,6 @@ jobs:
       if: contains(matrix.target, 'arm')
       run: sudo apt-get install binutils-arm-linux-gnueabihf
 
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
@@ -105,9 +97,19 @@ jobs:
         version: latest
         use-tool-cache: true
 
+    - name: Cargo update
+      run: cargo update
+
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Build full
       run: |
-        cargo update
         cross build --manifest-path ./dcompass/Cargo.toml --release --locked --target ${{ matrix.target }} --features "geoip-maxmind"
         if [[ "${{ matrix.target }}" == *"windows"* ]]
         then
