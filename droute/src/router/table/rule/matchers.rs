@@ -27,24 +27,11 @@ pub use self::{any::Any, domain::Domain, ipcidr::IpCidr, qtype::QType};
 use super::super::State;
 #[cfg(feature = "geoip")]
 use maxminddb::MaxMindDBError;
-#[cfg(feature = "serde-cfg")]
-use serde::Deserialize;
 use std::fmt::Debug;
 use thiserror::Error;
 
 /// A shorthand for returning action error.
 pub type Result<T> = std::result::Result<T, MatchError>;
-
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[derive(Clone, Eq, PartialEq)]
-/// Target for IP to match on
-pub enum IpTarget {
-    /// Match on the IP of the query sender.
-    Src,
-    /// Match on the response.
-    Resp,
-}
 
 #[derive(Error, Debug)]
 /// All possible errors that may incur when using matchers.

@@ -22,7 +22,6 @@ table:
 - tag: check_secure
   if:
     geoip:
-      on: resp
       codes:
         - CN
   else:

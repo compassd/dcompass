@@ -22,7 +22,7 @@ pub mod matchers;
 
 use self::{actions::Action, matchers::Matcher};
 #[cfg(feature = "serde-cfg")]
-use super::parsed::{ParAction, ParMatcher, ParRule};
+use super::parsed::{ParActionTrait, ParMatcherTrait, ParRule};
 use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
 use log::*;
@@ -59,7 +59,7 @@ impl Rule {
     // Shall not be used by end-users. visible under `Router`.
     #[cfg(feature = "serde-cfg")]
     pub(in super::super) async fn parse(
-        rules: ParRule<impl ParMatcher, impl ParAction>,
+        rules: ParRule<impl ParMatcherTrait, impl ParActionTrait>,
     ) -> Result<Self> {
         let matcher = rules.matcher.build().await?;
         let on_match = rules.on_match.build().await?;

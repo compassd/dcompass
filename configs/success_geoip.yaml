@@ -7,7 +7,6 @@ table:
   if:
     geoip:
       path: ../data/full.mmdb
-      on: src
       codes:
         - CN
   then:

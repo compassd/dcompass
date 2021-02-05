@@ -23,11 +23,8 @@ use super::upstreams::Upstreams;
 use crate::{Label, Validatable};
 use log::*;
 #[cfg(feature = "serde-cfg")]
-use parsed::{ParAction, ParMatcher, ParRule};
-use std::{
-    collections::{HashMap, HashSet},
-    net::SocketAddr,
-};
+use parsed::{ParActionTrait, ParMatcherTrait, ParRule};
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 use trust_dns_client::op::Message;
 
@@ -67,7 +64,6 @@ pub enum TableError {
 pub struct State {
     resp: Message,
     query: Message,
-    src: Option<SocketAddr>,
 }
 
 // Traverse and validate the routing table.
@@ -149,7 +145,7 @@ impl Table {
     // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
     #[cfg(feature = "serde-cfg")]
     pub(super) async fn parse(
-        parsed_rules: Vec<ParRule<impl ParMatcher, impl ParAction>>,
+        parsed_rules: Vec<ParRule<impl ParMatcherTrait, impl ParActionTrait>>,
     ) -> Result<Self> {
         let mut rules = Vec::new();
         for r in parsed_rules {
@@ -164,15 +160,9 @@ impl Table {
     }
 
     // Not intended to be used by end-users
-    pub(super) async fn route(
-        &self,
-        src: Option<SocketAddr>,
-        query: Message,
-        upstreams: &Upstreams,
-    ) -> Result<Message> {
+    pub(super) async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
         let name = query.queries().iter().next().unwrap().name().to_utf8();
         let mut s = State {
-            src,
             query,
             ..Default::default()
         };

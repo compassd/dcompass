@@ -17,13 +17,12 @@ use async_trait::async_trait;
 use droute::{
     matchers::*,
     parsed::{
-        DefParAction, DefParUpstreamKind, ParGeoIp, ParIpCidr, ParMatcher, ParRule, ParUpstream,
+        BuiltinParAction, DefParUpstreamKind, ParMatcher, ParMatcherTrait, ParRule, ParUpstream,
     },
 };
 use log::LevelFilter;
 use serde::Deserialize;
-use std::{collections::HashSet, net::SocketAddr};
-use trust_dns_proto::rr::record_type::RecordType;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
 
 pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;
 
@@ -41,40 +40,49 @@ enum LevelFilterDef {
 
 #[derive(Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum MyParMatcher {
-    Any,
-    Domain(Vec<String>),
-    QType(HashSet<RecordType>),
-    GeoIp(ParGeoIp),
-    IpCidr(ParIpCidr),
+#[serde(deny_unknown_fields)]
+pub enum MyGeoIp {
+    GeoIp {
+        codes: HashSet<String>,
+        #[serde(default = "default_geoip_path")]
+        path: Option<PathBuf>,
+    },
+}
+
+fn default_geoip_path() -> Option<PathBuf> {
+    None
 }
 
 #[async_trait]
-impl ParMatcher for MyParMatcher {
+impl ParMatcherTrait for MyGeoIp {
     async fn build(self) -> Result<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Any => Box::new(Any::default()),
-            Self::Domain(v) => Box::new(Domain::new(v).await?),
-            Self::QType(types) => Box::new(QType::new(types)?),
-            Self::IpCidr(s) => Box::new(IpCidr::new(s.on, s.path).await?),
-            Self::GeoIp(s) => Box::new(GeoIp::new(s.on, s.codes, s.path, get_builtin_db())?),
+            Self::GeoIp { codes, path } => Box::new(GeoIp::new(
+                codes,
+                if let Some(p) = path {
+                    tokio::fs::read(p).await?
+                } else {
+                    get_builtin_db()?
+                },
+            )?),
         })
     }
 }
 
-fn get_builtin_db() -> Option<Vec<u8>> {
+// If both geoip-maxmind and geoip-cn are enabled, geoip-maxmind will be used
+fn get_builtin_db() -> Result<Vec<u8>> {
     #[cfg(feature = "geoip-maxmind")]
-    return Some(include_bytes!("../../data/full.mmdb").to_vec());
+    return Ok(include_bytes!("../../data/full.mmdb").to_vec());
     #[cfg(all(feature = "geoip-cn", not(feature = "geoip-maxmind")))]
-    return Some(include_bytes!("../../data/cn.mmdb").to_vec());
+    return Ok(include_bytes!("../../data/cn.mmdb").to_vec());
     #[cfg(not(any(feature = "geoip-cn", feature = "geoip-maxmind")))]
-    None
+    Err(MatchError::NoBuiltInDb)
 }
 
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
-    pub table: Vec<ParRule<MyParMatcher, DefParAction>>,
+    pub table: Vec<ParRule<ParMatcher<MyGeoIp>, BuiltinParAction>>,
     pub upstreams: Vec<ParUpstream<DefParUpstreamKind>>,
     pub address: SocketAddr,
     pub cache_size: usize,

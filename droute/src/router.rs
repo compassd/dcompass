@@ -20,7 +20,7 @@ pub mod upstreams;
 
 #[cfg(feature = "serde-cfg")]
 use self::{
-    table::parsed::{ParAction, ParMatcher, ParRule},
+    table::parsed::{ParActionTrait, ParMatcherTrait, ParRule},
     upstreams::parsed::{ParUpstream, ParUpstreamKind},
 };
 use self::{table::Table, upstreams::Upstreams};
@@ -29,7 +29,7 @@ use crate::{
     Label, Validatable,
 };
 use log::warn;
-use std::{collections::HashSet, net::SocketAddr};
+use std::collections::HashSet;
 use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.
@@ -59,7 +59,7 @@ impl Router {
     #[cfg(feature = "serde-cfg")]
     pub async fn parse(
         cache_size: usize,
-        rules: Vec<ParRule<impl ParMatcher, impl ParAction>>,
+        rules: Vec<ParRule<impl ParMatcherTrait, impl ParActionTrait>>,
         upstreams: Vec<ParUpstream<impl ParUpstreamKind>>,
     ) -> Result<Self> {
         let table = Table::parse(rules).await?;
@@ -70,12 +70,12 @@ impl Router {
     /// Validate the internal rules defined. This is automatically performed by `new` method.
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, src: Option<SocketAddr>, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, msg: Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.
         if !msg.queries().is_empty() {
-            Ok(match self.table.route(src, msg, &self.upstreams).await {
+            Ok(match self.table.route(msg, &self.upstreams).await {
                 Ok(m) => m,
                 Err(e) => {
                     // Catch all server failure here and return server fail

@@ -6,9 +6,7 @@ table:
 - tag: start
   if:
     ipcidr:
-      path:
         - ../data/ipcn.txt
-      on: src
   then:
   - query: domestic
   - end

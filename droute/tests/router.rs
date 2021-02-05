@@ -80,13 +80,13 @@ async fn test_resolve() {
     .unwrap();
 
     assert_eq!(
-        router.resolve(None, QUERY.clone()).await.unwrap().answers(),
+        router.resolve(QUERY.clone()).await.unwrap().answers(),
         DUMMY_MSG.answers()
     );
 
     // Shall not accept messages with no queries.
     assert_eq!(
-        router.resolve(None, Message::new()).await.unwrap(),
+        router.resolve(Message::new()).await.unwrap(),
         Message::error_msg(0, OpCode::Query, ResponseCode::ServFail)
     );
 }

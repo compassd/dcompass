@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, IpTarget, Matcher, Result};
+use super::{super::super::State, Matcher, Result};
 use cidr_utils::{
     cidr::{IpCidr as Cidr, IpCidrError},
     utils::IpCidrCombiner as CidrCombiner,
@@ -22,18 +22,17 @@ use std::net::IpAddr;
 use tokio::{fs::File, io::AsyncReadExt};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
-/// A matcher that matches the IP on src or dst as specified.
+/// A matcher that matches the IP on dst.
 pub struct IpCidr {
     matcher: CidrCombiner,
-    on: IpTarget,
 }
 
 impl IpCidr {
     /// Create a new `IpCidr` matcher from a list of files where each IP CIDR is seperated from one another by `\n`.
-    pub async fn new(on: IpTarget, p: Vec<String>) -> Result<Self> {
+    pub async fn new(path: Vec<String>) -> Result<Self> {
         Ok({
             let mut matcher = CidrCombiner::new();
-            for r in p {
+            for r in path {
                 let mut file = File::open(r).await?;
                 let mut data = String::new();
                 file.read_to_string(&mut data).await?;
@@ -43,26 +42,24 @@ impl IpCidr {
                         Ok(())
                     })?;
             }
-            Self { matcher, on }
+            Self { matcher }
         })
     }
 }
 
 impl Matcher for IpCidr {
     fn matches(&self, state: &State) -> bool {
-        if let Some(ip) = match self.on {
-            IpTarget::Src => state.src.map(|i| i.ip()),
-            IpTarget::Resp => state
-                .resp
-                .answers()
-                .iter()
-                .find(|&r| matches!(r.rdata(), A(_) | AAAA(_)))
-                .map(|r| match *r.rdata() {
-                    A(addr) => IpAddr::V4(addr),
-                    AAAA(addr) => IpAddr::V6(addr),
-                    _ => unreachable!(),
-                }),
-        } {
+        if let Some(ip) = state
+            .resp
+            .answers()
+            .iter()
+            .find(|&r| matches!(r.rdata(), A(_) | AAAA(_)))
+            .map(|r| match *r.rdata() {
+                A(addr) => IpAddr::V4(addr),
+                AAAA(addr) => IpAddr::V6(addr),
+                _ => unreachable!(),
+            })
+        {
             self.matcher.contains(ip)
         } else {
             false
@@ -73,7 +70,7 @@ impl Matcher for IpCidr {
 #[cfg(test)]
 mod tests {
     use super::{
-        super::{IpTarget::*, Matcher, State},
+        super::{Matcher, State},
         IpCidr,
     };
     use once_cell::sync::Lazy;
@@ -111,12 +108,9 @@ mod tests {
 
     #[tokio::test]
     async fn test() {
-        let matcher = IpCidr::new(
-            Resp,
-            vec!["../data/ipcn.txt".to_string()].into_iter().collect(),
-        )
-        .await
-        .unwrap();
+        let matcher = IpCidr::new(vec!["../data/ipcn.txt".to_string()].into_iter().collect())
+            .await
+            .unwrap();
         assert_eq!(
             matcher.matches(&create_state(vec![(*RECORD_CHINA).clone()])),
             true
