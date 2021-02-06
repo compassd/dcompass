@@ -9,22 +9,21 @@
   };
 
   outputs = { nixpkgs, rust-overlay, utils, naersk, ... }:
+    with nixpkgs.lib;
     utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages."${system}";
         naersk-lib = naersk.lib."${system}";
         features = [ "geoip-maxmind" "geoip-cn" ];
         forEachFeature = f:
-          (with nixpkgs.lib;
-            (builtins.listToAttrs (map (v:
-              attrsets.nameValuePair
-              "dcompass-${strings.removePrefix "geoip-" v}"
-              (f (strings.removePrefix "geoip-" v))) features)));
+          ((builtins.listToAttrs (map (v:
+            attrsets.nameValuePair "dcompass-${strings.removePrefix "geoip-" v}"
+            (f v)) features)));
       in rec {
         # `nix build`
         packages = (forEachFeature (v:
           naersk-lib.buildPackage {
-            name = "dcompass-${v}";
+            name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
             root = ./.;
             cargoBuildOptions = default:
@@ -36,8 +35,10 @@
         defaultPackage = packages.dcompass-maxmind;
 
         # `nix run`
-        apps = (forEachFeature
-          (v: utils.lib.mkApp { drv = packages."dcompass-${v}"; }));
+        apps = (forEachFeature (v:
+          utils.lib.mkApp {
+            drv = packages."dcompass-${strings.removePrefix "geoip-" v}";
+          }));
         defaultApp = apps.dcompass-maxmind;
 
         # `nix develop`
