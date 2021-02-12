@@ -36,11 +36,13 @@ impl IpCidr {
                 let mut file = File::open(r).await?;
                 let mut data = String::new();
                 file.read_to_string(&mut data).await?;
-                data.split('\n')
-                    .try_for_each(|x| -> std::result::Result<(), IpCidrError> {
+                // This gets rid of empty substrings for stability reasons. See also https://github.com/LEXUGE/dcompass/issues/33.
+                data.split('\n').filter(|&x| !x.is_empty()).try_for_each(
+                    |x| -> std::result::Result<(), IpCidrError> {
                         matcher.push(Cidr::from_str(x)?);
                         Ok(())
-                    })?;
+                    },
+                )?;
             }
             Self { matcher }
         })
@@ -104,6 +106,18 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn newline_terminator_test() {
+        // https://github.com/LEXUGE/dcompass/issues/33
+        IpCidr::new(
+            vec!["../data/ipcidr-test.txt".to_string()]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

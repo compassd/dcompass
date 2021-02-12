@@ -71,7 +71,11 @@ impl Domain {
 
     /// Pass in a string containing `\n` and get all domains inserted.
     pub fn insert_multi(&mut self, domain: &str) {
-        domain.split('\n').for_each(|lv| self.insert(lv));
+        // This gets rid of empty substrings for stability reasons. See also https://github.com/LEXUGE/dcompass/issues/33.
+        domain
+            .split('\n')
+            .filter(|&x| !x.is_empty())
+            .for_each(|lv| self.insert(lv));
     }
 
     /// Pass in a domain and insert it into the matcher.
@@ -131,6 +135,16 @@ mod tests {
         let mut matcher = Domain::new();
         matcher.insert("apple.com");
         matcher.insert("apple.cn");
+        assert_eq!(matcher.matches("store.apple.com"), true);
+        assert_eq!(matcher.matches("store.apple.com."), true);
+        assert_eq!(matcher.matches("baidu.com"), false);
+        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
+    }
+
+    #[test]
+    fn insert_multi() {
+        let mut matcher = Domain::new();
+        matcher.insert_multi("apple.com\n\napple.cn");
         assert_eq!(matcher.matches("store.apple.com"), true);
         assert_eq!(matcher.matches("store.apple.com."), true);
         assert_eq!(matcher.matches("baidu.com"), false);
