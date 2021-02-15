@@ -6,7 +6,7 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 # Why Do I Ever Need It?
 Imagine you are living in a county where your ISP constantly hijacks your DNS requests and responses.  
 There are solutions like DNS-over-HTTPS or DNS-over-TLS. You can use software like [CoreDNS](https://coredns.io) or stubby, but they don't simply solve the problem as only using DoT/DoH is slower in most cases.  
-In order to concurrently query and not be trapped by ISP, you then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone have their own story, those preset rules don't fit all at once.  
+In order to concurrently query and not be trapped by ISP, you then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone has their own story, those preset rules don't fit all at once.  
 What's even worse is that you probably want to have DNS-level ad-blocking functionality, do you really want to add another layer of AdGuard Home? Can you do all of these at once?  
 Indeed, you can. `dcompass` gives you full-freedom in matching and handling every DNS requests via custom routing table, and also finely-grained control over usages of upstreams.  
 
@@ -38,7 +38,23 @@ dcompass -c path/to/config.json -v
 # Packages
 You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases).
 1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has three different versions, namely `full`, `cn`, `min`. `full` version includes the full maxmind GeoIP2 database, while `cn` includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only. `min` includes no database at all.
-2. NixOS package is available at [here](https://github.com/icebox-nix/netkit.nix). Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+2. NixOS package is available at this repo as a flake. Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+```
+└───packages
+    ├───aarch64-linux
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    ├───i686-linux
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    ├───x86_64-darwin
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    └───x86_64-linux
+        ├───dcompass-cn: package 'dcompass-cn-git'
+        └───dcompass-maxmind: package 'dcompass-maxmind-git'
+```
+cache is available at [cachix](https://dcompass.cachix.org), with public key `dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=` (`outputs.publicKey`).
 
 # Quickstart
 See [example.yaml](configs/example.yaml)
@@ -59,8 +75,8 @@ Different matchers: (More matchers to come)
 - `any`: Matches anything.
 - `domain(list of file paths)`: Matches domain in specified domain lists
 - `qtype(list of record types)`: Matches record type specified.
-- `geoip(on: resp or src, codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
-- `ipcidr(on: resp or src, list: list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR.
+- `geoip(codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
+- `ipcidr(list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR.
 
 Different querying methods:
 - `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
@@ -82,7 +98,6 @@ table:
 - tag: check_secure
   if:
     geoip:
-      on: resp
       codes:
         - CN
   else:
