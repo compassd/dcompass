@@ -22,6 +22,7 @@
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
             root = ./.;
+            passthru.exePath = "/bin/dcompass";
             cargoBuildOptions = default:
               (default ++ [
                 "--manifest-path ./dcompass/Cargo.toml"
