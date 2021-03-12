@@ -9,7 +9,7 @@ table:
       - AAAA
   then:
   # A list of actions is allowed here
-  - disable
+  - blackhole
   # The next tag to go
   - end
   else:
