@@ -66,6 +66,16 @@ async fn check_success_rule() {
 }
 
 #[tokio::test]
+async fn check_success_query_cache_mode() {
+    assert_eq!(
+        init(serde_yaml::from_str(include_str!("../../configs/query_cache_policy.yaml")).unwrap())
+            .await
+            .is_ok(),
+        true
+    );
+}
+
+#[tokio::test]
 async fn check_success_geoip() {
     assert_eq!(
         init(serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap())

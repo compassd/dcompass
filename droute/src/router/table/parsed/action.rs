@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::super::rule::actions::{Action, Disable, Query, Result as ActionResult};
+use super::super::rule::actions::{Action, Blackhole, CacheMode, Query, Result as ActionResult};
 use crate::Label;
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 /// Trait for structs/enums that can convert themselves to actions.
 #[async_trait]
@@ -32,10 +32,36 @@ pub trait ParActionTrait: Send {
 #[derive(Clone, Deserialize)]
 pub enum BuiltinParAction {
     /// Set response to a message that "disables" requestor to retry.
-    Disable,
+    Blackhole,
 
     /// Send query through an upstream with the specified tag name.
-    Query(Label),
+    #[serde(deserialize_with = "de_query")]
+    Query(Label, CacheMode),
+}
+
+// Deserialize either a tag with default policy or a tag with a policy for query.
+fn de_query<'de, D>(deserializer: D) -> Result<(Label, CacheMode), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[serde(rename_all = "lowercase")]
+    #[derive(Clone, Deserialize)]
+    struct ExplicitQuery {
+        tag: Label,
+        cache_policy: CacheMode,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Either {
+        Explicit(ExplicitQuery),
+        Default(Label),
+    }
+
+    Ok(match Either::deserialize(deserializer)? {
+        Either::Explicit(ExplicitQuery { tag, cache_policy }) => (tag, cache_policy),
+        Either::Default(t) => (t, CacheMode::default()),
+    })
 }
 
 #[async_trait]
@@ -43,8 +69,8 @@ impl ParActionTrait for BuiltinParAction {
     // Should only be accessible from `Rule`.
     async fn build(self) -> ActionResult<Box<dyn Action>> {
         Ok(match self {
-            Self::Disable => Box::new(Disable::default()),
-            Self::Query(t) => Box::new(Query::new(t)),
+            Self::Blackhole => Box::new(Blackhole::default()),
+            Self::Query(t, m) => Box::new(Query::new(t, m)),
         })
     }
 }

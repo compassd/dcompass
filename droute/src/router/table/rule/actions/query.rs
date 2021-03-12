@@ -19,23 +19,47 @@ use super::{
 };
 use crate::Label;
 use async_trait::async_trait;
+#[cfg(feature = "serde-cfg")]
+use serde::Deserialize;
+
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[derive(Clone)]
+/// Cache Policy per query. this only affect the cache results adoption, and it will NOT change the cache results storing behaviors.
+pub enum CacheMode {
+    /// Do not use any cached result
+    Disabled,
+    /// Use cache records within the TTL
+    Standard,
+    /// Use cache results regardless of the time elapsed, and update the results on need.
+    Persistent,
+}
+
+impl Default for CacheMode {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
 
 /// An action that send the query to an `Upstream` named with `tag`.
 pub struct Query {
     tag: Label,
+    cache_mode: CacheMode,
 }
 
 impl Query {
     /// Create a `Query` action with its associated upstream tag.
-    pub fn new(tag: Label) -> Self {
-        Self { tag }
+    pub fn new(tag: Label, cache_mode: CacheMode) -> Self {
+        Self { tag, cache_mode }
     }
 }
 
 #[async_trait]
 impl Action for Query {
     async fn act(&self, state: &mut State, upstreams: &Upstreams) -> Result<()> {
-        state.resp = upstreams.resolve(&self.tag, &state.query).await?;
+        state.resp = upstreams
+            .resolve(&self.tag, &self.cache_mode, &state.query)
+            .await?;
         Ok(())
     }
 

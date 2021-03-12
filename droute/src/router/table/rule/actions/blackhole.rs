@@ -36,9 +36,9 @@ static SOA_RDATA: Lazy<RData> = Lazy::new(|| {
 });
 
 /// An action that sends back the message that may refrain the sender to continue to query.
-pub struct Disable;
+pub struct Blackhole;
 
-impl Default for Disable {
+impl Default for Blackhole {
     /// Create a default `Disable` action.
     fn default() -> Self {
         Self
@@ -46,7 +46,7 @@ impl Default for Disable {
 }
 
 #[async_trait]
-impl Action for Disable {
+impl Action for Blackhole {
     async fn act(&self, state: &mut State, _: &Upstreams) -> Result<()> {
         // unwrap should be safe here cause router will ensure the number of the queries is larger than zero.
         let r = Record::from_rdata(

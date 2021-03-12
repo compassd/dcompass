@@ -185,7 +185,7 @@ impl Table {
 mod tests {
     use super::{
         rule::{
-            actions::Query,
+            actions::{CacheMode, Query},
             matchers::{Any, Domain},
             Rule,
         },
@@ -218,7 +218,10 @@ mod tests {
         match Table::new(vec![Rule::new(
             "start".into(),
             Box::new(Any::default()),
-            (vec![Box::new(Query::new("mock".into()))], "end".into()),
+            (
+                vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
+                "end".into(),
+            ),
             (vec![], "start".into()),
         )])
         .err()
@@ -259,7 +262,10 @@ mod tests {
             Rule::new(
                 "start".into(),
                 Box::new(Any::default()),
-                (vec![Box::new(Query::new("mock".into()))], "end".into()),
+                (
+                    vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
+                    "end".into(),
+                ),
                 (vec![], "end".into()),
             ),
             Rule::new(
@@ -300,9 +306,15 @@ mod tests {
                     .await
                     .unwrap(),
             ),
-            (vec![Box::new(Query::new("mock".into()))], "end".into()),
             (
-                vec![Box::new(Query::new("another_mock".into()))],
+                vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
+                "end".into(),
+            ),
+            (
+                vec![Box::new(Query::new(
+                    "another_mock".into(),
+                    CacheMode::default(),
+                ))],
                 "end".into(),
             ),
         )])

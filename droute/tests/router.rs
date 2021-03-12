@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use droute::{
-    actions::Query as ActQuery,
+    actions::{CacheMode, Query as ActQuery},
     client_pool::{DefClientPool, Udp},
     matchers::Any,
     mock::Server,
@@ -59,7 +59,10 @@ async fn test_resolve() {
         Table::new(vec![Rule::new(
             "start".into(),
             Box::new(Any::default()),
-            (vec![Box::new(ActQuery::new("mock".into()))], "end".into()),
+            (
+                vec![Box::new(ActQuery::new("mock".into(), CacheMode::default()))],
+                "end".into(),
+            ),
             (vec![], "end".into()),
         )])
         .unwrap(),

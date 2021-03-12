@@ -16,6 +16,7 @@
 #[cfg(feature = "serde-cfg")]
 use super::parsed::{ParUpstream, ParUpstreamKind};
 use super::{
+    super::table::rule::actions::CacheMode,
     client_pool::{ClientPool, ClientState::*},
     error::Result,
     resp_cache::{RecordStatus::*, RespCache},
@@ -106,20 +107,29 @@ impl Upstream {
     }
 
     /// Resolve the query into a response.
-    pub async fn resolve(&self, msg: &Message) -> Result<Message> {
+    pub async fn resolve(&self, cache_mode: &CacheMode, msg: &Message) -> Result<Message> {
         let id = msg.id();
 
-        // Check if cache exists
-        let mut r = match self.cache.get(&msg) {
-            // Cache available within TTL constraints
-            Some(Alive(r)) => r,
-            Some(Expired(r)) => {
-                // Cache records exists, but TTL exceeded.
-                // We try to update the cache and return back the outdated value.
-                tokio::spawn(Self::query(self.clone(), msg.clone()));
-                r
-            }
-            None => Self::query(self, msg.clone()).await?,
+        // Manage cache with caching policies
+        let mut r = match cache_mode {
+            CacheMode::Disabled => Self::query(self, msg.clone()).await?,
+            CacheMode::Standard => match self.cache.get(&msg) {
+                // Cache available within TTL constraints
+                Some(Alive(r)) => r,
+                // No cache or cache expired
+                Some(Expired(_)) | None => Self::query(self, msg.clone()).await?,
+            },
+            CacheMode::Persistent => match self.cache.get(&msg) {
+                // Cache available within TTL constraints
+                Some(Alive(r)) => r,
+                Some(Expired(r)) => {
+                    // Cache records exists, but TTL exceeded.
+                    // We try to update the cache and return back the outdated value.
+                    tokio::spawn(Self::query(self.clone(), msg.clone()));
+                    r
+                }
+                None => Self::query(self, msg.clone()).await?,
+            },
         };
         r.set_id(id);
         Ok(r)

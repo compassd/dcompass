@@ -17,7 +17,7 @@
 // Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
 use droute::{
-    actions::Query as ActQuery,
+    actions::{CacheMode, Query as ActQuery},
     client_pool::{DefClientPool, Udp},
     matchers::Any,
     mock::Server,
@@ -56,7 +56,10 @@ async fn create_router(c: usize) -> Router {
         Table::new(vec![Rule::new(
             "start".into(),
             Box::new(Any::default()),
-            (vec![Box::new(ActQuery::new("mock".into()))], "end".into()),
+            (
+                vec![Box::new(ActQuery::new("mock".into(), CacheMode::default()))],
+                "end".into(),
+            ),
             (vec![], "end".into()),
         )])
         .unwrap(),

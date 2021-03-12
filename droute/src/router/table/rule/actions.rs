@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-mod disable;
+mod blackhole;
 mod query;
 
-pub use self::{disable::Disable, query::Query};
+pub use self::{
+    blackhole::Blackhole,
+    query::{CacheMode, Query},
+};
 
 use super::super::{
     super::upstreams::{error::UpstreamError, Upstreams},

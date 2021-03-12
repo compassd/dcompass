@@ -29,7 +29,7 @@ pub use upstream::*;
 use self::error::{Result, UpstreamError};
 #[cfg(feature = "serde-cfg")]
 use self::parsed::{ParUpstream, ParUpstreamKind};
-use crate::{Label, Validatable};
+use crate::{actions::CacheMode, Label, Validatable};
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use std::collections::{HashMap, HashSet};
 use trust_dns_client::op::Message;
@@ -134,16 +134,17 @@ impl Upstreams {
     pub(super) fn resolve<'a>(
         &'a self,
         tag: &'a Label,
+        cache_mode: &'a CacheMode,
         msg: &'a Message,
     ) -> BoxFuture<'a, Result<Message>> {
         async move {
             let u = self.upstreams.get(tag).unwrap();
             Ok(if let Some(v) = u.try_hybrid() {
-                let v = v.iter().map(|t| self.resolve(t, msg));
+                let v = v.iter().map(|t| self.resolve(t, cache_mode, msg));
                 let (r, _) = select_ok(v.clone()).await?;
                 r
             } else {
-                u.resolve(msg).await?
+                u.resolve(cache_mode, msg).await?
             })
         }
         .boxed()
