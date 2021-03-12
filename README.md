@@ -68,8 +68,8 @@ Configuration file contains different fields:
 - `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
 
 Different actions:
-- `disable`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
-- `query(tag)`: Send query via upstream with specified tag.
+- `blackhole`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
+- `query(tag, cache policy)`: Send query via upstream with specified tag. Configure cache policy with one of the three levels: `disabled`, `standard`, `persistent`. See also [example](configs/query_cache_policy.yaml).
 
 Different matchers: (More matchers to come)
 - `any`: Matches anything.
