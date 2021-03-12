@@ -29,7 +29,7 @@ pub use upstream::*;
 use self::error::{Result, UpstreamError};
 #[cfg(feature = "serde-cfg")]
 use self::parsed::{ParUpstream, ParUpstreamKind};
-use crate::{actions::CacheMode, Label, Validatable};
+use crate::{actions::CacheMode, Label, Validatable, ValidateCell};
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use std::collections::{HashMap, HashSet};
 use trust_dns_client::op::Message;
@@ -42,16 +42,25 @@ pub struct Upstreams {
 impl Validatable for Upstreams {
     type Error = UpstreamError;
     fn validate(&self, used: Option<&HashSet<Label>>) -> Result<()> {
-        let mut keys = self.upstreams.keys().collect::<HashSet<&Label>>();
+        // A bucket used to count the time each rule being used.
+        let mut bucket: HashMap<&Label, (ValidateCell, &Upstream)> = self
+            .upstreams
+            .iter()
+            .map(|(k, v)| (k, (ValidateCell::default(), v)))
+            .collect();
         for tag in used.unwrap_or(&HashSet::new()) {
-            self.traverse(tag, &mut HashSet::new(), &mut keys)?
+            Self::traverse(&mut bucket, tag)?
         }
-        if keys.is_empty() {
+        let unused: HashSet<Label> = bucket
+            .into_iter()
+            .filter(|(_, (c, _))| !c.used())
+            .map(|(k, _)| k)
+            .cloned()
+            .collect();
+        if unused.is_empty() {
             Ok(())
         } else {
-            Err(UpstreamError::UnusedUpstreams(
-                keys.into_iter().cloned().collect(),
-            ))
+            Err(UpstreamError::UnusedUpstreams(unused))
         }
     }
 }
@@ -97,35 +106,31 @@ impl Upstreams {
 
     // Check any upstream types
     fn traverse(
-        &self,
+        bucket: &mut HashMap<&Label, (ValidateCell, &Upstream)>,
         tag: &Label,
-        traversed: &mut HashSet<Label>,
-        unused: &mut HashSet<&Label>,
     ) -> Result<()> {
-        if traversed.contains(tag) {
-            return Err(UpstreamError::HybridRecursion(tag.clone()));
+        let (val, u) = if let Some((c, u)) = bucket.get_mut(tag) {
+            (c.val(), u.try_hybrid())
         } else {
-            unused.remove(tag);
-            traversed.insert(tag.clone());
-
-            if let Some(v) = &self
-                .upstreams
-                .get(tag)
-                .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?
-                .try_hybrid()
-            {
-                // Check if it is empty.
+            return Err(UpstreamError::MissingTag(tag.clone()));
+        };
+        if val < &1 {
+            bucket.get_mut(tag).unwrap().0.add(1);
+            // Check if it is empty.
+            if let Some(v) = u {
                 if v.is_empty() {
                     return Err(UpstreamError::EmptyHybrid(tag.clone()));
                 }
 
                 // Check if it is recursively defined.
                 for t in v {
-                    self.traverse(t, traversed, unused)?
+                    Self::traverse(bucket, t)?
                 }
             }
-            traversed.remove(tag);
-        }
+            bucket.get_mut(tag).unwrap().0.sub(1);
+        } else {
+            return Err(UpstreamError::HybridRecursion(tag.clone()));
+        };
         Ok(())
     }
 
@@ -155,7 +160,7 @@ impl Upstreams {
 mod tests {
     use super::{
         client_pool::{DefClientPool, Udp},
-        Upstream, UpstreamKind, Upstreams,
+        Upstream, UpstreamError, UpstreamKind, Upstreams,
     };
     use std::time::Duration;
 
@@ -195,5 +200,45 @@ mod tests {
         ])
         .ok()
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn fail_recursion() {
+        match Upstreams::new(vec![
+            (
+                "udp".into(),
+                Upstream::new(
+                    UpstreamKind::Client {
+                        pool: Box::new(DefClientPool::new(Udp::new(
+                            "127.0.0.1:53533".parse().unwrap(),
+                        ))),
+                        timeout: Duration::from_secs(1),
+                    },
+                    10,
+                ),
+            ),
+            (
+                "hybrid1".into(),
+                Upstream::new(
+                    UpstreamKind::Hybrid(
+                        vec!["udp".into(), "hybrid2".into()].into_iter().collect(),
+                    ),
+                    10,
+                ),
+            ),
+            (
+                "hybrid2".into(),
+                Upstream::new(
+                    UpstreamKind::Hybrid(vec!["hybrid1".into()].into_iter().collect()),
+                    10,
+                ),
+            ),
+        ])
+        .err()
+        .unwrap()
+        {
+            UpstreamError::HybridRecursion(_) => (),
+            e => panic!("Not the right error type: {}", e),
+        }
     }
 }

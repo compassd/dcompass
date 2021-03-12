@@ -54,3 +54,38 @@ pub trait Validatable {
     /// `used`: some of the tags used by other parts, which should be existed.
     fn validate(&self, used: Option<&HashSet<Label>>) -> std::result::Result<(), Self::Error>;
 }
+
+// A cell used for bucket
+struct ValidateCell {
+    pub used: bool,
+    pub value: i32,
+}
+
+impl Default for ValidateCell {
+    fn default() -> Self {
+        Self {
+            used: false,
+            value: 0,
+        }
+    }
+}
+
+impl ValidateCell {
+    pub fn used(&self) -> bool {
+        self.used
+    }
+
+    pub fn val(&self) -> &i32 {
+        &self.value
+    }
+
+    pub fn add(&mut self, rhs: i32) {
+        self.used = true;
+        self.value += rhs;
+    }
+
+    pub fn sub(&mut self, rhs: i32) {
+        self.used = true;
+        self.value -= rhs;
+    }
+}

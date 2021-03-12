@@ -20,7 +20,7 @@ pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::{Label, Validatable};
+use crate::{Label, Validatable, ValidateCell};
 use log::*;
 #[cfg(feature = "serde-cfg")]
 use parsed::{ParActionTrait, ParMatcherTrait, ParRule};
@@ -68,45 +68,29 @@ pub struct State {
 
 // Traverse and validate the routing table.
 fn traverse(
-    // Rule set given
-    rules: &HashMap<Label, Rule>,
-    // Traversed tag names
-    traversed: &mut HashSet<Label>,
-    // The tags of the rules unused until now.
-    unused: &mut HashSet<&Label>,
+    // A bucket to count the time each tag being used.
+    bucket: &mut HashMap<&Label, (ValidateCell, &Rule)>,
     // Tag of the rule that we are currently on.
     tag: &Label,
 ) -> Result<()> {
-    if let Some(r) = rules.get(tag) {
-        if traversed.contains(tag) {
-            Err(TableError::RuleRecursion(tag.clone()))
-        } else {
-            traversed.insert(tag.clone());
-            if r.on_match_next() != &"end".into() {
-                traverse(rules, traversed, unused, r.on_match_next())?;
-            }
-            if r.no_match_next() != &"end".into() {
-                traverse(rules, traversed, unused, r.no_match_next())?;
-            }
-            unused.remove(tag);
-            traversed.remove(tag);
-            Ok(())
-        }
+    // Hacky workaround on the borrow checker.
+    let (val, on_match, no_match) = if let Some((c, r)) = bucket.get_mut(tag) {
+        (c.val(), r.on_match_next(), r.no_match_next())
     } else {
-        Err(TableError::UndefinedTag(tag.clone()))
-    }
-}
-
-impl Validatable for HashMap<Label, Rule> {
-    type Error = TableError;
-    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
-        let mut keys = self.keys().collect::<HashSet<&Label>>();
-        traverse(&self, &mut HashSet::new(), &mut keys, &"start".into())?;
-        if keys.is_empty() {
-            Ok(())
-        } else {
-            Err(TableError::UnusedRules(keys.into_iter().cloned().collect()))
+        return Err(TableError::UndefinedTag(tag.clone()));
+    };
+    if val >= &1 {
+        Err(TableError::RuleRecursion(tag.clone()))
+    } else {
+        bucket.get_mut(tag).unwrap().0.add(1);
+        if on_match != &"end".into() {
+            traverse(bucket, on_match)?;
         }
+        if no_match != &"end".into() {
+            traverse(bucket, no_match)?;
+        }
+        bucket.get_mut(tag).unwrap().0.sub(1);
+        Ok(())
     }
 }
 
@@ -120,7 +104,24 @@ pub struct Table {
 impl Validatable for Table {
     type Error = TableError;
     fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
-        self.rules.validate(None)
+        // A bucket used to count the time each rule being used.
+        let mut bucket: HashMap<&Label, (ValidateCell, &Rule)> = self
+            .rules
+            .iter()
+            .map(|(k, v)| (k, (ValidateCell::default(), v)))
+            .collect();
+        traverse(&mut bucket, &"start".into())?;
+        let unused: HashSet<Label> = bucket
+            .into_iter()
+            .filter(|(_, (c, _))| !c.used())
+            .map(|(k, _)| k)
+            .cloned()
+            .collect();
+        if unused.is_empty() {
+            Ok(())
+        } else {
+            Err(TableError::UnusedRules(unused))
+        }
     }
 }
 
@@ -134,8 +135,26 @@ impl Table {
                 None => table.insert(r.tag().clone(), r),
             };
         }
-        table.validate(None)?;
-        let used_upstreams = table.iter().flat_map(|(_, v)| v.used_upstreams()).collect();
+        // A bucket used to count the time each rule being used.
+        let mut bucket: HashMap<&Label, (ValidateCell, &Rule)> = table
+            .iter()
+            .map(|(k, v)| (k, (ValidateCell::default(), v)))
+            .collect();
+        traverse(&mut bucket, &"start".into())?;
+        let used_upstreams = bucket
+            .iter()
+            .filter(|(_, (c, _))| c.used())
+            .flat_map(|(_, (_, v))| v.used_upstreams())
+            .collect();
+        let unused: HashSet<Label> = bucket
+            .into_iter()
+            .filter(|(_, (c, _))| !c.used())
+            .map(|(k, _)| k)
+            .cloned()
+            .collect();
+        if !unused.is_empty() {
+            return Err(TableError::UnusedRules(unused));
+        }
         Ok(Self {
             rules: table,
             used_upstreams,
