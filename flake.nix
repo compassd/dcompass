@@ -38,7 +38,15 @@
       checks = packages;
 
       # `nix run`
-      apps = (forEachFeature (v:
+      apps = {
+        commit = (import ./commit.nix {
+          lib = utils.lib;
+          pkgs = import nixpkgs {
+            system = "${system}";
+            overlays = [ rust-overlay.overlay ];
+          };
+        });
+      } // (forEachFeature (v:
         utils.lib.mkApp {
           drv = packages."dcompass-${strings.removePrefix "geoip-" v}";
         }));
