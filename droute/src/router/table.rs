@@ -205,7 +205,7 @@ mod tests {
     use super::{
         rule::{
             actions::{CacheMode, Query},
-            matchers::{Any, Domain},
+            matchers::{Any, Domain, ResourceType},
             Rule,
         },
         Table, TableError,
@@ -321,7 +321,7 @@ mod tests {
         Table::new(vec![Rule::new(
             "start".into(),
             Box::new(
-                Domain::new(vec!["../data/china.txt".to_string()])
+                Domain::new(vec![ResourceType::File("../data/china.txt".to_string())])
                     .await
                     .unwrap(),
             ),

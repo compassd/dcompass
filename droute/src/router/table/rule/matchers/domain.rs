@@ -15,21 +15,40 @@
 
 use super::{super::super::State, Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
+#[cfg(feature = "serde-cfg")]
+use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
 
+#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[derive(Clone, Eq, PartialEq)]
+/// Type of the domain resources to add to the matcher.
+pub enum ResourceType {
+    /// Query Name
+    Qname(String),
+
+    /// A file
+    File(String),
+}
+
 impl Domain {
     /// Create a new `Domain` matcher from a list of files where each domain is seperated from one another by `\n`.
-    pub async fn new(p: Vec<String>) -> Result<Self> {
+    pub async fn new(p: Vec<ResourceType>) -> Result<Self> {
         Ok({
             let mut matcher = DomainAlg::new();
             for r in p {
-                let mut file = File::open(r).await?;
-                let mut data = String::new();
-                file.read_to_string(&mut data).await?;
-                matcher.insert_multi(&data);
+                match r {
+                    ResourceType::Qname(n) => matcher.insert_multi(&n),
+                    ResourceType::File(l) => {
+                        let mut file = File::open(l).await?;
+                        let mut data = String::new();
+                        file.read_to_string(&mut data).await?;
+                        matcher.insert_multi(&data);
+                    }
+                }
             }
             Self(matcher)
         })

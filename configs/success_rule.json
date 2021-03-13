@@ -7,7 +7,9 @@
             "tag": "start",
             "if": {
                 "domain": [
-                    "../data/china.txt"
+                    {
+                        "file": "../data/china.txt"
+                    }
                 ]
             },
             "then": [

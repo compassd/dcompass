@@ -1457,7 +1457,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-client"
 version = "0.20.0"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fe64c70a5a7ebf806a1ff3cc5437087fcd8cd624"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fb3f11006c9267772737ea116626284cf672878f"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -1499,7 +1499,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-proto"
 version = "0.20.0"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fe64c70a5a7ebf806a1ff3cc5437087fcd8cd624"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fb3f11006c9267772737ea116626284cf672878f"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1541,7 +1541,7 @@ dependencies = [
 [[package]]
 name = "trust-dns-server"
 version = "0.20.0"
-source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fe64c70a5a7ebf806a1ff3cc5437087fcd8cd624"
+source = "git+https://github.com/LEXUGE/trust-dns?branch=main#fb3f11006c9267772737ea116626284cf672878f"
 dependencies = [
  "async-trait",
  "bytes",

@@ -15,7 +15,9 @@
 
 #[cfg(feature = "geoip")]
 use super::super::rule::matchers::GeoIp;
-use super::super::rule::matchers::{Any, Domain, IpCidr, Matcher, QType, Result as MatcherResult};
+use super::super::rule::matchers::{
+    Any, Domain, IpCidr, Matcher, QType, ResourceType, Result as MatcherResult,
+};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -62,7 +64,7 @@ pub enum BuiltinParMatcher {
     Any,
 
     /// Matches domains in domain list files specified.
-    Domain(Vec<String>),
+    Domain(Vec<ResourceType>),
 
     /// Matches query types provided. Query types are like AAAA, A, TXT.
     QType(HashSet<RecordType>),

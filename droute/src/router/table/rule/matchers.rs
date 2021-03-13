@@ -22,7 +22,12 @@ mod qtype;
 
 #[cfg(feature = "geoip")]
 pub use self::geoip::GeoIp;
-pub use self::{any::Any, domain::Domain, ipcidr::IpCidr, qtype::QType};
+pub use self::{
+    any::Any,
+    domain::{Domain, ResourceType},
+    ipcidr::IpCidr,
+    qtype::QType,
+};
 
 use super::super::State;
 #[cfg(feature = "geoip")]
