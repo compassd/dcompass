@@ -1,0 +1,18 @@
+---
+verbosity: 'info'
+cache_size: 4096
+address: 0.0.0.0:2053
+table:
+- tag: start
+  if: any
+  then:
+  - query: zone
+  - end
+
+upstreams:
+- method:
+    zone:
+      zone_type: Primary
+      origin: "a.cn"
+      path: ../data/a.cn.zone
+  tag: zone

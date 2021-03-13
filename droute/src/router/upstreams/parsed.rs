@@ -19,13 +19,18 @@ use super::client_pool::Https;
 use super::client_pool::Tls;
 use super::{
     client_pool::{DefClientPool, Udp},
-    error::Result,
+    error::{Result, UpstreamError},
     upstream::{UpstreamKind, UpstreamKind::*},
 };
 use crate::Label;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, net::SocketAddr, time::Duration};
+use trust_dns_proto::rr::Name;
+use trust_dns_server::{
+    authority::ZoneType,
+    store::file::{FileAuthority, FileConfig},
+};
 
 /// A trait to help you to setup a customized upstream kind.
 #[async_trait]
@@ -92,6 +97,15 @@ pub enum DefParUpstreamKind {
         #[serde(default = "default_timeout")]
         timeout: u64,
     },
+    /// Local DNS zone server.
+    Zone {
+        /// The type of the DNS zone.
+        zone_type: ZoneType,
+        /// The zone `Name` being created, this should match that of the RecordType::SOA record.
+        origin: String,
+        /// Path to the zone file.
+        path: String,
+    },
 }
 
 #[async_trait]
@@ -99,10 +113,30 @@ impl ParUpstreamKind for DefParUpstreamKind {
     async fn build(self) -> Result<UpstreamKind> {
         Ok(match self {
             Self::Hybrid(v) => Hybrid(v),
+
+            // UDP Upstream
             Self::Udp { addr, timeout } => Client {
                 pool: Box::new(DefClientPool::new(Udp::new(addr))),
-                timeout: Duration::from_secs(timeout),
+                timeout_dur: Duration::from_secs(timeout),
             },
+
+            // DNS zone file
+            Self::Zone {
+                zone_type,
+                origin,
+                path,
+            } => Zone(
+                FileAuthority::try_from_config(
+                    Name::from_utf8(origin)?,
+                    zone_type,
+                    false,
+                    None,
+                    &FileConfig {
+                        zone_file_path: path,
+                    },
+                )
+                .map_err(UpstreamError::ZoneCreationFailed)?,
+            ),
             #[cfg(feature = "doh")]
             Self::Https {
                 name,
@@ -111,7 +145,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 timeout,
             } => Client {
                 pool: Box::new(DefClientPool::new(Https::new(name, addr, no_sni))),
-                timeout: Duration::from_secs(timeout),
+                timeout_dur: Duration::from_secs(timeout),
             },
             #[cfg(feature = "dot")]
             Self::Tls {
@@ -121,7 +155,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 timeout,
             } => Client {
                 pool: Box::new(DefClientPool::new(Tls::new(name, addr, no_sni))),
-                timeout: Duration::from_secs(timeout),
+                timeout_dur: Duration::from_secs(timeout),
             },
         })
     }

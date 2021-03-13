@@ -83,6 +83,7 @@ Different querying methods:
 - `tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
+- `zone`: use local DNS zone file to provide customized responses. See also [zone config example](configs/success_zone.yaml)
 
 See [example.yaml](configs/example.yaml) for a pre-configured out-of-box anti-pollution configuration (Only works with `full` or `cn` version, to use with `min`, please provide your own database).  
 
@@ -137,7 +138,7 @@ Following benchmarks are not mocked, but they are rather based on multiple perfs
 - [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
 - [x] IP-CIDR matcher for both source address and response address
 - [x] GeoIP matcher for source address
-- [ ] Custom response action
+- [x] Custom response action
 
 # License
 All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.

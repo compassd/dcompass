@@ -18,14 +18,18 @@ use super::parsed::{ParUpstream, ParUpstreamKind};
 use super::{
     super::table::rule::actions::CacheMode,
     client_pool::{ClientPool, ClientState::*},
-    error::Result,
+    error::{Result, UpstreamError},
     resp_cache::{RecordStatus::*, RespCache},
 };
 use crate::Label;
 use std::{borrow::Borrow, collections::HashSet};
 use tokio::time::{timeout, Duration};
-use trust_dns_client::op::Message;
+use trust_dns_client::{op::Message, rr::dnssec::SupportedAlgorithms};
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
+use trust_dns_server::{
+    authority::{Authority, LookupError},
+    store::file::FileAuthority,
+};
 
 /// Types of an upstream
 #[derive(Clone)]
@@ -37,8 +41,10 @@ pub enum UpstreamKind {
         /// Client pool
         pool: Box<dyn ClientPool>,
         /// Timeout length
-        timeout: Duration,
+        timeout_dur: Duration,
     },
+    /// A local DNS zone instance
+    Zone(FileAuthority),
 }
 
 /// A single upstream. Opposite to the `Upstreams`.
@@ -50,7 +56,7 @@ pub struct Upstream {
 
 impl Upstream {
     /// Create a new `Upstream`.
-    /// - `timeout`: timeout length.
+    /// - `timeout_dur`: timeout length.
     /// - `inner`: type of the upstream.
     /// - `size`: response cache size.
     pub fn new(inner: UpstreamKind, size: usize) -> Self {
@@ -72,38 +78,58 @@ impl Upstream {
     pub(super) fn try_hybrid(&self) -> Option<HashSet<&Label>> {
         match &self.inner {
             UpstreamKind::Hybrid(v) => Some(v.iter().collect()),
-            UpstreamKind::Client {
-                pool: _,
-                timeout: _,
-            } => None,
+            _ => None,
         }
     }
 
     // Send the query and handle caching schemes.
     // Using Borrow here to accept both Upstream and &Upstream
-    async fn query(u: impl Borrow<Upstream>, msg: Message) -> Result<Message> {
+    async fn query(u: impl Borrow<Upstream>, mut msg: Message) -> Result<Message> {
         let u = u.borrow();
 
-        let (pool, t) = match &u.inner {
+        let resp = match &u.inner {
             // This method shall not be called
             UpstreamKind::Hybrid(_) => unreachable!(),
-            UpstreamKind::Client { pool, timeout } => (pool, timeout),
+            UpstreamKind::Zone(store) => {
+                match store
+                    .search(
+                        &msg.queries()[0].clone().into(),
+                        false,
+                        SupportedAlgorithms::new(),
+                    )
+                    .await
+                {
+                    Ok(v) => {
+                        msg.add_answers(v.iter().cloned());
+                        msg
+                    }
+                    // Some error code specified, return specified error message
+                    Err(LookupError::ResponseCode(c)) => {
+                        Message::error_msg(msg.id(), msg.op_code(), c)
+                    }
+                    // Other error occured
+                    Err(e) => return Err(UpstreamError::LookupError(e)),
+                }
+            }
+            UpstreamKind::Client { pool, timeout_dur } => {
+                let mut client = pool.get_client().await?;
+                let r = Message::from(match timeout(*timeout_dur, client.send(msg)).await? {
+                    Ok(m) => m,
+                    Err(e) => {
+                        // Renew the client as it errored. Currently it is only applicable for UDP.
+                        pool.return_client(client, Failed).await?;
+                        return Err(e.into());
+                    }
+                });
+
+                // If the response can be obtained sucessfully, we then push back the client to the client cache
+                pool.return_client(client, Succeeded).await?;
+                r
+            }
         };
 
-        let mut client = pool.get_client().await?;
-        let r = Message::from(match timeout(*t, client.send(msg)).await? {
-            Ok(m) => m,
-            Err(e) => {
-                // Renew the client as it errored. Currently it is only applicable for UDP.
-                pool.return_client(client, Failed).await?;
-                return Err(e.into());
-            }
-        });
-
-        // If the response can be obtained sucessfully, we then push back the client to the client cache
-        pool.return_client(client, Succeeded).await?;
-        u.cache.put(r.clone());
-        Ok(r)
+        u.cache.put(resp.clone());
+        Ok(resp)
     }
 
     /// Resolve the query into a response.

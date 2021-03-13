@@ -20,6 +20,7 @@ use thiserror::Error;
 use tokio::time::error::Elapsed;
 use trust_dns_client::error::ClientError;
 use trust_dns_proto::error::ProtoError;
+use trust_dns_server::authority::LookupError;
 
 pub type Result<T> = std::result::Result<T, UpstreamError>;
 
@@ -42,6 +43,10 @@ pub enum UpstreamError {
     #[error("`hybrid` upstream method with tag `{0}` contains no upstreams to race")]
     EmptyHybrid(Label),
 
+    /// There is error in the process of zone creation
+    #[error("An error occured in creating an DNS zone upstream: {0}")]
+    ZoneCreationFailed(String),
+
     /// Error forwarded from `trust-dns-client`.
     #[error(transparent)]
     ClientError(#[from] ClientError),
@@ -61,4 +66,8 @@ pub enum UpstreamError {
     /// Some of the upstreams are unused.
     #[error("Some of the upstreams are not used: {0:?}")]
     UnusedUpstreams(HashSet<Label>),
+
+    /// Error forwarded from `trust_dns_server::authority::LookupError`.
+    #[error(transparent)]
+    LookupError(#[from] LookupError),
 }

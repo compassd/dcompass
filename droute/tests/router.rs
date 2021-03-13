@@ -73,7 +73,7 @@ async fn test_resolve() {
                     pool: Box::new(DefClientPool::new(Udp::new(
                         "127.0.0.1:53533".parse().unwrap(),
                     ))),
-                    timeout: Duration::from_secs(1),
+                    timeout_dur: Duration::from_secs(1),
                 },
                 10,
             ),
