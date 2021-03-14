@@ -11,8 +11,8 @@ lto = true
 opt-level = 's'
 codegen-units = 1
 
-[patch.crates-io]
+# [patch.crates-io]
 # implement Clone for FileAuthority.
-trust-dns-server = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
-trust-dns-proto = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
-trust-dns-client = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+# trust-dns-server = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+# trust-dns-proto = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+# trust-dns-client = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }

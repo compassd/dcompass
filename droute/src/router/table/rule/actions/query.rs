@@ -20,10 +20,10 @@ use super::{
 use crate::Label;
 use async_trait::async_trait;
 #[cfg(feature = "serde-cfg")]
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
+#[cfg_attr(feature = "serde-cfg", derive(Deserialize, Serialize))]
 #[derive(Clone)]
 /// Cache Policy per query. this only affect the cache results adoption, and it will NOT change the cache results storing behaviors.
 pub enum CacheMode {

@@ -12,7 +12,6 @@ table:
 upstreams:
 - method:
     zone:
-      zone_type: Primary
       origin: "a.cn"
       path: ../data/a.cn.zone
   tag: zone

@@ -22,7 +22,7 @@ use super::{
     resp_cache::{RecordStatus::*, RespCache},
 };
 use crate::Label;
-use std::{borrow::Borrow, collections::HashSet};
+use std::{borrow::Borrow, collections::HashSet, sync::Arc};
 use tokio::time::{timeout, Duration};
 use trust_dns_client::{op::Message, rr::dnssec::SupportedAlgorithms};
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
@@ -44,7 +44,7 @@ pub enum UpstreamKind {
         timeout_dur: Duration,
     },
     /// A local DNS zone instance
-    Zone(FileAuthority),
+    Zone(Arc<FileAuthority>),
 }
 
 /// A single upstream. Opposite to the `Upstreams`.

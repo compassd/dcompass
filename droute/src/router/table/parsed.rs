@@ -23,12 +23,12 @@ use super::rule::actions::{Action, Result as ActionResult};
 use crate::Label;
 use serde::{
     de::{Deserializer, Error as _, SeqAccess, Visitor},
-    Deserialize,
+    Deserialize, Serialize,
 };
 use std::marker::PhantomData;
 
 /// A parsed branch of a rule.
-#[derive(Clone)]
+#[derive(Serialize, Clone)]
 pub struct ParBranch<A: ParActionTrait> {
     seq: Vec<ParAction<A>>,
     next: Label,
@@ -115,7 +115,7 @@ impl<A: ParActionTrait> Default for ParBranch<A> {
 }
 
 /// A rule composed of tag name, matcher, and branches.
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 #[serde(deny_unknown_fields)]
 pub struct ParRule<M: ParMatcherTrait, A: ParActionTrait> {

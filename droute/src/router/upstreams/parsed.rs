@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use self::remote_def::ZoneTypeDef;
 #[cfg(feature = "doh")]
 use super::client_pool::Https;
 #[cfg(feature = "dot")]
@@ -25,7 +26,7 @@ use super::{
 use crate::Label;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, net::SocketAddr, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 use trust_dns_proto::rr::Name;
 use trust_dns_server::{
     authority::ZoneType,
@@ -51,11 +52,39 @@ pub struct ParUpstream<K: ParUpstreamKind> {
 }
 
 // Default value for timeout
-#[cfg(feature = "serde-cfg")]
 fn default_timeout() -> u64 {
     5
 }
 
+fn default_zone_type() -> ZoneType {
+    ZoneType::Primary
+}
+
+mod remote_def {
+    // Remote crate has deprecation for `Master` and `Slave`.
+    #![allow(deprecated)]
+
+    use serde::{Deserialize, Serialize};
+    use trust_dns_server::authority::ZoneType;
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(rename_all = "lowercase")]
+    #[serde(remote = "ZoneType")]
+    pub enum ZoneTypeDef {
+        /// This authority for a zone
+        Primary,
+        /// This authority for a zone, i.e. the Primary
+        Master,
+        /// A secondary, i.e. replicated from the Primary
+        Secondary,
+        /// A secondary, i.e. replicated from the Primary
+        Slave,
+        /// A cached zone with recursive resolver abilities
+        Hint,
+        /// A cached zone where all requests are forwarded to another Resolver
+        Forward,
+    }
+}
 // A struct that helps us to parse into the actual UpstreamKind
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
@@ -100,6 +129,8 @@ pub enum DefParUpstreamKind {
     /// Local DNS zone server.
     Zone {
         /// The type of the DNS zone.
+        #[serde(with = "ZoneTypeDef")]
+        #[serde(default = "default_zone_type")]
         zone_type: ZoneType,
         /// The zone `Name` being created, this should match that of the RecordType::SOA record.
         origin: String,
@@ -125,7 +156,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                 zone_type,
                 origin,
                 path,
-            } => Zone(
+            } => Zone(Arc::new(
                 FileAuthority::try_from_config(
                     Name::from_utf8(origin)?,
                     zone_type,
@@ -136,7 +167,7 @@ impl ParUpstreamKind for DefParUpstreamKind {
                     },
                 )
                 .map_err(UpstreamError::ZoneCreationFailed)?,
-            ),
+            )),
             #[cfg(feature = "doh")]
             Self::Https {
                 name,

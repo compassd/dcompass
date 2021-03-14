@@ -16,7 +16,7 @@
 use super::super::rule::actions::{Action, Blackhole, CacheMode, Query, Result as ActionResult};
 use crate::Label;
 use async_trait::async_trait;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Trait for structs/enums that can convert themselves to actions.
 #[async_trait]
@@ -29,7 +29,7 @@ pub trait ParActionTrait: Send {
 /// This is a default enum which implements serde's deserialize trait to help you parse stuff into an action.
 /// You can rewrite your own parsed enum to support customized action and more functionalities on your needs.
 #[serde(rename_all = "lowercase")]
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub enum BuiltinParAction {
     /// Set response to a message that "disables" requestor to retry.
     Blackhole,
@@ -78,7 +78,7 @@ impl ParActionTrait for BuiltinParAction {
 /// Parsed Actions
 /// You can customize/add more actions using `Extra` variant. If you are OK with the default, use `BuiltinParAction`.
 #[serde(rename_all = "lowercase")]
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ParAction<A: ParActionTrait> {
     /// Extra actions. When variants are of the same name, this is of higher priority and may override builtin matchers.
