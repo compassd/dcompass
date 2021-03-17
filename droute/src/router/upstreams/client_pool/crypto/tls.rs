@@ -19,7 +19,9 @@ use super::{
 };
 use async_trait::async_trait;
 use std::net::SocketAddr;
+use tokio::net::TcpStream as TokioTcpStream;
 use trust_dns_client::client::AsyncClient;
+use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
 /// Client instance for DNS over TLS.
@@ -47,7 +49,7 @@ impl ClientWrapper for Tls {
     }
 
     async fn create(&self) -> Result<AsyncClient> {
-        let (stream, sender) = tls_client_connect(
+        let (stream, sender) = tls_client_connect::<AsyncIoTokioAsStd<TokioTcpStream>>(
             self.addr,
             self.name.clone(),
             create_client_config(&self.no_sni),
