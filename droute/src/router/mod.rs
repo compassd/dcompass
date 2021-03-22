@@ -18,13 +18,9 @@
 pub mod table;
 pub mod upstreams;
 
-#[cfg(feature = "serde-cfg")]
-use self::{
-    table::parsed::{ParActionTrait, ParMatcherTrait, ParRule},
-    upstreams::parsed::{ParUpstream, ParUpstreamKind},
-};
 use self::{table::Table, upstreams::Upstreams};
 use crate::{
+    builders::*,
     error::{DrouteError, Result},
     Label, Validatable,
 };
@@ -55,20 +51,6 @@ impl Router {
         Ok(router)
     }
 
-    /// Create a new `Router` from parsed configuration and check the validity. `data` is the content of the configuration file.
-    #[cfg(feature = "serde-cfg")]
-    pub async fn parse(
-        cache_size: usize,
-        rules: Vec<ParRule<impl ParMatcherTrait, impl ParActionTrait>>,
-        upstreams: Vec<ParUpstream<impl ParUpstreamKind>>,
-    ) -> Result<Self> {
-        let table = Table::parse(rules).await?;
-        let upstreams = Upstreams::parse(upstreams, cache_size).await?;
-        Self::new(table, upstreams)
-    }
-
-    /// Validate the internal rules defined. This is automatically performed by `new` method.
-
     /// Resolve the DNS query with routing rules defined.
     pub async fn resolve(&self, msg: Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
@@ -87,5 +69,23 @@ impl Router {
             warn!("DNS message contains zero querie(s), doing nothing.");
             Ok(Message::error_msg(id, op_code, ResponseCode::ServFail))
         }
+    }
+}
+
+pub struct RouterBuilder<M: MatcherBuilder, A: ActionBuilder> {
+    table: TableBuilder<M, A>,
+    upstreams: UpstreamsBuilder,
+}
+
+impl<M: MatcherBuilder, A: ActionBuilder> RouterBuilder<M, A> {
+    pub fn new(table: TableBuilder<M, A>, upstreams: UpstreamsBuilder) -> Self {
+        Self { table, upstreams }
+    }
+
+    /// Build a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
+    pub async fn build(self) -> Result<Router> {
+        let table = self.table.build().await?;
+        let upstreams = self.upstreams.build().await?;
+        Router::new(table, upstreams)
     }
 }

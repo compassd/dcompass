@@ -21,21 +21,21 @@ use async_trait::async_trait;
 use std::net::SocketAddr;
 use tokio::net::TcpStream as TokioTcpStream;
 use trust_dns_client::client::AsyncClient;
-use trust_dns_https::HttpsClientStreamBuilder;
-use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
+use trust_dns_proto::{iocompat::AsyncIoTokioAsStd, DnssecDnsHandle};
+use trust_dns_rustls::tls_client_stream::tls_client_connect;
 
-/// Client instance for DNS over HTTPS.
+/// Client instance for DNS over TLS.
 #[derive(Clone)]
-pub struct Https {
+pub struct Tls {
     name: String,
     addr: SocketAddr,
     no_sni: bool,
 }
 
-impl Https {
-    /// Create a new DNS over HTTPS creator instance.
+impl Tls {
+    /// Create a new DNS over TLS client creator instance.
     /// - `name`: the domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
-    /// - `addr`: the address of the server. e.g. `1.1.1.1:443` for Cloudflare DNS.
+    /// - `addr`: the address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
     /// - `no_sni`: set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
     pub fn new(name: String, addr: SocketAddr, no_sni: bool) -> Self {
         Self { name, addr, no_sni }
@@ -43,17 +43,38 @@ impl Https {
 }
 
 #[async_trait]
-impl ClientWrapper for Https {
+impl ClientWrapper<AsyncClient> for Tls {
+    fn conn_type(&self) -> &'static str {
+        "TLS"
+    }
+
     async fn create(&self) -> Result<AsyncClient> {
-        let stream =
-            HttpsClientStreamBuilder::with_client_config(create_client_config(&self.no_sni))
-                .build::<AsyncIoTokioAsStd<TokioTcpStream>>(self.addr, self.name.clone());
-        let (client, bg) = AsyncClient::connect(stream).await?;
+        let (stream, sender) = tls_client_connect::<AsyncIoTokioAsStd<TokioTcpStream>>(
+            self.addr,
+            self.name.clone(),
+            create_client_config(&self.no_sni),
+        );
+        let (client, bg) = AsyncClient::new(stream, Box::new(sender), None).await?;
         tokio::spawn(bg);
         Ok(client)
     }
+}
 
+#[async_trait]
+impl ClientWrapper<DnssecDnsHandle<AsyncClient>> for Tls {
     fn conn_type(&self) -> &'static str {
-        "HTTPS"
+        "TLS"
+    }
+
+    async fn create(&self) -> Result<DnssecDnsHandle<AsyncClient>> {
+        let (stream, sender) = tls_client_connect::<AsyncIoTokioAsStd<TokioTcpStream>>(
+            self.addr,
+            self.name.clone(),
+            create_client_config(&self.no_sni),
+        );
+        let (client, bg) = AsyncClient::new(stream, Box::new(sender), None).await?;
+        tokio::spawn(bg);
+        let client = DnssecDnsHandle::new(client);
+        Ok(client)
     }
 }

@@ -14,10 +14,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #[cfg(feature = "geoip")]
-use super::super::rule::matchers::GeoIp;
-use super::super::rule::matchers::{
-    Any, Domain, IpCidr, Matcher, QType, ResourceType, Result as MatcherResult,
-};
+use super::GeoIp;
+use super::{Any, Domain, IpCidr, Matcher, QType, ResourceType, Result as MatcherResult};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -25,9 +23,9 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use trust_dns_proto::rr::record_type::RecordType;
 
-/// Trait for structs/enums that can convert themselves to matchers
+/// Trait for structs/enums that can build themselves into matchers
 #[async_trait]
-pub trait ParMatcherTrait: Send {
+pub trait MatcherBuilder: Send {
     /// Convert itself to a boxed matcher
     async fn build(self) -> MatcherResult<Box<dyn Matcher>>;
 }
@@ -36,7 +34,7 @@ pub trait ParMatcherTrait: Send {
 #[serde(rename_all = "lowercase")]
 #[cfg(feature = "geoip")]
 /// Arguments of the GeoIp.
-pub struct ParGeoIp {
+pub struct GeoIpBuilder {
     /// Country codes to match on
     pub codes: HashSet<String>,
     /// Path
@@ -45,7 +43,7 @@ pub struct ParGeoIp {
 
 #[cfg(feature = "geoip")]
 #[async_trait]
-impl ParMatcherTrait for ParGeoIp {
+impl MatcherBuilder for GeoIpBuilder {
     async fn build(self) -> MatcherResult<Box<dyn Matcher>> {
         // By default, we don't provide any builtin database.
         Ok(Box::new(GeoIp::new(
@@ -55,11 +53,10 @@ impl ParMatcherTrait for ParGeoIp {
     }
 }
 
-/// Builtin Matchers
-/// TODO: Doc
+/// The builder for Builtin Matchers
 #[derive(Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum BuiltinParMatcher {
+pub enum BuiltinMatcherBuilder {
     /// Matches any query
     Any,
 
@@ -71,14 +68,14 @@ pub enum BuiltinParMatcher {
 
     /// Matches if IP address in the record of the first response is in the list of countries.
     #[cfg(feature = "geoip")]
-    GeoIp(ParGeoIp),
+    GeoIp(GeoIpBuilder),
 
     /// Matches if IP address in the record of the first response is in the list of IP CIDR.
     IpCidr(Vec<String>),
 }
 
 #[async_trait]
-impl ParMatcherTrait for BuiltinParMatcher {
+impl MatcherBuilder for BuiltinMatcherBuilder {
     async fn build(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
             Self::Any => Box::new(Any::default()),
@@ -96,15 +93,15 @@ impl ParMatcherTrait for BuiltinParMatcher {
 #[derive(Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[serde(untagged)]
-pub enum ParMatcher<M: ParMatcherTrait> {
+pub enum AggregatedMatcherBuilder<M: MatcherBuilder> {
     /// Extra matchers. When variants are of the same name, this is of higher priority and may override builtin matchers.
     Extra(M),
     /// Builtin matchers
-    Builtin(BuiltinParMatcher),
+    Builtin(BuiltinMatcherBuilder),
 }
 
 #[async_trait]
-impl<M: ParMatcherTrait> ParMatcherTrait for ParMatcher<M> {
+impl<M: MatcherBuilder> MatcherBuilder for AggregatedMatcherBuilder<M> {
     async fn build(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
             Self::Builtin(m) => m.build().await?,

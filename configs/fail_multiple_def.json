@@ -1,10 +1,8 @@
 {
     "verbosity": "info",
-    "cache_size": 4096,
     "address": "0.0.0.0:2053",
-    "table": [
-        {
-            "tag": "start",
+    "table": {
+        "start": {
             "if": "any",
             "then": [
                 {
@@ -13,27 +11,15 @@
                 "end"
             ]
         }
-    ],
-    "upstreams": [
-        {
-            "method": {
-                "udp": {
-                    "addr": "114.114.114.114:53",
-                    "timeout": 1
-                }
-            },
-            "tag": "domestic"
-        },
-        {
-            "method": {
-                "https": {
-                    "timeout": 2,
-                    "no_sni": false,
-                    "name": "dns.quad9.net",
-                    "addr": "9.9.9.9:443"
-                }
-            },
-            "tag": "domestic"
+    },
+    "upstreams": {
+        "domestic": {
+            "https": {
+                "timeout": 2,
+                "no_sni": false,
+                "name": "dns.quad9.net",
+                "addr": "9.9.9.9:443"
+            }
         }
-    ]
+    }
 }

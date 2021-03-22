@@ -13,17 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-/// Structures used for serialize/deserialize information needed to create router and more.
-#[cfg(feature = "serde-cfg")]
-pub mod parsed;
 pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::{Label, Validatable, ValidateCell};
+use crate::{builders::*, Label, Validatable, ValidateCell};
 use log::*;
-#[cfg(feature = "serde-cfg")]
-use parsed::{ParActionTrait, ParMatcherTrait, ParRule};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 use trust_dns_client::op::Message;
@@ -54,10 +50,6 @@ pub enum TableError {
         "Rule with tag `{0}` is not found in the `table` section. Note that tag `start` is required"
     )]
     UndefinedTag(Label),
-
-    /// Multiple rules with the same tag name have been found.
-    #[error("Multiple defintions found for tag `{0}` in the `rules` section")]
-    MultipleDef(Label),
 }
 
 #[derive(Default)]
@@ -127,14 +119,7 @@ impl Validatable for Table {
 
 impl Table {
     /// Create a routing table from a bunch of `Rule`s.
-    pub fn new(rules: Vec<Rule>) -> Result<Self> {
-        let mut table = HashMap::new();
-        for r in rules {
-            match table.get(r.tag()) {
-                Some(_) => return Err(TableError::MultipleDef(r.tag().clone())),
-                None => table.insert(r.tag().clone(), r),
-            };
-        }
+    pub fn new(table: HashMap<Label, Rule>) -> Result<Self> {
         // A bucket used to count the time each rule being used.
         let mut bucket: HashMap<&Label, (ValidateCell, &Rule)> = table
             .iter()
@@ -161,18 +146,6 @@ impl Table {
         })
     }
 
-    // This is not intended to be used by end-users as they can create with parsed structs from `Router`.
-    #[cfg(feature = "serde-cfg")]
-    pub(super) async fn parse(
-        parsed_rules: Vec<ParRule<impl ParMatcherTrait, impl ParActionTrait>>,
-    ) -> Result<Self> {
-        let mut rules = Vec::new();
-        for r in parsed_rules {
-            rules.push(Rule::parse(r).await?);
-        }
-        Self::new(rules)
-    }
-
     // Not intended to be used by end-users
     pub(super) fn used_upstreams(&self) -> &HashSet<Label> {
         &self.used_upstreams
@@ -192,7 +165,7 @@ impl Table {
                 .rules
                 .get(&tag)
                 .unwrap()
-                .route(&mut s, upstreams, &name)
+                .route(&tag, &mut s, upstreams, &name)
                 .await?;
         }
         info!("Domain \"{}\" has finished routing", name);
@@ -200,49 +173,87 @@ impl Table {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TableBuilder<M: MatcherBuilder, A: ActionBuilder> {
+    table: HashMap<Label, RuleBuilder<M, A>>,
+}
+
+impl<M: MatcherBuilder, A: ActionBuilder> TableBuilder<M, A> {
+    pub fn new(table: HashMap<impl Into<Label>, RuleBuilder<M, A>>) -> Self {
+        Self {
+            table: table.into_iter().map(|(k, v)| (k.into(), v)).collect(),
+        }
+    }
+
+    pub async fn build(self) -> Result<Table> {
+        let mut rules = HashMap::new();
+        for (tag, r) in self.table {
+            rules.insert(tag, r.build().await?);
+        }
+        Table::new(rules)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        rule::{
-            actions::{CacheMode, Query},
-            matchers::{Any, Domain, ResourceType},
-            Rule,
-        },
-        Table, TableError,
+        rule::{actions::CacheMode, matchers::ResourceType},
+        TableError,
     };
-    use crate::Label;
+    use crate::{builders::*, Label};
 
     #[tokio::test]
     async fn is_not_recursion() {
-        Table::new(vec![
-            Rule::new(
-                "start".into(),
-                Box::new(Any::default()),
-                (vec![], "foo".into()),
-                (vec![], "foo".into()),
-            ),
-            Rule::new(
-                "foo".into(),
-                Box::new(Any::default()),
-                (vec![], "end".into()),
-                (vec![], "end".into()),
-            ),
-        ])
+        TableBuilder::new(
+            vec![
+                (
+                    "start".into(),
+                    RuleBuilder::new(
+                        BuiltinMatcherBuilder::Any,
+                        BranchBuilder::<BuiltinActionBuilder>::new(vec![], "foo"),
+                        BranchBuilder::new(vec![], "foo"),
+                    ),
+                ),
+                (
+                    "foo",
+                    RuleBuilder::new(
+                        BuiltinMatcherBuilder::Any,
+                        BranchBuilder::default(),
+                        BranchBuilder::default(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .build()
+        .await
         .ok()
         .unwrap();
     }
 
     #[tokio::test]
     async fn fail_table_recursion() {
-        match Table::new(vec![Rule::new(
-            "start".into(),
-            Box::new(Any::default()),
-            (
-                vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
-                "end".into(),
-            ),
-            (vec![], "start".into()),
-        )])
+        match TableBuilder::new(
+            vec![(
+                "start",
+                RuleBuilder::new(
+                    BuiltinMatcherBuilder::Any,
+                    BranchBuilder::new(
+                        vec![BuiltinActionBuilder::Query(
+                            "mock".into(),
+                            CacheMode::default(),
+                        )],
+                        "end",
+                    ),
+                    BranchBuilder::new(vec![], "start"),
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        )
+        .build()
+        .await
         .err()
         .unwrap()
         {
@@ -252,54 +263,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fail_multiple_defs() {
-        match Table::new(vec![
-            Rule::new(
-                "start".into(),
-                Box::new(Any::default()),
-                (vec![], "end".into()),
-                (vec![], "end".into()),
-            ),
-            Rule::new(
-                "start".into(),
-                Box::new(Any::default()),
-                (vec![], "end".into()),
-                (vec![], "end".into()),
-            ),
-        ])
-        .err()
-        .unwrap()
-        {
-            TableError::MultipleDef(_) => {}
-            e => panic!("Not the right error type: {}", e),
-        }
-    }
-
-    #[tokio::test]
     async fn fail_unused_rules() {
-        match Table::new(vec![
-            Rule::new(
-                "start".into(),
-                Box::new(Any::default()),
+        match TableBuilder::new(
+            vec![
                 (
-                    vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
-                    "end".into(),
+                    "start".into(),
+                    RuleBuilder::new(
+                        BuiltinMatcherBuilder::Any,
+                        BranchBuilder::new(
+                            vec![BuiltinActionBuilder::Query(
+                                "mock".into(),
+                                CacheMode::default(),
+                            )],
+                            "end",
+                        ),
+                        BranchBuilder::default(),
+                    ),
                 ),
-                (vec![], "end".into()),
-            ),
-            Rule::new(
-                "mock".into(),
-                Box::new(Any::default()),
-                (vec![], "end".into()),
-                (vec![], "end".into()),
-            ),
-            Rule::new(
-                "unused".into(),
-                Box::new(Any::default()),
-                (vec![], "end".into()),
-                (vec![], "end".into()),
-            ),
-        ])
+                (
+                    "mock",
+                    RuleBuilder::new(
+                        BuiltinMatcherBuilder::Any,
+                        BranchBuilder::default(),
+                        BranchBuilder::default(),
+                    ),
+                ),
+                (
+                    "unused",
+                    RuleBuilder::new(
+                        BuiltinMatcherBuilder::Any,
+                        BranchBuilder::default(),
+                        BranchBuilder::default(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .build()
+        .await
         .err()
         .unwrap()
         {
@@ -318,25 +320,34 @@ mod tests {
 
     #[tokio::test]
     async fn success_domain_table() {
-        Table::new(vec![Rule::new(
-            "start".into(),
-            Box::new(
-                Domain::new(vec![ResourceType::File("../data/china.txt".to_string())])
-                    .await
-                    .unwrap(),
-            ),
-            (
-                vec![Box::new(Query::new("mock".into(), CacheMode::default()))],
-                "end".into(),
-            ),
-            (
-                vec![Box::new(Query::new(
-                    "another_mock".into(),
-                    CacheMode::default(),
-                ))],
-                "end".into(),
-            ),
-        )])
+        TableBuilder::new(
+            vec![(
+                "start",
+                RuleBuilder::new(
+                    BuiltinMatcherBuilder::Domain(vec![ResourceType::File(
+                        "../data/china.txt".to_string(),
+                    )]),
+                    BranchBuilder::new(
+                        vec![BuiltinActionBuilder::Query(
+                            "mock".into(),
+                            CacheMode::default(),
+                        )],
+                        "end",
+                    ),
+                    BranchBuilder::new(
+                        vec![BuiltinActionBuilder::Query(
+                            "another_mock".into(),
+                            CacheMode::default(),
+                        )],
+                        "end",
+                    ),
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        )
+        .build()
+        .await
         .ok()
         .unwrap();
     }

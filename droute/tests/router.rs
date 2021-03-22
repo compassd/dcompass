@@ -13,15 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use droute::{
-    actions::{CacheMode, Query as ActQuery},
-    client_pool::{DefClientPool, Udp},
-    matchers::Any,
-    mock::Server,
-    Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
-};
+use droute::{actions::CacheMode, builders::*, mock::Server};
 use once_cell::sync::Lazy;
-use std::time::Duration;
 use tokio::net::UdpSocket;
 use trust_dns_proto::{
     op::{header::MessageType, query::Query, Message, OpCode, ResponseCode},
@@ -55,31 +48,41 @@ async fn test_resolve() {
     let server = Server::new(socket, vec![0; 1024], None);
     tokio::spawn(server.run(DUMMY_MSG.clone()));
 
-    let router = Router::new(
-        Table::new(vec![Rule::new(
-            "start".into(),
-            Box::new(Any::default()),
-            (
-                vec![Box::new(ActQuery::new("mock".into(), CacheMode::default()))],
-                "end".into(),
-            ),
-            (vec![], "end".into()),
-        )])
-        .unwrap(),
-        Upstreams::new(vec![(
-            "mock".into(),
-            Upstream::new(
-                UpstreamKind::Client {
-                    pool: Box::new(DefClientPool::new(Udp::new(
-                        "127.0.0.1:53533".parse().unwrap(),
-                    ))),
-                    timeout_dur: Duration::from_secs(1),
+    let router = RouterBuilder::new(
+        TableBuilder::new(
+            vec![(
+                "start",
+                RuleBuilder::new(
+                    BuiltinMatcherBuilder::Any,
+                    BranchBuilder::new(
+                        vec![BuiltinActionBuilder::Query(
+                            "mock".into(),
+                            CacheMode::default(),
+                        )],
+                        "end",
+                    ),
+                    BranchBuilder::default(),
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        UpstreamsBuilder::new(
+            vec![(
+                "mock",
+                UpstreamBuilder::Udp {
+                    addr: "127.0.0.1:53533".parse().unwrap(),
+                    dnssec: false,
+                    cache_size: 0,
+                    timeout: 10,
                 },
-                10,
-            ),
-        )])
-        .unwrap(),
+            )]
+            .into_iter()
+            .collect(),
+        ),
     )
+    .build()
+    .await
     .unwrap();
 
     assert_eq!(

@@ -14,6 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 mod blackhole;
+pub mod builder;
 mod query;
 
 pub use self::{

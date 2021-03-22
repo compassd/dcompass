@@ -13,12 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::{QHandle, Result as QHandleResult};
 use async_trait::async_trait;
-use dyn_clonable::*;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use trust_dns_client::client::AsyncClient;
-use trust_dns_proto::error::ProtoError;
+use tokio::time::{timeout, Duration};
+use trust_dns_client::op::Message;
+use trust_dns_proto::{error::ProtoError, DnsHandle};
 
 #[cfg(feature = "crypto")]
 mod crypto;
@@ -42,7 +43,7 @@ pub enum ClientPoolError {
     ProtoError(#[from] ProtoError),
 }
 
-type Result<T> = std::result::Result<T, ClientPoolError>;
+pub type Result<T> = std::result::Result<T, ClientPoolError>;
 
 /// State of the client returned (used).
 pub enum ClientState {
@@ -52,34 +53,25 @@ pub enum ClientState {
     Succeeded,
 }
 
-/// Client pool triat.
+/// A client wrapper. The difference between this and the `ClientPool` that it only cares about how to create a client.
 #[async_trait]
-#[clonable]
-pub trait ClientPool: Sync + Send + Clone {
-    /// Get a client from the client pool. This may not indeed create one, instead, it probably only returns a cloned client.
-    async fn get_client(&self) -> Result<AsyncClient>;
-    /// Return back the used client for reuse or renewal (if appropriate).
-    async fn return_client(&self, c: AsyncClient, state: ClientState) -> Result<()>;
-}
+pub trait ClientWrapper<T: DnsHandle>: Sync + Send + Clone {
+    /// Create a DNSSEC client based on stream
+    async fn create(&self) -> Result<T>;
 
-/// A client wrapper. The difference between this and the `ClientPool` trait that it only cares about how to create a client.
-#[async_trait]
-pub trait ClientWrapper: Sync + Send + Clone {
-    /// Create a client.
-    async fn create(&self) -> Result<AsyncClient>;
     /// Client (connection) type. e.g. UDP, TCP.
     fn conn_type(&self) -> &'static str;
 }
 
-/// A client wrapper that makes the underlying `AsyncClient` a `client pool`.
+/// A client wrapper that makes the underlying `impl DnsHandle` a `client pool`.
 #[derive(Clone)]
-pub struct DefClientPool<T> {
+pub struct ClientPool<T: ClientWrapper<U>, U: DnsHandle> {
     // A client instance used for creating clients
     client: T,
-    inner: Arc<Mutex<Option<AsyncClient>>>,
+    inner: Arc<Mutex<Option<U>>>,
 }
 
-impl<T: ClientWrapper> DefClientPool<T> {
+impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
     /// Create a new default client pool given the underlying client instance definition.
     pub fn new(client: T) -> Self {
         Self {
@@ -88,18 +80,15 @@ impl<T: ClientWrapper> DefClientPool<T> {
         }
     }
 
-    fn get(&self) -> Option<AsyncClient> {
+    fn get(&self) -> Option<U> {
         self.inner.lock().unwrap().clone()
     }
 
-    fn set(&self, c: AsyncClient) {
+    fn set(&self, c: U) {
         *self.inner.lock().unwrap() = Some(c);
     }
-}
 
-#[async_trait]
-impl<T: ClientWrapper> ClientPool for DefClientPool<T> {
-    async fn get_client(&self) -> Result<AsyncClient> {
+    async fn get_client(&self) -> Result<U> {
         Ok(if let Some(c) = self.get() {
             c
         } else {
@@ -113,7 +102,7 @@ impl<T: ClientWrapper> ClientPool for DefClientPool<T> {
         })
     }
 
-    async fn return_client(&self, _: AsyncClient, state: ClientState) -> Result<()> {
+    async fn return_client(&self, _: U, state: ClientState) -> Result<()> {
         match state {
             ClientState::Failed => {
                 log::info!("Renewing the {} client", self.client.conn_type());
@@ -123,5 +112,43 @@ impl<T: ClientWrapper> ClientPool for DefClientPool<T> {
             ClientState::Succeeded => {}
         }
         Ok(())
+    }
+}
+
+// TODO: Probabaly we can put `Client` and `ClientPool` together?
+// A Client that implements the `QHandle`.
+#[derive(Clone)]
+pub struct Client<T: ClientWrapper<U>, U: DnsHandle> {
+    pool: ClientPool<T, U>,
+    timeout_dur: Duration,
+}
+
+impl<T: ClientWrapper<U>, U: DnsHandle> Client<T, U> {
+    pub fn new(client: T, timeout_dur: Duration) -> Self {
+        Self {
+            pool: ClientPool::new(client),
+            timeout_dur,
+        }
+    }
+}
+
+#[async_trait]
+impl<T: ClientWrapper<U>, U: DnsHandle<Error = ProtoError>> QHandle for Client<T, U> {
+    async fn query(&self, msg: Message) -> QHandleResult<Message> {
+        let mut client = self.pool.get_client().await?;
+        let r = Message::from(match timeout(self.timeout_dur, client.send(msg)).await? {
+            Ok(m) => m,
+            Err(e) => {
+                // Renew the client as it errored. Currently it is only applicable for UDP.
+                self.pool.return_client(client, ClientState::Failed).await?;
+                return Err(e.into());
+            }
+        });
+
+        // If the response can be obtained sucessfully, we then push back the client to the client cache
+        self.pool
+            .return_client(client, ClientState::Succeeded)
+            .await?;
+        Ok(r)
     }
 }

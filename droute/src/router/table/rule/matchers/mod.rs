@@ -14,6 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 mod any;
+pub mod builder;
 mod domain;
 #[cfg(feature = "geoip")]
 mod geoip;

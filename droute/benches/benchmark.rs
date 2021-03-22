@@ -13,18 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// TODO: Currently, criterion doesn't support async benchmark, which unables us to make actual connection.
-// Tracking issue: https://github.com/bheisler/criterion.rs/issues/403
 use criterion::{criterion_group, criterion_main, Criterion};
-use droute::{
-    actions::{CacheMode, Query as ActQuery},
-    client_pool::{DefClientPool, Udp},
-    matchers::Any,
-    mock::Server,
-    Router, Rule, Table, Upstream, UpstreamKind, Upstreams,
-};
+use droute::{actions::CacheMode, builders::*, mock::Server, Router};
 use once_cell::sync::Lazy;
-use std::time::Duration;
 use tokio::net::UdpSocket;
 use trust_dns_client::op::Message;
 use trust_dns_proto::{
@@ -52,31 +43,41 @@ static QUERY: Lazy<Message> = Lazy::new(|| {
 });
 
 async fn create_router(c: usize) -> Router {
-    Router::new(
-        Table::new(vec![Rule::new(
-            "start".into(),
-            Box::new(Any::default()),
-            (
-                vec![Box::new(ActQuery::new("mock".into(), CacheMode::default()))],
-                "end".into(),
-            ),
-            (vec![], "end".into()),
-        )])
-        .unwrap(),
-        Upstreams::new(vec![(
-            "mock".into(),
-            Upstream::new(
-                UpstreamKind::Client {
-                    pool: Box::new(DefClientPool::new(Udp::new(
-                        "127.0.0.1:53533".parse().unwrap(),
-                    ))),
-                    timeout_dur: Duration::from_secs(1),
+    RouterBuilder::new(
+        TableBuilder::new(
+            vec![(
+                "start",
+                RuleBuilder::new(
+                    BuiltinMatcherBuilder::Any,
+                    BranchBuilder::new(
+                        vec![BuiltinActionBuilder::Query(
+                            "mock".into(),
+                            CacheMode::default(),
+                        )],
+                        "end",
+                    ),
+                    BranchBuilder::default(),
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        UpstreamsBuilder::new(
+            vec![(
+                "mock",
+                UpstreamBuilder::Udp {
+                    addr: "127.0.0.1:53533".parse().unwrap(),
+                    dnssec: false,
+                    cache_size: c,
+                    timeout: 1,
                 },
-                c,
-            ),
-        )])
-        .unwrap(),
+            )]
+            .into_iter()
+            .collect(),
+        ),
     )
+    .build()
+    .await
     .unwrap()
 }
 

@@ -1,66 +1,59 @@
 ---
 verbosity: 'info'
-cache_size: 4096
 address: 0.0.0.0:2053
 table:
-- tag: start
-  if:
-    qtype:
-      - AAAA
-  then:
-  # A list of actions is allowed here
-  - blackhole
-  # The next tag to go
-  - end
-  else:
-  - dispatch
-- tag: dispatch
-  if: any
-  then:
-  - query: domestic
-  - check_secure
-- tag: check_secure
-  if:
-    geoip:
-      codes:
-        - CN
-  else:
-  - query: secure
-  - end
+  start:
+    if:
+      qtype:
+        - AAAA
+    then:
+    # A list of actions is allowed here
+    - blackhole
+    # The next tag to go
+    - end
+    else:
+    - dispatch
+  dispatch:
+    if: any
+    then:
+    - query: domestic
+    - check_secure
+  check_secure:
+    if:
+      geoip:
+        codes:
+          - CN
+    else:
+    - query: secure
+    - end
 
 upstreams:
-- method:
+  114DNS:
     udp:
       addr: 114.114.114.114:53
-  tag: 114DNS
 
-- method:
+  Ali:
     udp:
       addr: 223.6.6.6:53
-  tag: Ali
 
-- method:
+  domestic:
     hybrid:
     - 114DNS
     - Ali
-  tag: domestic
 
-- method:
+  cloudflare:
     https:
       no_sni: true
       name: cloudflare-dns.com
       addr: 1.1.1.1:443
-  tag: cloudflare
 
-- method:
+  quad9:
     https:
       no_sni: true
       name: dns.quad9.net
       addr: 9.9.9.9:443
-  tag: quad9
 
-- method:
+  secure:
     hybrid:
     - cloudflare
     - quad9
-  tag: secure

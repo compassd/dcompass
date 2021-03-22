@@ -13,14 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::super::rule::actions::{Action, Blackhole, CacheMode, Query, Result as ActionResult};
+use super::{Action, Blackhole, CacheMode, Query, Result as ActionResult};
 use crate::Label;
 use async_trait::async_trait;
 use serde::{Deserialize, Deserializer, Serialize};
 
-/// Trait for structs/enums that can convert themselves to actions.
+/// Trait for structs/enums that can build themselves into actions.
 #[async_trait]
-pub trait ParActionTrait: Send {
+pub trait ActionBuilder: Send {
     /// Convert itself to a boxed action
     async fn build(self) -> ActionResult<Box<dyn Action>>;
 }
@@ -30,7 +30,7 @@ pub trait ParActionTrait: Send {
 /// You can rewrite your own parsed enum to support customized action and more functionalities on your needs.
 #[serde(rename_all = "lowercase")]
 #[derive(Clone, Deserialize, Serialize)]
-pub enum BuiltinParAction {
+pub enum BuiltinActionBuilder {
     /// Set response to a message that "disables" requestor to retry.
     Blackhole,
 
@@ -65,7 +65,7 @@ where
 }
 
 #[async_trait]
-impl ParActionTrait for BuiltinParAction {
+impl ActionBuilder for BuiltinActionBuilder {
     // Should only be accessible from `Rule`.
     async fn build(self) -> ActionResult<Box<dyn Action>> {
         Ok(match self {
@@ -80,16 +80,16 @@ impl ParActionTrait for BuiltinParAction {
 #[serde(rename_all = "lowercase")]
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum ParAction<A: ParActionTrait> {
+pub enum AggregatedActionBuilder<A: ActionBuilder> {
     /// Extra actions. When variants are of the same name, this is of higher priority and may override builtin matchers.
     Extra(A),
 
     /// Builtin actions
-    Builtin(BuiltinParAction),
+    Builtin(BuiltinActionBuilder),
 }
 
 #[async_trait]
-impl<A: ParActionTrait> ParActionTrait for ParAction<A> {
+impl<A: ActionBuilder> ActionBuilder for AggregatedActionBuilder<A> {
     // Should only be accessible from `Rule`.
     async fn build(self) -> ActionResult<Box<dyn Action>> {
         Ok(match self {

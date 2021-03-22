@@ -1,10 +1,8 @@
 {
     "verbosity": "off",
-    "cache_size": 4096,
     "address": "0.0.0.0:2053",
-    "table": [
-        {
-            "tag": "start",
+    "table": {
+        "start": {
             "if": "any",
             "then": [
                 {
@@ -13,45 +11,33 @@
                 "end"
             ]
         }
-    ],
-    "upstreams": [
-        {
-            "method": {
-                "udp": {
-                    "addr": "114.114.114.114:53",
-                    "timeout": 1
-                }
-            },
-            "tag": "114"
+    },
+    "upstreams": {
+        "114": {
+            "udp": {
+                "addr": "114.114.114.114:53",
+                "timeout": 1
+            }
         },
-        {
-            "method": {
-                "https": {
-                    "timeout": 2,
-                    "no_sni": false,
-                    "name": "dns.quad9.net",
-                    "addr": "9.9.9.9:443"
-                }
-            },
-            "tag": "quad9"
+        "quad9": {
+            "https": {
+                "timeout": 2,
+                "no_sni": false,
+                "name": "dns.quad9.net",
+                "addr": "9.9.9.9:443"
+            }
         },
-        {
-            "method": {
-                "hybrid": [
-                    "114",
-                    "secure"
-                ]
-            },
-            "tag": "domestic"
+        "domestic": {
+            "hybrid": [
+                "114",
+                "secure"
+            ]
         },
-        {
-            "method": {
-                "hybrid": [
-                    "quad9",
-                    "domestic"
-                ]
-            },
-            "tag": "secure"
+        "secure": {
+            "hybrid": [
+                "quad9",
+                "domestic"
+            ]
         }
-    ]
+    }
 }

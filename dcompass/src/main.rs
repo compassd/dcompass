@@ -20,7 +20,7 @@ mod worker;
 
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
-use droute::{error::DrouteError, Router};
+use droute::{builders::RouterBuilder, error::DrouteError, Router};
 use log::*;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
@@ -44,7 +44,7 @@ struct DcompassOpts {
 
 async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
     Ok((
-        Router::parse(p.cache_size, p.table, p.upstreams).await?,
+        RouterBuilder::new(p.table, p.upstreams).build().await?,
         p.address,
         p.verbosity,
         p.ratelimit,

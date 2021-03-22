@@ -23,6 +23,7 @@ In short, `dcompass` enables you to write your own logic of how your DNS server 
 - Written in pure Rust
 
 # Notice
+**[2021-03-22] New syntax on writing rule blocks and upstream definitions.**  
 Breaking changes happened as new routing scheme has been adopted, see configuration section below to adapt.
 
 # Usages
@@ -61,7 +62,6 @@ See [example.yaml](configs/example.yaml)
 
 # Configuration
 Configuration file contains different fields:
-- `cache_size`: Size of the DNS cache system. Larger size implies higher cache capacity (use LRU algorithm as the backend).
 - `verbosity`: Log level filter. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
 - `address`: The address to bind on.
 - `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`. Each rule contains `tag`, `if`, `then`, and `else`. Latter two of which are of the form `(action1, action 2, ... , next)` (you can omit the action and write ONLY `(next)`), which means take the actions first and goto the next rule with the tag specified.
@@ -91,19 +91,19 @@ Table example of using GeoIP to mitigate pollution
 
 ```yaml
 table:
-- tag: start
-  if: any
-  then:
-  - query: domestic
-  - check_secure
-- tag: check_secure
-  if:
-    geoip:
-      codes:
-        - CN
-  else:
-  - query: secure
-  - end
+  start:
+    if: any
+    then:
+    - query: domestic
+    - check_secure
+  check_secure:
+    if:
+      geoip:
+        codes:
+          - CN
+    else:
+    - query: secure
+    - end
 ```
 
 # Behind the scene details

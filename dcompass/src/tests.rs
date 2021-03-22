@@ -133,18 +133,6 @@ async fn check_fail_recursion() {
 }
 
 #[tokio::test]
-async fn check_fail_multiple_def() {
-    match init(serde_yaml::from_str(include_str!("../../configs/fail_multiple_def.json")).unwrap())
-        .await
-        .err()
-        .unwrap()
-    {
-        DrouteError::UpstreamError(UpstreamError::MultipleDef(_)) => {}
-        e => panic!("Not the right error type: {}", e),
-    };
-}
-
-#[tokio::test]
 async fn fail_unused_upstreams() {
     match init(
         serde_yaml::from_str(include_str!("../../configs/fail_unused_upstreams.yaml")).unwrap(),

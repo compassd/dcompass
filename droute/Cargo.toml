@@ -10,9 +10,6 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-# serde support
-serde-cfg = ["serde", "trust-dns-proto/serde-config"]
-
 # common denominator for DoH and DoT, should not be used by end-users
 crypto = ["rustls", "webpki-roots", "webpki"]
 dot = ["trust-dns-rustls", "crypto"]
@@ -21,14 +18,14 @@ doh = ["trust-dns-https", "crypto"]
 geoip = ["maxminddb"]
 
 # enable all features
-all = ["serde-cfg", "dot", "doh", "geoip"]
+all = ["dot", "doh", "geoip"]
 
 [dependencies]
 # DNS-implementation related dependencies
 trust-dns-server = "^0.20"
-trust-dns-client = { version = "^0.20", default-features = false }
+trust-dns-client = { version = "^0.20", default-features = false, features = ["dnssec-ring"] }
 trust-dns-https = { version = "^0.20", optional = true }
-trust-dns-proto = "^0.20"
+trust-dns-proto = { version = "^0.20", features = ["serde-config"] }
 trust-dns-rustls = { version = "^0.20", optional = true }
 rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
 webpki-roots = { version = "^0.21", optional = true }
@@ -45,7 +42,7 @@ cidr-utils = "^0.5"
 once_cell = "^1.7"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
-serde = { version = "^1.0", features = ["derive", "rc"], optional = true }
+serde = { version = "^1.0", features = ["derive", "rc"] }
 lru = "^0.6"
 thiserror = "^1.0"
 async-trait = "^0.1"

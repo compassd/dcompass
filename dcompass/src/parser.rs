@@ -14,12 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_trait::async_trait;
-use droute::{
-    matchers::*,
-    parsed::{
-        BuiltinParAction, DefParUpstreamKind, ParMatcher, ParMatcherTrait, ParRule, ParUpstream,
-    },
-};
+use droute::{builders::*, matchers::*};
 use log::LevelFilter;
 use serde::Deserialize;
 use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
@@ -54,7 +49,7 @@ fn default_geoip_path() -> Option<PathBuf> {
 }
 
 #[async_trait]
-impl ParMatcherTrait for MyGeoIp {
+impl MatcherBuilder for MyGeoIp {
     async fn build(self) -> Result<Box<dyn Matcher>> {
         Ok(match self {
             Self::GeoIp { codes, path } => Box::new(GeoIp::new(
@@ -82,10 +77,11 @@ fn get_builtin_db() -> Result<Vec<u8>> {
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
-    pub table: Vec<ParRule<ParMatcher<MyGeoIp>, BuiltinParAction>>,
-    pub upstreams: Vec<ParUpstream<DefParUpstreamKind>>,
+    #[serde(flatten)]
+    pub table: TableBuilder<AggregatedMatcherBuilder<MyGeoIp>, BuiltinActionBuilder>,
+    #[serde(flatten)]
+    pub upstreams: UpstreamsBuilder,
     pub address: SocketAddr,
-    pub cache_size: usize,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,
     // Set default ratelimit to maximum, resulting in non-blocking (non-throttling) mode forever as the burst time is infinity.

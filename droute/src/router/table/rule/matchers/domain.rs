@@ -15,16 +15,14 @@
 
 use super::{super::super::State, Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
-#[cfg(feature = "serde-cfg")]
 use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
 
-#[cfg_attr(feature = "serde-cfg", serde(rename_all = "lowercase"))]
-#[cfg_attr(feature = "serde-cfg", derive(Deserialize))]
-#[derive(Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[derive(Deserialize, Clone, Eq, PartialEq)]
 /// Type of the domain resources to add to the matcher.
 pub enum ResourceType {
     /// Query Name

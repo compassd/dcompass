@@ -1,17 +1,15 @@
 ---
 verbosity: 'info'
-cache_size: 4096
 address: 0.0.0.0:2053
 table:
-- tag: start
-  if: any
-  then:
-  - query: zone
-  - end
+  start:
+    if: any
+    then:
+    - query: local
+    - end
 
 upstreams:
-- method:
+  local:
     zone:
       origin: "a.cn"
       path: ../data/a.cn.zone
-  tag: zone
