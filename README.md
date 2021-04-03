@@ -38,7 +38,7 @@ dcompass -c path/to/config.json -v
 
 # Packages
 You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases).
-1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has three different versions, namely `full`, `cn`, `min`. `full` version includes the full maxmind GeoIP2 database, while `cn` includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only. `min` includes no database at all.
+1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has two different versions. `full` version includes the full maxmind GeoIP2 database, while the normal version includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only.
 2. NixOS package is available at this repo as a flake. Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
 ```
 └───packages

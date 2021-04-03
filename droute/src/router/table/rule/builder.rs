@@ -55,7 +55,7 @@ impl<'de, A: ActionBuilder + Deserialize<'de>> Deserialize<'de> for BranchBuilde
         struct BranchVisitor<A> {
             // Dummy variable for visitor to be constrained by `A`.
             t: PhantomData<A>,
-        };
+        }
 
         impl<'de, A: ActionBuilder + Deserialize<'de>> Visitor<'de> for BranchVisitor<A> {
             type Value = BranchBuilder<A>;
