@@ -1,30 +1,5 @@
 # Currently, cargo GitHub Action doesn't use the up to date (git) version of the cross, we have to specify the docker images manually.
-
-[target.x86_64-unknown-netbsd]
-image = "rustembedded/cross:x86_64-unknown-netbsd"
-
-[target.x86_64-unknown-linux-musl]
-image = "rustembedded/cross:x86_64-unknown-linux-musl"
-
-[target.i686-unknown-linux-musl]
-image = "rustembedded/cross:i686-unknown-linux-musl"
-
-[target.aarch64-unknown-linux-musl]
-image = "rustembedded/cross:aarch64-unknown-linux-musl"
-
-[target.armv7-unknown-linux-musleabihf]
-image = "rustembedded/cross:armv7-unknown-linux-musleabihf"
-
-[target.armv5te-unknown-linux-musleabi]
-image = "rustembedded/cross:armv5te-unknown-linux-musleabi"
-
-[target.x86_64-pc-windows-gnu]
-image = "rustembedded/cross:x86_64-pc-windows-gnu"
-
-# There is no macOS image
+# Cross creates an internal list of supported docker images when builds and pulls the images according to the list. Here we add the newly-supported ones.
 
 [target.x86_64-unknown-freebsd]
 image = "rustembedded/cross:x86_64-unknown-freebsd"
-
-[target.i686-unknown-freebsd]
-image = "rustembedded/cross:i686-unknown-freebsd"

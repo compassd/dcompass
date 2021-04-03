@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, i686-unknown-freebsd]
+        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, armv5te-unknown-linux-musleabi, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd]
         include:
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
@@ -78,8 +78,8 @@ jobs:
             os: macos-latest
           - target: x86_64-unknown-freebsd
             os: ubuntu-latest
-          - target: i686-unknown-freebsd
-            os: ubuntu-latest
+          # - target: i686-unknown-freebsd
+          #   os: ubuntu-latest
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -169,7 +169,7 @@ jobs:
         if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
         then
           strip ./dcompass-${{ matrix.target }}-full.exe
-          strip ./dcompass-${{ matrix.target }}
+          strip ./dcompass-${{ matrix.target }}.exe
         else
           strip ./dcompass-${{ matrix.target }}-full
           strip ./dcompass-${{ matrix.target }}
