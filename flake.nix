@@ -29,7 +29,7 @@
                 ''--features "${v}"''
               ]);
           });
-    in utils.lib.eachDefaultSystem (system: rec {
+    in utils.lib.eachSystem (utils.lib.defaultSystems) (system: rec {
       # `nix build`
       packages = (pkgSet naersk.lib."${system}");
 
