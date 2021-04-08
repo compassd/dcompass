@@ -23,6 +23,7 @@ use trust_dns_server::{
     store::file::{FileAuthority, FileConfig},
 };
 
+// FileAuthority doesn't implement Clone, and QHandle requires us to Send + Sync.
 #[derive(Clone)]
 pub struct Zone(Arc<FileAuthority>);
 

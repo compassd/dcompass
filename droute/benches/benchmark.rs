@@ -52,7 +52,11 @@ async fn create_router(c: usize) -> Router {
                     BranchBuilder::new(
                         vec![BuiltinActionBuilder::Query(
                             "mock".into(),
-                            CacheMode::default(),
+                            if c != 1 {
+                                CacheMode::default()
+                            } else {
+                                CacheMode::Disabled
+                            },
                         )],
                         "end",
                     ),
@@ -68,12 +72,12 @@ async fn create_router(c: usize) -> Router {
                 UpstreamBuilder::Udp {
                     addr: "127.0.0.1:53533".parse().unwrap(),
                     dnssec: false,
-                    cache_size: c,
                     timeout: 1,
                 },
             )]
             .into_iter()
             .collect(),
+            std::num::NonZeroUsize::new(c).unwrap(),
         ),
     )
     .build()
@@ -91,7 +95,7 @@ fn bench_resolve(c: &mut Criterion) {
     let server = Server::new(socket, vec![0; 1024], None);
     rt.spawn(server.run(DUMMY_MSG.clone()));
 
-    let router = rt.block_on(create_router(0));
+    let router = rt.block_on(create_router(1));
     let cached_router = rt.block_on(create_router(4096));
 
     c.bench_function("non_cache_resolve", |b| {

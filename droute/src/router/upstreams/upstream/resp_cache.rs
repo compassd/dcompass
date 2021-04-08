@@ -14,14 +14,68 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use self::RecordStatus::*;
-use crate::MAX_TTL;
+use crate::{Label, MAX_TTL};
+use clru::CLruCache;
 use log::*;
-use lru::LruCache;
 use std::{
+    borrow::Borrow,
+    hash::{Hash, Hasher},
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use trust_dns_client::op::{Message, Query, ResponseCode};
+
+// Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
+trait KeyPair<A, B> {
+    /// Obtains the first element of the pair.
+    fn a(&self) -> &A;
+    /// Obtains the second element of the pair.
+    fn b(&self) -> &B;
+}
+
+impl<'a, A, B> Borrow<dyn KeyPair<A, B> + 'a> for (A, B)
+where
+    A: Eq + Hash + 'a,
+    B: Eq + Hash + 'a,
+{
+    fn borrow(&self) -> &(dyn KeyPair<A, B> + 'a) {
+        self
+    }
+}
+
+impl<A: Hash, B: Hash> Hash for (dyn KeyPair<A, B> + '_) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.a().hash(state);
+        self.b().hash(state);
+    }
+}
+
+impl<A: Eq, B: Eq> PartialEq for (dyn KeyPair<A, B> + '_) {
+    fn eq(&self, other: &Self) -> bool {
+        self.a() == other.a() && self.b() == other.b()
+    }
+}
+
+impl<A: Eq, B: Eq> Eq for (dyn KeyPair<A, B> + '_) {}
+
+impl<A, B> KeyPair<A, B> for (A, B) {
+    fn a(&self) -> &A {
+        &self.0
+    }
+    fn b(&self) -> &B {
+        &self.1
+    }
+}
+
+impl<A, B> KeyPair<A, B> for (&A, &B) {
+    fn a(&self) -> &A {
+        self.0
+    }
+    fn b(&self) -> &B {
+        self.1
+    }
+}
 
 struct CacheRecord {
     created_instant: Instant,
@@ -62,31 +116,31 @@ pub enum RecordStatus {
 // A LRU cache for responses
 #[derive(Clone)]
 pub struct RespCache {
-    cache: Arc<Mutex<LruCache<Vec<Query>, CacheRecord>>>,
+    cache: Arc<Mutex<CLruCache<(Label, Vec<Query>), CacheRecord>>>,
 }
 
 impl RespCache {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: NonZeroUsize) -> Self {
         Self {
-            cache: Arc::new(Mutex::new(LruCache::new(size))),
+            cache: Arc::new(Mutex::new(CLruCache::new(size))),
         }
     }
 
-    pub fn put(&self, msg: Message) {
+    pub fn put(&self, tag: Label, msg: Message) {
         if msg.response_code() == ResponseCode::NoError {
             self.cache
                 .lock()
                 .unwrap()
-                .put(msg.queries().to_vec(), CacheRecord::new(msg));
+                .put((tag, msg.queries().to_vec()), CacheRecord::new(msg));
         } else {
             warn!("Not caching erroneous upstream response.");
         };
     }
 
-    pub fn get(&self, msg: &Message) -> Option<RecordStatus> {
+    pub fn get(&self, tag: &Label, msg: &Message) -> Option<RecordStatus> {
         let queries: Vec<Query> = msg.queries().to_vec();
         let mut cache = self.cache.lock().unwrap();
-        match cache.get(&queries) {
+        match cache.get(&(tag, &queries) as &dyn KeyPair<Label, Vec<Query>>) {
             Some(r) => {
                 // Get record only once.
                 let resp = r.get();

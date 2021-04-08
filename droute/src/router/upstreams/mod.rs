@@ -24,15 +24,22 @@ mod upstream;
 pub use builder::UpstreamsBuilder;
 pub use upstream::*;
 
-use self::error::{Result, UpstreamError};
+use self::{
+    error::{Result, UpstreamError},
+    upstream::resp_cache::RespCache,
+};
 use crate::{actions::CacheMode, Label, Validatable, ValidateCell};
 use futures::future::{select_ok, BoxFuture, FutureExt};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    num::NonZeroUsize,
+};
 use trust_dns_client::op::Message;
 
 /// `Upstream` aggregated, used to create `Router`.
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
+    cache: RespCache,
 }
 
 impl Validatable for Upstreams {
@@ -63,8 +70,11 @@ impl Validatable for Upstreams {
 
 impl Upstreams {
     /// Create a new `Upstreams` by passing a bunch of `Upstream`s, with their respective labels, and cache capacity.
-    pub fn new(upstreams: HashMap<Label, Upstream>) -> Result<Self> {
-        let u = Self { upstreams };
+    pub fn new(upstreams: HashMap<Label, Upstream>, cache_size: NonZeroUsize) -> Result<Self> {
+        let u = Self {
+            upstreams,
+            cache: RespCache::new(cache_size),
+        };
         // Validate on the assumption that every upstream is gonna be used.
         u.validate(Some(&u.tags()))?;
         Ok(u)
@@ -121,7 +131,7 @@ impl Upstreams {
                 let (r, _) = select_ok(v.clone()).await?;
                 r
             } else {
-                u.resolve(cache_mode, msg).await?
+                u.resolve(tag, &self.cache, cache_mode, msg).await?
             })
         }
         .boxed()
@@ -143,7 +153,6 @@ mod tests {
                     UpstreamBuilder::Udp {
                         addr: "127.0.0.1:53533".parse().unwrap(),
                         dnssec: false,
-                        cache_size: 0,
                         timeout: 1,
                     },
                 ),
@@ -160,6 +169,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
+            std::num::NonZeroUsize::new(1).unwrap(),
         )
         .build()
         .await
@@ -176,7 +186,6 @@ mod tests {
                     UpstreamBuilder::Udp {
                         addr: "127.0.0.1:53533".parse().unwrap(),
                         dnssec: false,
-                        cache_size: 0,
                         timeout: 1,
                     },
                 ),
@@ -193,6 +202,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
+            std::num::NonZeroUsize::new(1).unwrap(),
         )
         .build()
         .await

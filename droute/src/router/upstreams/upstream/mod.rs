@@ -15,7 +15,7 @@
 
 mod builder;
 mod qhandle;
-mod resp_cache;
+pub(crate) mod resp_cache;
 
 pub use builder::UpstreamBuilder;
 pub use qhandle::{QHandle, QHandleError};
@@ -30,10 +30,7 @@ use trust_dns_client::op::Message;
 #[derive(Clone)]
 pub enum Upstream {
     Hybrid(HashSet<Label>),
-    Others {
-        inner: Arc<dyn QHandle>,
-        cache: RespCache,
-    },
+    Others(Arc<dyn QHandle>),
 }
 
 impl Upstream {
@@ -45,20 +42,26 @@ impl Upstream {
     }
 
     /// Resolve the query into a response.
-    pub async fn resolve(&self, cache_mode: &CacheMode, msg: &Message) -> Result<Message> {
-        if let Self::Others { inner, cache } = &self {
+    pub async fn resolve(
+        &self,
+        tag: &Label,
+        cache: &RespCache,
+        cache_mode: &CacheMode,
+        msg: &Message,
+    ) -> Result<Message> {
+        if let Self::Others(inner) = &self {
             let id = msg.id();
 
             // Manage cache with caching policies
             let mut r = match cache_mode {
                 CacheMode::Disabled => inner.query(msg.clone()).await?,
-                CacheMode::Standard => match cache.get(&msg) {
+                CacheMode::Standard => match cache.get(tag, &msg) {
                     // Cache available within TTL constraints
                     Some(Alive(r)) => r,
                     // No cache or cache expired
                     Some(Expired(_)) | None => inner.query(msg.clone()).await?,
                 },
-                CacheMode::Persistent => match cache.get(&msg) {
+                CacheMode::Persistent => match cache.get(tag, &msg) {
                     // Cache available within TTL constraints
                     Some(Alive(r)) => r,
                     Some(Expired(r)) => {
@@ -68,11 +71,12 @@ impl Upstream {
                         // Arc inside
                         let cache = cache.clone();
                         let msg = msg.clone();
+                        let tag = tag.clone();
                         tokio::spawn(async move {
                             // We have to update the cache though
                             // We don't care about failures here.
                             if let Ok(r) = inner.query(msg).await {
-                                cache.put(r)
+                                cache.put(tag, r)
                             }
                         });
                         r
@@ -80,7 +84,7 @@ impl Upstream {
                     None => inner.query(msg.clone()).await?,
                 },
             };
-            cache.put(r.clone());
+            cache.put(tag.clone(), r.clone());
             r.set_id(id);
             Ok(r)
         } else {

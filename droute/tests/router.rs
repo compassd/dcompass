@@ -73,12 +73,12 @@ async fn test_resolve() {
                 UpstreamBuilder::Udp {
                     addr: "127.0.0.1:53533".parse().unwrap(),
                     dnssec: false,
-                    cache_size: 0,
                     timeout: 10,
                 },
             )]
             .into_iter()
             .collect(),
+            std::num::NonZeroUsize::new(1).unwrap(),
         ),
     )
     .build()

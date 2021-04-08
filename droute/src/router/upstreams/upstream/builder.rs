@@ -20,7 +20,7 @@ use super::qhandle::Https;
 use super::qhandle::Tls;
 use super::{
     qhandle::{Client, Result, Udp, Zone},
-    RespCache, Upstream,
+    Upstream,
 };
 use crate::Label;
 use serde::{Deserialize, Serialize};
@@ -32,10 +32,6 @@ use trust_dns_server::authority::ZoneType;
 
 fn default_dnssec() -> bool {
     false
-}
-
-fn default_cache_size() -> usize {
-    1024
 }
 
 // Default value for timeout
@@ -91,9 +87,6 @@ pub enum UpstreamBuilder {
         /// Use DNSSEC or not
         #[serde(default = "default_dnssec")]
         dnssec: bool,
-        /// Cache store size
-        #[serde(default = "default_cache_size")]
-        cache_size: usize,
         /// Timeout length
         #[serde(default = "default_timeout")]
         timeout: u64,
@@ -110,9 +103,6 @@ pub enum UpstreamBuilder {
         /// Use DNSSEC or not
         #[serde(default = "default_dnssec")]
         dnssec: bool,
-        /// Cache store size
-        #[serde(default = "default_cache_size")]
-        cache_size: usize,
         /// Timeout length
         #[serde(default = "default_timeout")]
         timeout: u64,
@@ -124,9 +114,6 @@ pub enum UpstreamBuilder {
         /// Use DNSSEC or not
         #[serde(default = "default_dnssec")]
         dnssec: bool,
-        /// Cache store size
-        #[serde(default = "default_cache_size")]
-        cache_size: usize,
         /// Timeout length
         #[serde(default = "default_timeout")]
         timeout: u64,
@@ -139,9 +126,6 @@ pub enum UpstreamBuilder {
         zone_type: ZoneType,
         /// The zone `Name` being created, this should match that of the RecordType::SOA record.
         origin: String,
-        /// Cache store size
-        #[serde(default = "default_cache_size")]
-        cache_size: usize,
         /// Path to the zone file.
         path: String,
     },
@@ -157,39 +141,27 @@ impl UpstreamBuilder {
                 addr,
                 timeout,
                 dnssec,
-                cache_size,
-            } if !dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Udp, AsyncClient>::new(
-                    Udp::new(addr),
-                    Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+            } if !dnssec => Upstream::Others(Arc::new(Client::<Udp, AsyncClient>::new(
+                Udp::new(addr),
+                Duration::from_secs(timeout),
+            ))),
 
             // UDP Upstream with DNSSEC
             Self::Udp {
                 addr,
                 timeout,
                 dnssec,
-                cache_size,
-            } if dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Udp, AsyncDnssecClient>::new(
-                    Udp::new(addr),
-                    Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+            } if dnssec => Upstream::Others(Arc::new(Client::<Udp, AsyncDnssecClient>::new(
+                Udp::new(addr),
+                Duration::from_secs(timeout),
+            ))),
 
             // DNS zone file
             Self::Zone {
                 zone_type,
                 origin,
                 path,
-                cache_size,
-            } => Upstream::Others {
-                inner: Arc::new(Zone::new(zone_type, origin, path)?),
-                cache: RespCache::new(cache_size),
-            },
+            } => Upstream::Others(Arc::new(Zone::new(zone_type, origin, path)?)),
 
             #[cfg(feature = "doh")]
             Self::Https {
@@ -198,14 +170,10 @@ impl UpstreamBuilder {
                 no_sni,
                 timeout,
                 dnssec,
-                cache_size,
-            } if !dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Https, AsyncClient>::new(
-                    Https::new(name, addr, no_sni),
-                    Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+            } if !dnssec => Upstream::Others(Arc::new(Client::<Https, AsyncClient>::new(
+                Https::new(name, addr, no_sni),
+                Duration::from_secs(timeout),
+            ))),
 
             #[cfg(feature = "doh")]
             Self::Https {
@@ -214,14 +182,10 @@ impl UpstreamBuilder {
                 no_sni,
                 timeout,
                 dnssec,
-                cache_size,
-            } if dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Https, AsyncDnssecClient>::new(
-                    Https::new(name, addr, no_sni),
-                    Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+            } if dnssec => Upstream::Others(Arc::new(Client::<Https, AsyncDnssecClient>::new(
+                Https::new(name, addr, no_sni),
+                Duration::from_secs(timeout),
+            ))),
 
             #[cfg(feature = "dot")]
             Self::Tls {
@@ -230,14 +194,10 @@ impl UpstreamBuilder {
                 no_sni,
                 timeout,
                 dnssec,
-                cache_size,
-            } if !dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Tls, AsyncClient>::new(
-                    Tls::new(name, addr, no_sni),
-                    Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+            } if !dnssec => Upstream::Others(Arc::new(Client::<Tls, AsyncClient>::new(
+                Tls::new(name, addr, no_sni),
+                Duration::from_secs(timeout),
+            ))),
 
             #[cfg(feature = "dot")]
             Self::Tls {
@@ -246,21 +206,18 @@ impl UpstreamBuilder {
                 no_sni,
                 timeout,
                 dnssec,
-                cache_size,
-            } if dnssec => Upstream::Others {
-                inner: Arc::new(Client::<Tls, DnssecDnsHandle<AsyncClient>>::new(
+            } if dnssec => {
+                Upstream::Others(Arc::new(Client::<Tls, DnssecDnsHandle<AsyncClient>>::new(
                     Tls::new(name, addr, no_sni),
                     Duration::from_secs(timeout),
-                )),
-                cache: RespCache::new(cache_size),
-            },
+                )))
+            }
 
-            // We have already covered it here after.
+            // We have already covered the two sides of the dnssec.
             Self::Udp {
                 addr: _,
                 timeout: _,
                 dnssec: _,
-                cache_size: _,
             } => unreachable!(),
 
             #[cfg(feature = "doh")]
@@ -270,7 +227,6 @@ impl UpstreamBuilder {
                 no_sni: _,
                 timeout: _,
                 dnssec: _,
-                cache_size: _,
             } => unreachable!(),
 
             #[cfg(feature = "dot")]
@@ -280,7 +236,6 @@ impl UpstreamBuilder {
                 no_sni: _,
                 timeout: _,
                 dnssec: _,
-                cache_size: _,
             } => unreachable!(),
         })
     }

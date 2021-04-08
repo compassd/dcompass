@@ -119,7 +119,11 @@ mod tests {
             rule.route(
                 &"mock".into(), // This doesn't matter
                 &mut State::default(),
-                &Upstreams::new(vec![].into_iter().collect()).unwrap(),
+                &Upstreams::new(
+                    vec![].into_iter().collect(),
+                    std::num::NonZeroUsize::new(1).unwrap()
+                )
+                .unwrap(),
                 "foo"
             )
             .await

@@ -72,6 +72,7 @@
             rust-bin.nightly."2021-01-01".rustfmt
             rust-bin.stable.latest.rust
             binutils-unwrapped
+            cargo-cache
           ];
         };
     }) // {
