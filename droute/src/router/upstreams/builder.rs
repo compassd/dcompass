@@ -32,6 +32,7 @@ pub struct UpstreamsBuilder {
 }
 
 impl UpstreamsBuilder {
+    /// Create an UpstreamsBuilder from a set of upstreams and the cache_size for all of them.
     pub fn new(
         upstreams: HashMap<impl Into<Label>, UpstreamBuilder>,
         cache_size: NonZeroUsize,
@@ -42,6 +43,7 @@ impl UpstreamsBuilder {
         }
     }
 
+    /// Build the Upstreams from an UpstreamsBuilder
     pub async fn build(self) -> Result<Upstreams> {
         let mut v = HashMap::new();
         for (tag, u) in self.upstreams {

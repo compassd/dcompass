@@ -173,18 +173,21 @@ impl Table {
     }
 }
 
+/// A builder for the routing table.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TableBuilder<M: MatcherBuilder, A: ActionBuilder> {
     table: HashMap<Label, RuleBuilder<M, A>>,
 }
 
 impl<M: MatcherBuilder, A: ActionBuilder> TableBuilder<M, A> {
+    /// Create a `TableBuilder` from a set of rules
     pub fn new(table: HashMap<impl Into<Label>, RuleBuilder<M, A>>) -> Self {
         Self {
             table: table.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         }
     }
 
+    /// Build the rounting table from a `TableBuilder`
     pub async fn build(self) -> Result<Table> {
         let mut rules = HashMap::new();
         for (tag, r) in self.table {

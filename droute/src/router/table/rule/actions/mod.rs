@@ -14,6 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 mod blackhole;
+/// Builders for built-in actions and more.
 pub mod builder;
 mod query;
 

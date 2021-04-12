@@ -17,10 +17,10 @@
 
 /// A module containing built-in actions, action trait, and more.
 pub mod actions;
+/// A module containing rule-related builder facilities.
+pub mod builder;
 /// A module containing built-in matchers, matcher trait, and more.
 pub mod matchers;
-
-pub mod builder;
 
 use self::{actions::Action, matchers::Matcher};
 use super::{super::upstreams::Upstreams, Result, State};

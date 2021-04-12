@@ -72,12 +72,14 @@ impl Router {
     }
 }
 
+/// A Builder for Router.
 pub struct RouterBuilder<M: MatcherBuilder, A: ActionBuilder> {
     table: TableBuilder<M, A>,
     upstreams: UpstreamsBuilder,
 }
 
 impl<M: MatcherBuilder, A: ActionBuilder> RouterBuilder<M, A> {
+    /// Create a RouteBuilder
     pub fn new(table: TableBuilder<M, A>, upstreams: UpstreamsBuilder) -> Self {
         Self { table, upstreams }
     }

@@ -95,6 +95,7 @@ impl<'de, A: ActionBuilder + Deserialize<'de>> Deserialize<'de> for BranchBuilde
 }
 
 impl<A: ActionBuilder> BranchBuilder<A> {
+    /// Create a new BranchBuilder from a sequence of actions and the destination tag name.
     pub fn new(seq: Vec<A>, next: impl Into<Label>) -> Self {
         Self {
             seq,
@@ -102,7 +103,7 @@ impl<A: ActionBuilder> BranchBuilder<A> {
         }
     }
 
-    // Build the ParMatchArm into the internal-used tuple by `Rule`.
+    /// Build the ParMatchArm into the internal-used tuple by `Rule`.
     pub async fn build(self) -> ActionResult<(Vec<Box<dyn Action>>, Label)> {
         let mut built: Vec<Box<dyn Action>> = Vec::new();
         for a in self.seq {
@@ -143,6 +144,7 @@ pub struct RuleBuilder<M: MatcherBuilder, A: ActionBuilder> {
 }
 
 impl<M: MatcherBuilder, A: ActionBuilder> RuleBuilder<M, A> {
+    /// Create a new RuleBuilder
     pub fn new(matcher: M, on_match: BranchBuilder<A>, no_match: BranchBuilder<A>) -> Self {
         Self {
             matcher,
@@ -151,6 +153,7 @@ impl<M: MatcherBuilder, A: ActionBuilder> RuleBuilder<M, A> {
         }
     }
 
+    /// Build a Rule out of a given RuleBuilder
     pub async fn build(self) -> Result<Rule> {
         let matcher = self.matcher.build().await?;
         let on_match = self.on_match.build().await?;

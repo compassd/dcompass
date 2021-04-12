@@ -132,6 +132,7 @@ pub enum UpstreamBuilder {
 }
 
 impl UpstreamBuilder {
+    /// Build the Upstream from an UpstreamBuilder
     pub async fn build(self) -> Result<Upstream> {
         Ok(match self {
             Self::Hybrid(v) => Upstream::Hybrid(v),

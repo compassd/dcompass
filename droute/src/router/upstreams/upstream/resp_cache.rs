@@ -116,6 +116,7 @@ pub enum RecordStatus {
 // A LRU cache for responses
 #[derive(Clone)]
 pub struct RespCache {
+    #[allow(clippy::type_complexity)]
     cache: Arc<Mutex<CLruCache<(Label, Vec<Query>), CacheRecord>>>,
 }
 
@@ -133,7 +134,7 @@ impl RespCache {
                 .unwrap()
                 .put((tag, msg.queries().to_vec()), CacheRecord::new(msg));
         } else {
-            warn!("Not caching erroneous upstream response.");
+            info!("Response errored, not caching erroneous upstream response.");
         };
     }
 

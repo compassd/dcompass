@@ -27,7 +27,6 @@ pub use self::{
 
 use self::client_pool::ClientPoolError;
 use async_trait::async_trait;
-use dyn_clonable::*;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 use trust_dns_client::{error::ClientError, op::Message};
@@ -35,8 +34,8 @@ use trust_dns_proto::error::ProtoError;
 use trust_dns_server::authority::LookupError;
 
 #[async_trait]
-#[clonable]
-pub trait QHandle: Send + Sync + Clone {
+//#[clonable]
+pub trait QHandle: Send + Sync {
     async fn query(&self, mut msg: Message) -> Result<Message>;
 }
 

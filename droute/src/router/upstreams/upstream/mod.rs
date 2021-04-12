@@ -29,7 +29,9 @@ use trust_dns_client::op::Message;
 /// A single upstream. Opposite to the `Upstreams`.
 #[derive(Clone)]
 pub enum Upstream {
+    /// Hybrid upstream type
     Hybrid(HashSet<Label>),
+    /// Other upstream types, like Zone or ClientPool.
     Others(Arc<dyn QHandle>),
 }
 
@@ -52,6 +54,7 @@ impl Upstream {
         if let Self::Others(inner) = &self {
             let id = msg.id();
 
+            log::info!("querying with upstream: {}", tag);
             // Manage cache with caching policies
             let mut r = match cache_mode {
                 CacheMode::Disabled => inner.query(msg.clone()).await?,
@@ -86,6 +89,7 @@ impl Upstream {
             };
             cache.put(tag.clone(), r.clone());
             r.set_id(id);
+            log::info!("query successfully completed.");
             Ok(r)
         } else {
             unreachable!()
