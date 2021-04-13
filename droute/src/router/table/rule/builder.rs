@@ -72,17 +72,24 @@ impl<'de, A: ActionBuilder + Deserialize<'de>> Deserialize<'de> for BranchBuilde
 
                 // Get the `next` from the first element of the type Label.
                 let next = loop {
-                    match sv.next_element::<Either<A>>()? {
-                        Some(Either::Action(a)) => seq.push(a),
-                        Some(Either::Tag(l)) => break l,
-                        None => return Err(V::Error::custom("Missing the tag of the next rule")),
+                    match sv.next_element::<Either<A>>() {
+                        Ok(Some(Either::Action(a))) => seq.push(a),
+                        Ok(Some(Either::Tag(l))) => break l,
+                        Ok(None) => {
+                            return Err(V::Error::custom("Missing the tag of the next rule"))
+                        }
+                        Err(_) => {
+                            return Err(V::Error::custom(
+                                "Make sure elements in branch are either valid actions or label in the end. Failed to parse the branch",
+                            ))
+                        }
                     }
                 };
 
                 // Verify that this is indeed the last element.
                 if sv.next_element::<Either<A>>()?.is_some() {
                     return Err(V::Error::custom(
-                        "Extra element after the rule tag specified at last",
+                        "Extra element after the rule tag specified at last in the rule definition",
                     ));
                 }
 

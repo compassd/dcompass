@@ -14,10 +14,15 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_trait::async_trait;
-use droute::{builders::*, matchers::*};
+use droute::{builders::*, matchers::*, Label};
 use log::LevelFilter;
 use serde::Deserialize;
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    num::NonZeroUsize,
+    path::PathBuf,
+};
 
 pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;
 
@@ -74,13 +79,18 @@ fn get_builtin_db() -> Result<Vec<u8>> {
     Err(MatchError::NoBuiltInDb)
 }
 
+fn default_cache_size() -> NonZeroUsize {
+    NonZeroUsize::new(2048).unwrap()
+}
+
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
-    #[serde(flatten)]
     pub table: TableBuilder<AggregatedMatcherBuilder<MyGeoIp>, BuiltinActionBuilder>,
-    #[serde(flatten)]
-    pub upstreams: UpstreamsBuilder,
+    // We are not using UpstreamsBuilder because flatten ruins error location.
+    pub upstreams: HashMap<Label, UpstreamBuilder>,
+    #[serde(default = "default_cache_size")]
+    pub cache_size: NonZeroUsize,
     pub address: SocketAddr,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,

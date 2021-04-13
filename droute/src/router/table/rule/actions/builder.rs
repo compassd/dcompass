@@ -58,9 +58,11 @@ where
         Default(Label),
     }
 
-    Ok(match Either::deserialize(deserializer)? {
-        Either::Explicit(ExplicitQuery { tag, cache_policy }) => (tag, cache_policy),
-        Either::Default(t) => (t, CacheMode::default()),
+    Ok(match Either::deserialize(deserializer) {
+        Ok(Either::Explicit(ExplicitQuery { tag, cache_policy })) => (tag, cache_policy),
+        Ok(Either::Default(t)) => (t, CacheMode::default()),
+	// Currently, because BranchBuilder cannot provide precise information, this error message doesn't take effect.
+	Err(_) => return Err(serde::de::Error::custom("Failed to parse query action using either explicit form (tag, cache_policy) or the simplified form (tag only)"))
     })
 }
 
@@ -79,6 +81,7 @@ impl ActionBuilder for BuiltinActionBuilder {
 /// You can customize/add more actions using `Extra` variant. If you are OK with the default, use `BuiltinParAction`.
 #[serde(rename_all = "lowercase")]
 #[derive(Clone, Deserialize, Serialize)]
+// Currently we cannot get precise error information in `BranchBuilder`. Therefore, there is no need to provide precise information here by getting rid of untagged.
 #[serde(untagged)]
 pub enum AggregatedActionBuilder<A: ActionBuilder> {
     /// Extra actions. When variants are of the same name, this is of higher priority and may override builtin matchers.

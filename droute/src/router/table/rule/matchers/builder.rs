@@ -17,7 +17,7 @@
 use super::GeoIp;
 use super::{Any, Domain, IpCidr, Matcher, QType, ResourceType, Result as MatcherResult};
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{de::Deserializer, Deserialize};
 use std::collections::HashSet;
 #[cfg(feature = "geoip")]
 use std::path::PathBuf;
@@ -90,14 +90,32 @@ impl MatcherBuilder for BuiltinMatcherBuilder {
 
 /// Parsed Matcher
 /// You can customize/add more actions using `Extra` variant. If you are OK with the default, use `BuiltinParAction`.
-#[derive(Deserialize, Clone, Eq, PartialEq)]
-#[serde(rename_all = "lowercase")]
-#[serde(untagged)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum AggregatedMatcherBuilder<M: MatcherBuilder> {
     /// Extra matchers. When variants are of the same name, this is of higher priority and may override builtin matchers.
     Extra(M),
     /// Builtin matchers
     Builtin(BuiltinMatcherBuilder),
+}
+
+impl<'de, M: MatcherBuilder + Deserialize<'de>> Deserialize<'de> for AggregatedMatcherBuilder<M> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Either<M: MatcherBuilder> {
+            Other(M),
+            Default(BuiltinMatcherBuilder),
+        }
+
+        Ok(match Either::deserialize(deserializer) {
+            Ok(Either::Other(m)) => AggregatedMatcherBuilder::Extra(m),
+            Ok(Either::Default(m)) => AggregatedMatcherBuilder::Builtin(m),
+            Err(_) => return Err(serde::de::Error::custom("Make sure you are using an existing matcher format and the fields are of correct types. Failed to parse the matcher")),
+        })
+    }
 }
 
 #[async_trait]
