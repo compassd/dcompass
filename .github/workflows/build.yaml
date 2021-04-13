@@ -6,8 +6,9 @@ on:
 
 jobs:
   cachix:
-    if: (startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))
+    if: ((startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))) && (needs.create-release.outputs.log-num > 0)
     name: upload cachix
+    needs: create-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -35,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.current_time.outputs.formattedTime }}
+      log: ${{ steps.get_log.outputs.log }}
+      log-num: ${{ steps.get_log.outputs.log-num }}
     steps:
       - name: Get current time
         uses: 1466587594/get-current-time@v2
@@ -42,8 +45,14 @@ jobs:
         with:
           format: YYYYMMDD_HHmm
           utcOffset: "+08:00"
+      - name: Get log
+        id: get_log
+        run: |
+          echo "::set-output name=log::$(git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short)"
+          echo "::set-output name=log-num::$(git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short| grep -c '')"
       - name: Create release
         id: create_release
+        if: ${{steps.get_log.outputs.log-num > 0}}
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,7 +62,7 @@ jobs:
 
   build-release:
     name: Build dcompass for ${{ matrix.target }}
-    if: (startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))
+    if: ((startsWith(github.event.head_commit.message, 'build:') || (github.event_name == 'schedule'))) && (needs.create-release.outputs.log-num > 0)
     needs: create-release
     strategy:
       fail-fast: false
@@ -212,6 +221,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'
+        body: ${{ needs.create-release.outputs.log }}
         tag_name: build-${{ needs.create-release.outputs.date }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
