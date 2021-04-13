@@ -221,18 +221,22 @@ jobs:
           upx ./dcompass-${{ matrix.target }} || true
         fi
 
+    - name: Echo body
+      if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
+      run: git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short > changelog.txt
+
     - name: Publish
-      if: ${{ matrix.target == "x86_64-unknown-linux-musl" }}
+      if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'
-        body: ${{ needs.create-release.outputs.log }}
+        body_path: changelog.txt
         tag_name: build-${{ needs.create-release.outputs.date }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Publish (no notes)
-      if: ${{ matrix.target != "x86_64-unknown-linux-musl" }}
+      if: ${{ matrix.target != 'x86_64-unknown-linux-musl' }}
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'
