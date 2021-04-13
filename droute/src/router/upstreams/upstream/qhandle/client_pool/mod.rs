@@ -21,10 +21,7 @@ use tokio::{
     time::{timeout, Duration},
 };
 use trust_dns_client::op::Message;
-use trust_dns_proto::{
-    error::{ProtoError, ProtoErrorKind, ProtoErrorKind::*},
-    DnsHandle,
-};
+use trust_dns_proto::{error::ProtoError, DnsHandle};
 
 #[cfg(feature = "crypto")]
 mod crypto;
@@ -51,9 +48,9 @@ pub enum ClientPoolError {
 pub type Result<T> = std::result::Result<T, ClientPoolError>;
 
 /// State of the client returned (used).
-pub enum ClientState<'a> {
+pub enum ClientState {
     /// Client failed to send message
-    Failed(&'a ProtoErrorKind),
+    Failed,
     /// Client sent message successfully.
     Succeeded,
 }
@@ -102,35 +99,15 @@ impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
         })
     }
 
-    async fn return_client<'a>(&self, _: U, state: ClientState<'_>) -> Result<()> {
+    async fn return_client(&self, _: U, state: ClientState) -> Result<()> {
         match state {
-            ClientState::Failed(e) => {
-                // We only renew the inner client if the error was irrecoverable
-                // - Message and Msg: some irrecoverable errors (like the one from h2) are being written in these formats.
-                // - Io:  presumably irrecoverable
-                // - Poisoned: irrecoverable as we have to restart it over.
-                // - Ring and SSL: either configuration or connection errors, mainly irrecoverable.
-                // - Timer and Timeout: timeout occured, may be related to connection issues which are irrecoverable.
-                // - MaxBufferSizeExceeded: *Might be* irrecoverable, remove if otherwise proven recoverable.
-                if matches!(
-                    e,
-                    Message(_)
-                        | Msg(_)
-                        | Io(_)
-                        | Poisoned
-                        | Ring(_)
-                        | SSL(_)
-                        | Timer
-                        | Timeout
-                        | MaxBufferSizeExceeded(_)
-                ) {
-                    log::info!(
-                        "client query errored, renewing the {} client",
-                        self.client.conn_type()
-                    );
-                    let mut w = self.inner.write().await;
-                    *w = Some(self.client.create().await?);
-                }
+            ClientState::Failed => {
+                log::info!(
+                    "client query errored, renewing the {} client",
+                    self.client.conn_type()
+                );
+                let mut w = self.inner.write().await;
+                *w = Some(self.client.create().await?);
             }
             // We don't need to return client cause all clients distrubuted are clones of the one held here.
             ClientState::Succeeded => {}
@@ -163,15 +140,11 @@ impl<T: ClientWrapper<U>, U: DnsHandle<Error = ProtoError>> QHandle for Client<T
             Ok(Ok(m)) => m,
             Ok(Err(e)) => {
                 // Renew the client as it errored.
-                self.pool
-                    .return_client(client, ClientState::Failed(e.kind()))
-                    .await?;
+                self.pool.return_client(client, ClientState::Failed).await?;
                 return Err(e.into());
             }
             Err(e) => {
-                self.pool
-                    .return_client(client, ClientState::Failed(&ProtoErrorKind::Timer))
-                    .await?;
+                self.pool.return_client(client, ClientState::Failed).await?;
                 return Err(e.into());
             }
         });
