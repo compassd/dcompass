@@ -57,7 +57,8 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), Dr
     ))
 }
 
-#[tokio::main]
+// Multi-threading has memory issue. see also: https://github.com/bluejekyll/trust-dns/issues/777
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args: DcompassOpts = DcompassOpts::from_args();
 
