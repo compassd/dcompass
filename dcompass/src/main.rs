@@ -117,7 +117,10 @@ async fn main() -> Result<()> {
     }
 
     // Start logging
-    SimpleLogger::new().with_level(verbosity).init()?;
+    SimpleLogger::new()
+        .with_module_level("trust_dns_https::https_client_stream", LevelFilter::Off) // This module is quite chatty, we want to disable it.
+        .with_level(verbosity)
+        .init()?;
 
     let mut ratelimit = ratelimit::Builder::new()
         .capacity(1500) // TODO: to be determined if this is a proper value

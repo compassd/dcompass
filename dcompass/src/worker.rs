@@ -30,7 +30,14 @@ pub async fn worker(
     let request = Message::from_vec(buf)?;
 
     debug!("Received message: {:?}", request);
-    info!("Received queries: {:?}", request.queries());
+    info!(
+        "Received queries with names: {:?}",
+        request
+            .queries()
+            .iter()
+            .map(|x| x.name().to_utf8())
+            .collect::<Vec<String>>()
+    );
     socket
         .send_to(&router.resolve(request).await?.to_vec()?, src)
         .await
