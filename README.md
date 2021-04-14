@@ -1,16 +1,11 @@
 # dcompass
-![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)  
+![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)
+[![Join telegram channel](https://badges.aleen42.com/src/telegram.svg)](https://t.me/dcompass_channel)  
 Your DNS supercharged! A high-performance DNS server with freestyle routing scheme support, DoT/DoH functionalities built-in.  
 [中文版](README-CN.md)
 
-# Why Do I Ever Need It?
-Imagine you are living in a county where your ISP constantly hijacks your DNS requests and responses.  
-There are solutions like DNS-over-HTTPS or DNS-over-TLS. You can use software like [CoreDNS](https://coredns.io) or stubby, but they don't simply solve the problem as only using DoT/DoH is slower in most cases.  
-In order to concurrently query and not be trapped by ISP, you then try to have software like [SmartDNS](https://github.com/pymumu/smartdns) or [Overture](https://github.com/shawn1m/overture) to offer yourself some flexibility on dispatching DNS requests. However, everyone has their own story, those preset rules don't fit all at once.  
-What's even worse is that you probably want to have DNS-level ad-blocking functionality, do you really want to add another layer of AdGuard Home? Can you do all of these at once?  
-Indeed, you can. `dcompass` gives you full-freedom in matching and handling every DNS requests via custom routing table, and also finely-grained control over usages of upstreams.  
-
-In short, `dcompass` enables you to write your own logic of how your DNS server should behave, as simple as possible.
+# Why?
+`dcompass` enables you to write your own logic of how your DNS server should behave, as simple as possible. It is "programmable".
 
 # Features
 - Fast (~2500 qps in wild where upstream perf is about the same)
@@ -142,4 +137,4 @@ Following benchmarks are not mocked, but they are rather based on multiple perfs
 
 # License
 All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.
-`dcompass` and `droute` with `geoip` feature gate enabled include GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a>.
+`dcompass` with `geoip` feature gate enabled includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a>.
