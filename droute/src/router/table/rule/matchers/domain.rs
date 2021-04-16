@@ -14,9 +14,11 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{super::super::State, Matcher, Result};
+use std::io::Read;
 use dmatcher::domain::Domain as DomainAlg;
 use serde::Deserialize;
 use tokio::{fs::File, io::AsyncReadExt};
+use flate2::read::GzDecoder;
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
@@ -30,6 +32,9 @@ pub enum ResourceType {
 
     /// A file
     File(String),
+
+    /// A Gzip
+    Gzip(String),
 }
 
 impl Domain {
@@ -44,6 +49,15 @@ impl Domain {
                         let mut file = File::open(l).await?;
                         let mut data = String::new();
                         file.read_to_string(&mut data).await?;
+                        matcher.insert_multi(&data);
+                    },
+                    ResourceType::Gzip(l) => {
+                        let mut file = File::open(l).await?;
+                        let mut buf: Vec<u8> = Vec::new();
+                        file.read_to_end(&mut buf).await?;
+                        let mut gz = GzDecoder::new(&*buf).unwrap();
+                        let mut data = String::new();
+                        gz.read_to_string(&mut data)?;
                         matcher.insert_multi(&data);
                     }
                 }
