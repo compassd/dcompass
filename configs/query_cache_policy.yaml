@@ -1,5 +1,5 @@
 ---
-verbosity: 'off'
+verbosity: "off"
 address: 0.0.0.0:2053
 table:
   start:
@@ -7,13 +7,13 @@ table:
       domain:
         - file: "../data/china.txt"
     then:
-    - query: domestic
-    - end
+      - query: domestic
+      - end
     else:
-    - query:
-        tag: secure
-        cache_policy: persistent
-    - end
+      - query:
+          tag: secure
+          cache_policy: persistent
+      - end
 upstreams:
   domestic:
     udp:

@@ -1,12 +1,12 @@
 ---
-verbosity: 'info'
+verbosity: "info"
 address: 0.0.0.0:2053
 table:
   start:
     if: any
     then:
-    - query: local
-    - end
+      - query: local
+      - end
 
 upstreams:
   local:
