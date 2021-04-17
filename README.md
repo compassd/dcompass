@@ -84,10 +84,10 @@ Different actions:
 Different matchers: (More matchers to come)
 
 - `any`: Matches anything.
-- `domain(list of file paths or query name)`: Matches domain in specified domain lists
+- `domain(list of file paths or query name)`: Matches domain in specified domain lists. Supports gzip, lzma, and bzip2.
 - `qtype(list of record types)`: Matches record type specified.
 - `geoip(codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
-- `ipcidr(list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR.
+- `ipcidr(list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR. Supports gzip, lzma, and bzip2.
 
 Different querying methods:
 

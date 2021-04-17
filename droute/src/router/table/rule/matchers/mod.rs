@@ -65,6 +65,10 @@ pub enum MatchError {
     #[error("This build doesn't contain a built-in GeoIP database, please specify your own database or use other builds.")]
     NoBuiltInDb,
 
+    /// Compression error
+    #[error("Error encountered during decompression")]
+    DecompError(#[from] niffler::Error),
+
     /// Other error.
     #[error("An error encountered in matcher: {0}")]
     Other(String),

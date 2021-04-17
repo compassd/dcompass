@@ -49,6 +49,10 @@ thiserror = "^1.0"
 async-trait = "^0.1"
 dyn-clonable = "^0.9"
 
+# (de)compression libs
+tar = "^0.4"
+niffler = "^2"
+
 [dev-dependencies]
 tokio-test = "^0.4"
 criterion = { version = "^0.3", features = ["async_tokio"]}

@@ -16,7 +16,7 @@
 use super::{super::super::State, Matcher, Result};
 use dmatcher::domain::Domain as DomainAlg;
 use serde::Deserialize;
-use tokio::{fs::File, io::AsyncReadExt};
+use std::path::PathBuf;
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
@@ -29,7 +29,7 @@ pub enum ResourceType {
     Qname(String),
 
     /// A file
-    File(String),
+    File(PathBuf),
 }
 
 impl Domain {
@@ -41,9 +41,10 @@ impl Domain {
                 match r {
                     ResourceType::Qname(n) => matcher.insert_multi(&n),
                     ResourceType::File(l) => {
-                        let mut file = File::open(l).await?;
+                        // TODO: Can we make it async?
+                        let (mut file, _) = niffler::from_path(l)?;
                         let mut data = String::new();
-                        file.read_to_string(&mut data).await?;
+                        file.read_to_string(&mut data)?;
                         matcher.insert_multi(&data);
                     }
                 }

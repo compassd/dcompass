@@ -154,6 +154,7 @@ impl Table {
     // Not intended to be used by end-users
     pub(super) async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
         let name = query.queries().iter().next().unwrap().name().to_utf8();
+        let id = query.id();
         let mut s = State {
             query,
             ..Default::default()
@@ -169,6 +170,7 @@ impl Table {
                 .await?;
         }
         info!("Domain \"{}\" has finished routing", name);
+        s.resp.set_id(id);
         Ok(s.resp)
     }
 }
@@ -324,7 +326,7 @@ mod tests {
                 "start",
                 RuleBuilder::new(
                     BuiltinMatcherBuilder::Domain(vec![ResourceType::File(
-                        "../data/china.txt".to_string(),
+                        "../data/china.txt.gz".into(),
                     )]),
                     BranchBuilder::new(
                         vec![BuiltinActionBuilder::Query(

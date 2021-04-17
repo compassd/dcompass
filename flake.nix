@@ -42,11 +42,14 @@
         update = utils.lib.mkApp {
           drv = with import nixpkgs { system = "${system}"; };
             pkgs.writeShellScriptBin "dcompass-update-data" ''
-              export PATH=${pkgs.lib.strings.makeBinPath [ wget ]}
+              set -e
+              export PATH=${pkgs.lib.strings.makeBinPath [ wget gzip ]}
               wget -O ./data/full.mmdb --show-progress https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
               wget -O ./data/cn.mmdb --show-progress https://github.com/Hackl0us/GeoIP2-CN/raw/release/Country.mmdb
               wget -O ./data/ipcn.txt --show-progress https://github.com/17mon/china_ip_list/raw/master/china_ip_list.txt
-                          '';
+              gzip -k ./data/china.txt
+              gzip -k ./data/ipcn.txt
+            '';
         };
         commit = (import ./commit.nix {
           lib = utils.lib;

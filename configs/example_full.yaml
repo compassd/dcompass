@@ -47,7 +47,7 @@ table:
       #   codes:
       #     - CN
       ipcidr:
-        - ../data/ipcn.txt
+        - ../data/ipcn.txt.gz
     else:
       - query: secure
       - end

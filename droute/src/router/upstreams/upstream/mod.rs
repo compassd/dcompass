@@ -52,11 +52,9 @@ impl Upstream {
         msg: &Message,
     ) -> Result<Message> {
         if let Self::Others(inner) = &self {
-            let id = msg.id();
-
             log::info!("querying with upstream: {}", tag);
             // Manage cache with caching policies
-            let mut r = match cache_mode {
+            let r = match cache_mode {
                 CacheMode::Disabled => inner.query(msg.clone()).await?,
                 CacheMode::Standard => match cache.get(tag, &msg) {
                     // Cache available within TTL constraints
@@ -88,7 +86,6 @@ impl Upstream {
                 },
             };
             cache.put(tag.clone(), r.clone());
-            r.set_id(id);
             log::info!("query successfully completed.");
             Ok(r)
         } else {

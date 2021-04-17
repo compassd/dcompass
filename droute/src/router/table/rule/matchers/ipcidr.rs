@@ -19,7 +19,6 @@ use cidr_utils::{
     utils::IpCidrCombiner as CidrCombiner,
 };
 use std::net::IpAddr;
-use tokio::{fs::File, io::AsyncReadExt};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches the IP on dst.
@@ -33,9 +32,9 @@ impl IpCidr {
         Ok({
             let mut matcher = CidrCombiner::new();
             for r in path {
-                let mut file = File::open(r).await?;
+                let (mut file, _) = niffler::from_path(r)?;
                 let mut data = String::new();
-                file.read_to_string(&mut data).await?;
+                file.read_to_string(&mut data)?;
                 // This gets rid of empty substrings for stability reasons. See also https://github.com/LEXUGE/dcompass/issues/33.
                 data.split('\n').filter(|&x| !x.is_empty()).try_for_each(
                     |x| -> std::result::Result<(), IpCidrError> {
