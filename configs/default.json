@@ -1,39 +1,36 @@
 {
-    "verbosity": "info",
-    "address": "0.0.0.0:2053",
-    "table": {
-        "start": {
-            "if": "any",
-            "then": [
-                {
-                    "query": "secure"
-                },
-                "end"
-            ]
-        }
-    },
-    "upstreams": {
-        "quad9-tls": {
-            "tls": {
-                "no_sni": true,
-                "timeout": 4,
-                "name": "dns.quad9.net",
-                "addr": "9.9.9.9:853"
-            }
+  "verbosity": "info",
+  "address": "0.0.0.0:2053",
+  "table": {
+    "start": {
+      "if": "any",
+      "then": [
+        {
+          "query": "secure"
         },
-        "cloudflare": {
-            "https": {
-                "timeout": 4,
-                "no_sni": true,
-                "name": "cloudflare-dns.com",
-                "addr": "1.1.1.1:443"
-            }
-        },
-        "secure": {
-            "hybrid": [
-                "cloudflare",
-                "quad9-tls"
-            ]
-        }
+        "end"
+      ]
     }
+  },
+  "upstreams": {
+    "quad9-tls": {
+      "tls": {
+        "no_sni": true,
+        "timeout": 4,
+        "name": "dns.quad9.net",
+        "addr": "9.9.9.9:853"
+      }
+    },
+    "cloudflare": {
+      "https": {
+        "timeout": 4,
+        "no_sni": true,
+        "name": "cloudflare-dns.com",
+        "addr": "1.1.1.1:443"
+      }
+    },
+    "secure": {
+      "hybrid": ["cloudflare", "quad9-tls"]
+    }
+  }
 }

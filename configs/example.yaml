@@ -1,5 +1,5 @@
 ---
-verbosity: 'info'
+verbosity: "info"
 address: 0.0.0.0:2053
 table:
   start:
@@ -7,25 +7,25 @@ table:
       qtype:
         - AAAA
     then:
-    # A list of actions is allowed here
-    - blackhole
-    # The next tag to go
-    - end
+      # A list of actions is allowed here
+      - blackhole
+      # The next tag to go
+      - end
     else:
-    - dispatch
+      - dispatch
   dispatch:
     if: any
     then:
-    - query: domestic
-    - check_secure
+      - query: domestic
+      - check_secure
   check_secure:
     if:
       geoip:
         codes:
           - CN
     else:
-    - query: secure
-    - end
+      - query: secure
+      - end
 
 upstreams:
   114DNS:
@@ -38,8 +38,8 @@ upstreams:
 
   domestic:
     hybrid:
-    - 114DNS
-    - Ali
+      - 114DNS
+      - Ali
 
   cloudflare:
     https:
@@ -55,5 +55,5 @@ upstreams:
 
   secure:
     hybrid:
-    - cloudflare
-    - quad9
+      - cloudflare
+      - quad9

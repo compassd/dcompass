@@ -1,0 +1,132 @@
+---
+verbosity: warn
+address: 0.0.0.0:2053
+
+table:
+  start:
+    if:
+      qtype:
+        - AAAA
+    then:
+      # force disable IPv6
+      - blackhole
+      - end
+    else:
+      - dispatch
+  dispatch:
+    if:
+      domain:
+        - qname: ytimg.com
+        - qname: youtube.com
+        - qname: 1e100.net
+        - qname: gvt1.com
+        - qname: gvt2.com
+        - qname: ggpht.com
+        - qname: google.com
+        - qname: gstatic.com
+        - qname: googleapis.com
+        - qname: googlevideo.com
+        - qname: googleusercontent.com
+        - qname: googlesyndication.com
+        - qname: g.cn
+        - qname: gkecnapps.cn
+        - qname: googleapis.cn
+        - qname: googlecnapps.cn
+        - qname: gstaticcnapps.cn
+        - qname: googleadsserving.cn
+    then:
+      # force all google query with secure to avoid AS24424
+      - query: secure
+      - end
+    else:
+      - query: domestic
+      - check_secure
+  check_secure:
+    if:
+      # geoip:
+      #   codes:
+      #     - CN
+      ipcidr:
+        - ../data/ipcn.txt
+    else:
+      - query: secure
+      - end
+
+upstreams:
+  dnspodDoH:
+    https:
+      no_sni: false
+      name: doh.pub
+      addr: 162.14.21.56:443
+
+  aliDoH:
+    https:
+      no_sni: false
+      name: dns.alidns.com
+      addr: 223.5.5.5:443
+
+  dnspodDoT:
+    tls:
+      no_sni: false
+      name: doh.pub
+      addr: 162.14.21.178:443
+
+  aliDoT:
+    tls:
+      no_sni: false
+      name: ddns.alidns.com
+      addr: 223.6.6.6:443
+
+  googleDoH:
+    https:
+      no_sni: true
+      name: dns.google
+      addr: 8.8.4.4:443
+
+  quad9DoH:
+    https:
+      no_sni: true
+      name: dns.quad9.net
+      addr: 149.112.112.112:443
+
+  cloudflareDoH:
+    https:
+      no_sni: true
+      name: cloudflare-dns.com
+      addr: 162.159.36.1:443
+
+  googleDoT:
+    tls:
+      no_sni: true
+      name: dns.google
+      addr: 8.8.8.8:853
+
+  quad9DoT:
+    tls:
+      no_sni: true
+      name: dns11.quad9.net
+      addr: 9.9.9.11:853
+
+  cloudflareDoT:
+    tls:
+      no_sni: true
+      name: cloudflare-dns.com
+      addr: 1.1.1.1:853
+
+  # ------------ FINAL -------------
+
+  domestic:
+    hybrid:
+      - dnspodDoH
+      - aliDoH
+      - dnspodDoT
+      - aliDoT
+
+  secure:
+    hybrid:
+      - googleDoH
+      - quad9DoH
+      - cloudflareDoH
+      - googleDoT
+      - quad9DoT
+      - cloudflareDoT
