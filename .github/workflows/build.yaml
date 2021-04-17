@@ -36,7 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.current_time.outputs.formattedTime }}
-      log: ${{ steps.get_log.outputs.log }}
       log-num: ${{ steps.get_log.outputs.log-num }}
     steps:
       - uses: actions/checkout@v2
@@ -51,9 +50,7 @@ jobs:
       - name: Get log
         id: get_log
         run: |
-          declare LOG=$(git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short)
-          echo "::set-output name=log::$(echo $LOG)"
-          echo "::set-output name=log-num::$(echo $LOG| grep -c '')"
+          echo "::set-output name=log-num::$(git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short | grep -c '')"
       - name: Create release
         id: create_release
         if: ${{steps.get_log.outputs.log-num > 0}}

@@ -14,7 +14,7 @@ lib.mkApp {
         gcc
         # write rustfmt first to ensure we are using nightly rustfmt
         rust-bin.nightly."2021-01-01".rustfmt
-        rust-bin.stable.latest.rust
+        rust-bin.stable.latest.default
         binutils-unwrapped
       ]
     }

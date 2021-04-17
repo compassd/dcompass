@@ -45,7 +45,7 @@ pub type Result<T> = std::result::Result<T, MatchError>;
 pub enum MatchError {
     /// Error forwarded from `std::io::Error`.
     #[error("An I/O error encountered. Check files provided for matcher(s) to ensure they exist and have the right permissions.")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     /// Error related to GeoIP usages.
     #[cfg(feature = "geoip")]
