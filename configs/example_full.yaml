@@ -12,8 +12,8 @@ table:
       - blackhole
       - end
     else:
-      - dispatch
-  dispatch:
+      - dispatch_main
+  dispatch_main:
     if:
       domain:
         - qname: ytimg.com
@@ -35,10 +35,25 @@ table:
         - qname: gstaticcnapps.cn
         - qname: googleadsserving.cn
     then:
-      # force all google query with secure to avoid AS24424
+      # force all google query with oversea to avoid AS24424
+      - query: oversea
+      - end
+    else:
+      - dispatch_secure
+  dispatch_secure:
+    if:
+      domain:
+        - file: ../data/blacklist.gz
+    then:
+      # force all blacklist query with secure to avoid leaking domain to domestic
       - query: secure
       - end
     else:
+      - dispatch_final
+  dispatch_final:
+    if: any
+    then:
+      # finally, query rest domain from domestic and check_secure, works like chinadns
       - query: domestic
       - check_secure
   check_secure:
@@ -68,14 +83,14 @@ upstreams:
   dnspodDoT:
     tls:
       no_sni: false
-      name: doh.pub
-      addr: 162.14.21.178:443
+      name: dot.pub
+      addr: 162.14.21.178:853
 
   aliDoT:
     tls:
       no_sni: false
-      name: ddns.alidns.com
-      addr: 223.6.6.6:443
+      name: dns.alidns.com
+      addr: 223.6.6.6:853
 
   googleDoH:
     https:
@@ -113,6 +128,36 @@ upstreams:
       name: cloudflare-dns.com
       addr: 1.1.1.1:853
 
+  opendnsDoH:
+    https:
+      no_sni: true
+      name: doh.opendns.com
+      addr: 146.112.41.2:443
+
+  adguardDoH:
+    https:
+      no_sni: true
+      name: dns.adguard.com
+      addr: 94.140.15.15:443
+
+  adguardDoT:
+    tls:
+      no_sni: true
+      name: dns.adguard.com
+      addr: 94.140.14.14:853
+
+  # quad101DoH:
+  #   https:
+  #     no_sni: true
+  #     name: dns.twnic.tw
+  #     addr: 101.102.103.104:443
+
+  # quad101DoT:
+  #   tls:
+  #     no_sni: true
+  #     name: dns.twnic.tw
+  #     addr: 101.101.101.101:853
+
   # ------------ FINAL -------------
 
   domestic:
@@ -130,3 +175,16 @@ upstreams:
       - googleDoT
       - quad9DoT
       - cloudflareDoT
+      - opendnsDoH
+      - adguardDoH
+      - adguardDoT
+      # - quad101DoH
+      # - quad101DoT
+
+  oversea:
+    hybrid:
+      - opendnsDoH
+      - adguardDoH
+      - adguardDoT
+      # - quad101DoH
+      # - quad101DoT
