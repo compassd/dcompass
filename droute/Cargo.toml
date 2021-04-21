@@ -48,9 +48,9 @@ clru = { version = "^0.4", git = "https://github.com/marmeladema/clru-rs", branc
 thiserror = "^1.0"
 async-trait = "^0.1"
 dyn-clonable = "^0.9"
+pinboard = "^2"
 
-# (de)compression libs
-tar = "^0.4"
+# (de)compression libs (TODO: can we rewrite it to make it async?)
 niffler = "^2"
 
 [dev-dependencies]

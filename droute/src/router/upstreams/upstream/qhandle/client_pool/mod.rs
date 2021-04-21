@@ -13,13 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Client => ClientPool => ClientWrapper (UDP, TCP, DoT, DoH)
+
 use super::{QHandle, Result as QHandleResult};
 use async_trait::async_trait;
+use pinboard::Pinboard;
 use thiserror::Error;
-use tokio::{
-    sync::RwLock,
-    time::{timeout, Duration},
-};
+use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::{error::ProtoError, DnsHandle};
 
@@ -69,7 +69,7 @@ pub trait ClientWrapper<T: DnsHandle>: Sync + Send + Clone {
 pub struct ClientPool<T: ClientWrapper<U>, U: DnsHandle> {
     // A client instance used for creating clients
     client: T,
-    inner: RwLock<Option<U>>,
+    inner: Pinboard<U>,
 }
 
 impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
@@ -77,16 +77,12 @@ impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
     pub fn new(client: T) -> Self {
         Self {
             client,
-            inner: RwLock::new(None),
+            inner: Pinboard::new_empty(),
         }
     }
 
-    async fn get(&self) -> Option<U> {
-        self.inner.read().await.clone()
-    }
-
     async fn get_client(&self) -> Result<U> {
-        Ok(if let Some(c) = self.get().await {
+        Ok(if let Some(c) = self.inner.read() {
             c
         } else {
             log::info!(
@@ -94,7 +90,7 @@ impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
                 self.client.conn_type()
             );
             let c = self.client.create().await?;
-            *self.inner.write().await = Some(c.clone());
+            self.inner.set(c.clone());
             c
         })
     }
@@ -106,8 +102,7 @@ impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
                     "client query errored, renewing the {} client",
                     self.client.conn_type()
                 );
-                let mut w = self.inner.write().await;
-                *w = Some(self.client.create().await?);
+                self.inner.set(self.client.create().await?);
             }
             // We don't need to return client cause all clients distrubuted are clones of the one held here.
             ClientState::Succeeded => {}
