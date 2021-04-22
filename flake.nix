@@ -73,6 +73,8 @@
             # write rustfmt first to ensure we are using nightly rustfmt
             rust-bin.nightly."2021-01-01".rustfmt
             rust-bin.stable.latest.default
+            rust-bin.stable.latest.rust-src
+            rust-analyzer
             binutils-unwrapped
             cargo-cache
           ];
