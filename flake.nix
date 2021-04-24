@@ -78,7 +78,6 @@
 
             binutils-unwrapped
             cargo-cache
-            heaptrack
           ];
         };
     }) // {
