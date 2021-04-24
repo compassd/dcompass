@@ -85,7 +85,9 @@ impl Upstream {
                     None => inner.query(msg.clone()).await?,
                 },
             };
-            cache.put(tag.clone(), r.clone());
+            if cache_mode != &CacheMode::Disabled {
+                cache.put(tag.clone(), r.clone());
+            }
             log::info!("query successfully completed.");
             Ok(r)
         } else {

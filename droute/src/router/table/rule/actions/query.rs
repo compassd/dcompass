@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 #[serde(rename_all = "lowercase")]
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 /// Cache Policy per query. this only affect the cache results adoption, and it will NOT change the cache results storing behaviors.
 pub enum CacheMode {
     /// Do not use any cached result

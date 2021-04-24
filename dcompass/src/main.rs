@@ -26,10 +26,11 @@ use droute::{
     Router,
 };
 use log::*;
+use ratelimit::Limiter;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
 use structopt::StructOpt;
-use tokio::{fs::File, io::AsyncReadExt, net::UdpSocket};
+use tokio::{fs::File, io::AsyncReadExt, net::UdpSocket, signal};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -55,6 +56,32 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), Dr
         p.verbosity,
         p.ratelimit,
     ))
+}
+
+async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, mut ratelimit: Limiter) {
+    loop {
+        // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
+        let mut buf = [0; 1232];
+        // On windows, some applications may go away after they got their first response, resulting in a broken pipe, we should discard errors on receiving/sending messages.
+        let (_, src) = match socket.recv_from(&mut buf).await {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Failed to receive query: {}", e);
+                continue;
+            }
+        };
+
+        let router = router.clone();
+        let socket = socket.clone();
+        tokio::spawn(async move {
+            match worker(router, socket, &buf, src).await {
+                Ok(_) => (),
+                Err(e) => warn!("Handling query failed: {}", e),
+            }
+        });
+
+        ratelimit.wait();
+    }
 }
 
 // Multi-threading has memory issue. see also: https://github.com/bluejekyll/trust-dns/issues/777
@@ -122,7 +149,7 @@ async fn main() -> Result<()> {
         .with_level(verbosity)
         .init()?;
 
-    let mut ratelimit = ratelimit::Builder::new()
+    let ratelimit = ratelimit::Builder::new()
         .capacity(1500) // TODO: to be determined if this is a proper value
         .quantum(ratelimit)
         .interval(Duration::new(1, 0)) // add quantum tokens every 1 second
@@ -138,27 +165,8 @@ async fn main() -> Result<()> {
             .with_context(|| format!("Failed to bind to {}", addr))?,
     );
 
-    loop {
-        // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
-        let mut buf = [0; 1232];
-        // On windows, some applications may go away after they got their first response, resulting in a broken pipe, we should discard errors on receiving/sending messages.
-        let (_, src) = match socket.recv_from(&mut buf).await {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("Failed to receive query: {}", e);
-                continue;
-            }
-        };
-
-        let router = router.clone();
-        let socket = socket.clone();
-        tokio::spawn(async move {
-            match worker(router, socket, &buf, src).await {
-                Ok(_) => (),
-                Err(e) => warn!("Handling query failed: {}", e),
-            }
-        });
-
-        ratelimit.wait();
-    }
+    Ok(tokio::select! {
+    _ = serve(socket, router, ratelimit) => (),
+    _ = signal::ctrl_c() => {log::info!("Ctrl-C received, shutting down");}
+    })
 }
