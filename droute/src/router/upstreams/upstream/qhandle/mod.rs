@@ -21,7 +21,7 @@ pub use self::client_pool::Https;
 #[cfg(feature = "dot")]
 pub use self::client_pool::Tls;
 pub use self::{
-    client_pool::{Client, Udp},
+    client_pool::{Client, Tcp, Udp},
     zone::Zone,
 };
 

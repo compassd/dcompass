@@ -25,12 +25,14 @@ use trust_dns_proto::{error::ProtoError, DnsHandle};
 
 #[cfg(feature = "crypto")]
 mod crypto;
+mod tcp;
 mod udp;
 
 #[cfg(feature = "doh")]
 pub use crypto::Https;
 #[cfg(feature = "dot")]
 pub use crypto::Tls;
+pub use tcp::Tcp;
 pub use udp::Udp;
 
 /// Error related to client pools

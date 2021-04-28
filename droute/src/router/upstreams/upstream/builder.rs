@@ -19,7 +19,7 @@ use super::qhandle::Https;
 #[cfg(feature = "dot")]
 use super::qhandle::Tls;
 use super::{
-    qhandle::{Client, Result, Udp, Zone},
+    qhandle::{Client, Result, Tcp, Udp, Zone},
     Upstream,
 };
 use crate::Label;
@@ -118,6 +118,14 @@ pub enum UpstreamBuilder {
         #[serde(default = "default_timeout")]
         timeout: u64,
     },
+    /// TCP connection.
+    Tcp {
+        /// Address of the remote server
+        addr: SocketAddr,
+        /// Timeout length
+        #[serde(default = "default_timeout")]
+        timeout: u64,
+    },
     /// Local DNS zone server.
     Zone {
         /// The type of the DNS zone.
@@ -156,6 +164,11 @@ impl UpstreamBuilder {
                 Udp::new(addr),
                 Duration::from_secs(timeout),
             ))),
+
+            // TCP Upstream
+            Self::Tcp { addr, timeout } => Upstream::Others(Arc::new(
+                Client::<Tcp, AsyncClient>::new(Tcp::new(addr), Duration::from_secs(timeout)),
+            )),
 
             // DNS zone file
             Self::Zone {
