@@ -18,12 +18,15 @@
 pub mod table;
 pub mod upstreams;
 
-use self::{table::Table, upstreams::Upstreams};
-use crate::{
-    builders::*,
-    error::{DrouteError, Result},
-    Label, Validatable,
+use self::{
+    table::{Table, TableError},
+    upstreams::{error::UpstreamError, Upstreams},
 };
+use crate::{
+    error::{DrouteError, Result},
+    AsyncTryInto, Label, Validatable,
+};
+use async_trait::async_trait;
 use log::warn;
 use std::collections::HashSet;
 use trust_dns_client::op::{Message, ResponseCode};
@@ -73,21 +76,38 @@ impl Router {
 }
 
 /// A Builder for Router.
-pub struct RouterBuilder<M: MatcherBuilder, A: ActionBuilder> {
-    table: TableBuilder<M, A>,
-    upstreams: UpstreamsBuilder,
+pub struct RouterBuilder<T, U>
+where
+    T: AsyncTryInto<Table, Error = TableError>,
+    U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+{
+    table: T,
+    upstreams: U,
 }
 
-impl<M: MatcherBuilder, A: ActionBuilder> RouterBuilder<M, A> {
+impl<T, U> RouterBuilder<T, U>
+where
+    T: AsyncTryInto<Table, Error = TableError>,
+    U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+{
     /// Create a RouteBuilder
-    pub fn new(table: TableBuilder<M, A>, upstreams: UpstreamsBuilder) -> Self {
+    pub fn new(table: T, upstreams: U) -> Self {
         Self { table, upstreams }
     }
+}
+
+#[async_trait]
+impl<T, U> AsyncTryInto<Router> for RouterBuilder<T, U>
+where
+    T: AsyncTryInto<Table, Error = TableError>,
+    U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+{
+    type Error = DrouteError;
 
     /// Build a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
-    pub async fn build(self) -> Result<Router> {
-        let table = self.table.build().await?;
-        let upstreams = self.upstreams.build().await?;
+    async fn try_into(self) -> Result<Router> {
+        let table = self.table.try_into().await?;
+        let upstreams = self.upstreams.try_into().await?;
         Router::new(table, upstreams)
     }
 }

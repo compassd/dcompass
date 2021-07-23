@@ -27,6 +27,7 @@ pub use self::{
 
 use self::client_pool::ClientPoolError;
 use async_trait::async_trait;
+use bb8::RunError;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 use trust_dns_client::{error::ClientError, op::Message};
@@ -67,4 +68,8 @@ pub enum QHandleError {
     /// Error forwarded from `trust-dns-proto`.
     #[error(transparent)]
     ProtoError(#[from] ProtoError),
+
+    /// Error forwarded from bb8.
+    #[error(transparent)]
+    Bb8Error(#[from] RunError<ClientPoolError>),
 }

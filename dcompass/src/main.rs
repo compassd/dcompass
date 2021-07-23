@@ -23,7 +23,7 @@ use anyhow::{Context, Result};
 use droute::{
     builders::{RouterBuilder, UpstreamsBuilder},
     error::DrouteError,
-    Router,
+    AsyncTryInto, Router,
 };
 use log::*;
 use ratelimit::Limiter;
@@ -49,9 +49,12 @@ struct DcompassOpts {
 
 async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
     Ok((
-        RouterBuilder::new(p.table, UpstreamsBuilder::new(p.upstreams, p.cache_size))
-            .build()
-            .await?,
+        RouterBuilder::new(
+            p.table,
+            UpstreamsBuilder::from_map(p.upstreams, p.cache_size),
+        )
+        .try_into()
+        .await?,
         p.address,
         p.verbosity,
         p.ratelimit,
@@ -84,8 +87,7 @@ async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, mut ratelimit: Limit
     }
 }
 
-// Multi-threading has memory issue. see also: https://github.com/bluejekyll/trust-dns/issues/777
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<()> {
     let args: DcompassOpts = DcompassOpts::from_args();
 
@@ -145,7 +147,9 @@ async fn main() -> Result<()> {
 
     // Start logging
     SimpleLogger::new()
-        .with_module_level("trust_dns_https::https_client_stream", LevelFilter::Off) // This module is quite chatty, we want to disable it.
+        // These modules are quite chatty, we want to disable it.
+        .with_module_level("trust_dns_https::https_client_stream", LevelFilter::Off)
+        .with_module_level("trust_dns_proto::udp", LevelFilter::Off)
         .with_level(verbosity)
         .init()?;
 
@@ -165,8 +169,9 @@ async fn main() -> Result<()> {
             .with_context(|| format!("Failed to bind to {}", addr))?,
     );
 
-    Ok(tokio::select! {
+    tokio::select! {
     _ = serve(socket, router, ratelimit) => (),
     _ = signal::ctrl_c() => {log::info!("Ctrl-C received, shutting down");}
-    })
+    };
+    Ok(())
 }

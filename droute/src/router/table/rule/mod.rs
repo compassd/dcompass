@@ -18,26 +18,46 @@
 /// A module containing built-in actions, action trait, and more.
 pub mod actions;
 /// A module containing rule-related builder facilities.
-pub mod builder;
+pub mod builders;
 /// A module containing built-in matchers, matcher trait, and more.
 pub mod matchers;
 
 use self::{actions::Action, matchers::Matcher};
 use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
+use async_trait::async_trait;
 use log::*;
 use std::collections::HashSet;
 
-/// A unit that composes the `Table`.
-pub struct Rule {
+#[async_trait]
+pub trait Rule: Send + Sync {
+    // `name` refers to the name of the Rule itself
+    // Returns the label of the next rule.
+    async fn route(
+        &self,
+        tag: &Label,
+        state: &mut State,
+        upstreams: &Upstreams,
+        name: &str,
+    ) -> Result<Label>;
+
+    // Possible destinations of this rule block
+    // TODO: Can we change it to a more cost friendly version?
+    fn dsts(&self) -> HashSet<Label>;
+
+    fn used_upstreams(&self) -> HashSet<Label>;
+}
+
+/// If-like control flow rule
+pub struct IfBlock {
     matcher: Box<dyn Matcher>,
     // In the form of (Action, Next)
     on_match: (Vec<Box<dyn Action>>, Label),
     no_match: (Vec<Box<dyn Action>>, Label),
 }
 
-impl Rule {
-    /// Create a `Rule` from directly.
+impl IfBlock {
+    /// Create a if-like `Rule` from directly.
     /// - `matcher`: A trait object implementing the `Matcher` trait. It determines the action to take and what the next rule is.
     /// - `on_match` and `no_match`: A sequence of actions to take and what the next rule is based on if it matches or not.
     pub fn new(
@@ -51,18 +71,11 @@ impl Rule {
             no_match,
         }
     }
+}
 
-    // The destination if the rule is matched
-    pub(in super::super) fn on_match_next(&self) -> &Label {
-        &self.on_match.1
-    }
-
-    // The destination if the rule is not matched
-    pub(in super::super) fn no_match_next(&self) -> &Label {
-        &self.no_match.1
-    }
-
-    pub(in super::super) fn used_upstreams(&self) -> HashSet<Label> {
+#[async_trait]
+impl Rule for IfBlock {
+    fn used_upstreams(&self) -> HashSet<Label> {
         let mut h = HashSet::new();
         self.on_match
             .0
@@ -76,8 +89,7 @@ impl Rule {
         h
     }
 
-    // Returns the label of the next rule.
-    pub(in super::super) async fn route(
+    async fn route(
         &self,
         tag: &Label,
         state: &mut State,
@@ -98,21 +110,30 @@ impl Rule {
             Ok(self.no_match.1.clone())
         }
     }
+
+    fn dsts(&self) -> HashSet<Label> {
+        let mut h = HashSet::new();
+        h.insert(self.on_match.1.clone());
+        h.insert(self.no_match.1.clone());
+        h
+    }
 }
+
+// TODO: Add an sequence rule
 
 #[cfg(test)]
 mod tests {
     use super::super::{State, Upstreams};
-    use crate::builders::*;
+    use crate::{builders::*, AsyncTryInto};
 
     #[tokio::test]
     async fn rule_logic() {
-        let rule = RuleBuilder::new(
-            BuiltinMatcherBuilder::Any,
-            BranchBuilder::<BuiltinActionBuilder>::new(vec![], "yes"),
-            BranchBuilder::new(vec![], "no"),
-        )
-        .build()
+        let rule = RuleBuilders::IfBlock(IfBlockBuilder {
+            matcher: BuiltinMatcherBuilders::Any,
+            on_match: BranchBuilder::<BuiltinActionBuilders>::new("yes"),
+            no_match: BranchBuilder::<BuiltinActionBuilders>::new("no"),
+        })
+        .try_into()
         .await
         .unwrap();
         assert_eq!(

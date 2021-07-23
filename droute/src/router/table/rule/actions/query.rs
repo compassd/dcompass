@@ -15,9 +15,9 @@
 
 use super::{
     super::super::{super::upstreams::Upstreams, State},
-    Action, Result,
+    Action, ActionError, Result,
 };
-use crate::Label;
+use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -63,5 +63,23 @@ impl Action for Query {
 
     fn used_upstream(&self) -> Option<Label> {
         Some(self.tag.clone())
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QueryBuilder(pub Label, pub CacheMode);
+
+impl QueryBuilder {
+    pub fn new(label: impl Into<Label>, mode: CacheMode) -> Self {
+        Self(label.into(), mode)
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<Query> for QueryBuilder {
+    type Error = ActionError;
+
+    async fn try_into(self) -> Result<Query> {
+        Ok(Query::new(self.0, self.1))
     }
 }

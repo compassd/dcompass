@@ -9,7 +9,7 @@
           "query": "secure"
         },
         "end"
-      ]
+      ],
     }
   },
   "upstreams": {

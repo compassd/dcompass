@@ -20,9 +20,10 @@ use super::qhandle::Https;
 use super::qhandle::Tls;
 use super::{
     qhandle::{Client, Result, Tcp, Udp, Zone},
-    Upstream,
+    QHandleError, Upstream,
 };
-use crate::Label;
+use crate::{AsyncTryInto, Label};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 use trust_dns_client::client::{AsyncClient, AsyncDnssecClient};
@@ -69,188 +70,242 @@ mod remote_def {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HybridBuilder(HashSet<Label>);
+
+impl Default for HybridBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HybridBuilder {
+    pub fn new() -> Self {
+        Self(HashSet::new())
+    }
+
+    pub fn add_tag(mut self, tag: impl Into<Label>) -> Self {
+        self.0.insert(tag.into());
+        self
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<Upstream> for HybridBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        Ok(Upstream::Hybrid(self.0))
+    }
+}
+
+#[cfg(feature = "doh")]
+#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct HttpsBuilder {
+    /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
+    pub name: String,
+    /// The address of the server. e.g. `1.1.1.1:443` for Cloudflare DNS.
+    pub addr: SocketAddr,
+    /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
+    pub no_sni: bool,
+    /// Use DNSSEC or not
+    #[serde(default = "default_dnssec")]
+    pub dnssec: bool,
+}
+
+#[cfg(feature = "doh")]
+#[async_trait]
+impl AsyncTryInto<Upstream> for HttpsBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        if self.dnssec {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Https, AsyncDnssecClient>::new(Https::new(
+                    self.name,
+                    self.addr,
+                    self.no_sni,
+                ))
+                .await?,
+            )))
+        } else {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Https, AsyncClient>::new(Https::new(self.name, self.addr, self.no_sni))
+                    .await?,
+            )))
+        }
+    }
+}
+
+#[cfg(feature = "dot")]
+#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TlsBuilder {
+    /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
+    pub name: String,
+    /// The address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
+    pub addr: SocketAddr,
+    /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
+    pub no_sni: bool,
+    /// Use DNSSEC or not
+    #[serde(default = "default_dnssec")]
+    pub dnssec: bool,
+}
+
+#[cfg(feature = "dot")]
+#[async_trait]
+impl AsyncTryInto<Upstream> for TlsBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        if self.dnssec {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Tls, DnssecDnsHandle<AsyncClient>>::new(Tls::new(
+                    self.name,
+                    self.addr,
+                    self.no_sni,
+                ))
+                .await?,
+            )))
+        } else {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Tls, AsyncClient>::new(Tls::new(self.name, self.addr, self.no_sni))
+                    .await?,
+            )))
+        }
+    }
+}
+
+#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UdpBuilder {
+    /// Address of the remote server
+    pub addr: SocketAddr,
+    /// Use DNSSEC or not
+    #[serde(default = "default_dnssec")]
+    pub dnssec: bool,
+    /// Timeout length
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+}
+
+#[async_trait]
+impl AsyncTryInto<Upstream> for UdpBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        if self.dnssec {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Udp, AsyncDnssecClient>::new(Udp::new(
+                    self.addr,
+                    Duration::from_secs(self.timeout),
+                ))
+                .await?,
+            )))
+        } else {
+            Ok(Upstream::Others(Arc::new(
+                Client::<Udp, AsyncClient>::new(Udp::new(
+                    self.addr,
+                    Duration::from_secs(self.timeout),
+                ))
+                .await?,
+            )))
+        }
+    }
+}
+
+#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TcpBuilder {
+    /// Address of the remote server
+    pub addr: SocketAddr,
+    /// Timeout length
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+}
+
+#[async_trait]
+impl AsyncTryInto<Upstream> for TcpBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        Ok(Upstream::Others(Arc::new(
+            Client::<Tcp, AsyncClient>::new(Tcp::new(self.addr, Duration::from_secs(self.timeout)))
+                .await?,
+        )))
+    }
+}
+
+#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ZoneBuilder {
+    /// The type of the DNS zone.
+    #[serde(with = "ZoneTypeDef")]
+    #[serde(default = "default_zone_type")]
+    pub zone_type: ZoneType,
+    /// The zone `Name` being created, this should match that of the RecordType::SOA record.
+    pub origin: String,
+    /// Path to the zone file.
+    pub path: String,
+}
+
+#[async_trait]
+impl AsyncTryInto<Upstream> for ZoneBuilder {
+    type Error = QHandleError;
+
+    async fn try_into(self) -> Result<Upstream> {
+        Ok(Upstream::Others(Arc::new(Zone::new(
+            self.zone_type,
+            self.origin,
+            self.path,
+        )?)))
+    }
+}
+
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
 /// The builder for `Upstream`
 pub enum UpstreamBuilder {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.
-    Hybrid(HashSet<Label>),
+    Hybrid(HybridBuilder),
     /// DNS over HTTPS (DoH).
     #[cfg(feature = "doh")]
-    Https {
-        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
-        name: String,
-        /// The address of the server. e.g. `1.1.1.1:443` for Cloudflare DNS.
-        addr: SocketAddr,
-        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
-        no_sni: bool,
-        /// Use DNSSEC or not
-        #[serde(default = "default_dnssec")]
-        dnssec: bool,
-        /// Timeout length
-        #[serde(default = "default_timeout")]
-        timeout: u64,
-    },
+    Https(HttpsBuilder),
     /// DNS over TLS (DoT).
     #[cfg(feature = "dot")]
-    Tls {
-        /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
-        name: String,
-        /// The address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
-        addr: SocketAddr,
-        /// Set to `true` to not send SNI. This is useful to bypass firewalls and censorships.
-        no_sni: bool,
-        /// Use DNSSEC or not
-        #[serde(default = "default_dnssec")]
-        dnssec: bool,
-        /// Timeout length
-        #[serde(default = "default_timeout")]
-        timeout: u64,
-    },
+    Tls(TlsBuilder),
     /// UDP connection.
-    Udp {
-        /// Address of the remote server
-        addr: SocketAddr,
-        /// Use DNSSEC or not
-        #[serde(default = "default_dnssec")]
-        dnssec: bool,
-        /// Timeout length
-        #[serde(default = "default_timeout")]
-        timeout: u64,
-    },
+    Udp(UdpBuilder),
     /// TCP connection.
-    Tcp {
-        /// Address of the remote server
-        addr: SocketAddr,
-        /// Timeout length
-        #[serde(default = "default_timeout")]
-        timeout: u64,
-    },
+    Tcp(TcpBuilder),
     /// Local DNS zone server.
-    Zone {
-        /// The type of the DNS zone.
-        #[serde(with = "ZoneTypeDef")]
-        #[serde(default = "default_zone_type")]
-        zone_type: ZoneType,
-        /// The zone `Name` being created, this should match that of the RecordType::SOA record.
-        origin: String,
-        /// Path to the zone file.
-        path: String,
-    },
+    Zone(ZoneBuilder),
 }
 
-impl UpstreamBuilder {
+#[async_trait]
+impl AsyncTryInto<Upstream> for UpstreamBuilder {
     /// Build the Upstream from an UpstreamBuilder
-    pub async fn build(self) -> Result<Upstream> {
+    async fn try_into(self) -> std::result::Result<Upstream, QHandleError> {
         Ok(match self {
-            Self::Hybrid(v) => Upstream::Hybrid(v),
+            Self::Hybrid(v) => v.try_into().await?,
 
             // UDP Upstream
-            Self::Udp {
-                addr,
-                timeout,
-                dnssec,
-            } if !dnssec => Upstream::Others(Arc::new(Client::<Udp, AsyncClient>::new(
-                Udp::new(addr),
-                Duration::from_secs(timeout),
-            ))),
-
-            // UDP Upstream with DNSSEC
-            Self::Udp {
-                addr,
-                timeout,
-                dnssec,
-            } if dnssec => Upstream::Others(Arc::new(Client::<Udp, AsyncDnssecClient>::new(
-                Udp::new(addr),
-                Duration::from_secs(timeout),
-            ))),
+            Self::Udp(u) => u.try_into().await?,
 
             // TCP Upstream
-            Self::Tcp { addr, timeout } => Upstream::Others(Arc::new(
-                Client::<Tcp, AsyncClient>::new(Tcp::new(addr), Duration::from_secs(timeout)),
-            )),
+            Self::Tcp(t) => t.try_into().await?,
 
             // DNS zone file
-            Self::Zone {
-                zone_type,
-                origin,
-                path,
-            } => Upstream::Others(Arc::new(Zone::new(zone_type, origin, path)?)),
+            Self::Zone(z) => z.try_into().await?,
 
             #[cfg(feature = "doh")]
-            Self::Https {
-                name,
-                addr,
-                no_sni,
-                timeout,
-                dnssec,
-            } if !dnssec => Upstream::Others(Arc::new(Client::<Https, AsyncClient>::new(
-                Https::new(name, addr, no_sni),
-                Duration::from_secs(timeout),
-            ))),
-
-            #[cfg(feature = "doh")]
-            Self::Https {
-                name,
-                addr,
-                no_sni,
-                timeout,
-                dnssec,
-            } if dnssec => Upstream::Others(Arc::new(Client::<Https, AsyncDnssecClient>::new(
-                Https::new(name, addr, no_sni),
-                Duration::from_secs(timeout),
-            ))),
+            Self::Https(h) => h.try_into().await?,
 
             #[cfg(feature = "dot")]
-            Self::Tls {
-                name,
-                addr,
-                no_sni,
-                timeout,
-                dnssec,
-            } if !dnssec => Upstream::Others(Arc::new(Client::<Tls, AsyncClient>::new(
-                Tls::new(name, addr, no_sni),
-                Duration::from_secs(timeout),
-            ))),
-
-            #[cfg(feature = "dot")]
-            Self::Tls {
-                name,
-                addr,
-                no_sni,
-                timeout,
-                dnssec,
-            } if dnssec => {
-                Upstream::Others(Arc::new(Client::<Tls, DnssecDnsHandle<AsyncClient>>::new(
-                    Tls::new(name, addr, no_sni),
-                    Duration::from_secs(timeout),
-                )))
-            }
-
-            // We have already covered the two sides of the dnssec.
-            Self::Udp {
-                addr: _,
-                timeout: _,
-                dnssec: _,
-            } => unreachable!(),
-
-            #[cfg(feature = "doh")]
-            Self::Https {
-                name: _,
-                addr: _,
-                no_sni: _,
-                timeout: _,
-                dnssec: _,
-            } => unreachable!(),
-
-            #[cfg(feature = "dot")]
-            Self::Tls {
-                name: _,
-                addr: _,
-                no_sni: _,
-                timeout: _,
-                dnssec: _,
-            } => unreachable!(),
+            Self::Tls(t) => t.try_into().await?,
         })
     }
+
+    type Error = QHandleError;
 }

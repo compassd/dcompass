@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_trait::async_trait;
-use droute::{builders::*, matchers::*, Label};
+use droute::{builders::*, matchers::*, AsyncTryInto, Label};
 use log::LevelFilter;
 use serde::Deserialize;
 use std::{
@@ -38,34 +38,65 @@ enum LevelFilterDef {
     Trace,
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+// Customized matchers
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
-#[serde(deny_unknown_fields)]
-pub enum MyGeoIp {
-    GeoIp {
-        codes: HashSet<String>,
-        #[serde(default = "default_geoip_path")]
-        path: Option<PathBuf>,
-    },
+pub enum MatcherBuilders {
+    /// Matches any query
+    Any,
+
+    /// Matches domains in domain list files specified.
+    Domain(DomainBuilder),
+
+    /// Matches query types provided. Query types are like AAAA, A, TXT.
+    QType(QTypeBuilder),
+
+    /// Matches if IP address in the record of the first response is in the list of countries.
+    GeoIp(MyGeoIp),
+
+    /// Matches if IP address in the record of the first response is in the list of IP CIDR.
+    IpCidr(IpCidrBuilder),
 }
 
-fn default_geoip_path() -> Option<PathBuf> {
-    None
+// TODO: This should be derived
+#[async_trait]
+impl AsyncTryInto<Box<dyn Matcher>> for MatcherBuilders {
+    async fn try_into(self) -> Result<Box<dyn Matcher>> {
+        Ok(match self {
+            Self::Any => Box::new(Any),
+            Self::Domain(v) => Box::new(v.try_into().await?),
+            Self::QType(q) => Box::new(q.try_into().await?),
+            Self::IpCidr(s) => Box::new(s.try_into().await?),
+            Self::GeoIp(g) => Box::new(g.try_into().await?),
+        })
+    }
+
+    type Error = MatchError;
+}
+
+#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[serde(rename = "geoip")]
+#[serde(deny_unknown_fields)]
+pub struct MyGeoIp {
+    codes: HashSet<String>,
+    #[serde(default)]
+    path: Option<PathBuf>,
 }
 
 #[async_trait]
-impl MatcherBuilder for MyGeoIp {
-    async fn build(self) -> Result<Box<dyn Matcher>> {
-        Ok(match self {
-            Self::GeoIp { codes, path } => Box::new(GeoIp::new(
-                codes,
-                if let Some(p) = path {
-                    tokio::fs::read(p).await?
-                } else {
-                    get_builtin_db()?
-                },
-            )?),
-        })
+impl AsyncTryInto<GeoIp> for MyGeoIp {
+    type Error = MatchError;
+
+    async fn try_into(self) -> Result<GeoIp> {
+        Ok(GeoIp::new(
+            self.codes,
+            if let Some(p) = self.path {
+                tokio::fs::read(p).await?
+            } else {
+                get_builtin_db()?
+            },
+        )?)
     }
 }
 
@@ -86,7 +117,7 @@ fn default_cache_size() -> NonZeroUsize {
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
-    pub table: TableBuilder<AggregatedMatcherBuilder<MyGeoIp>, BuiltinActionBuilder>,
+    pub table: TableBuilder<RuleBuilders<MatcherBuilders, BuiltinActionBuilders>>,
     // We are not using UpstreamsBuilder because flatten ruins error location.
     pub upstreams: HashMap<Label, UpstreamBuilder>,
     #[serde(default = "default_cache_size")]

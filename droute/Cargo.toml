@@ -44,11 +44,11 @@ dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
 serde = { version = "^1.0", features = ["derive", "rc"] }
 # CLru supports async, but it is not published yet.
-clru = { version = "^0.4", git = "https://github.com/marmeladema/clru-rs", branch = "main" }
+clru = "^0.5"
 thiserror = "^1.0"
 async-trait = "^0.1"
 dyn-clonable = "^0.9"
-pinboard = "^2"
+bb8 = "^0.7"
 
 # (de)compression libs (TODO: can we rewrite it to make it async?)
 niffler = "^2"

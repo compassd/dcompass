@@ -15,11 +15,12 @@
 
 // Client => ClientPool => ClientWrapper (UDP, TCP, DoT, DoH)
 
+use std::{marker::PhantomData, time::Duration};
+
 use super::{QHandle, Result as QHandleResult};
 use async_trait::async_trait;
-use pinboard::Pinboard;
+use bb8::{ManageConnection, Pool};
 use thiserror::Error;
-use tokio::time::{timeout, Duration};
 use trust_dns_client::op::Message;
 use trust_dns_proto::{error::ProtoError, DnsHandle};
 
@@ -49,17 +50,9 @@ pub enum ClientPoolError {
 
 pub type Result<T> = std::result::Result<T, ClientPoolError>;
 
-/// State of the client returned (used).
-pub enum ClientState {
-    /// Client failed to send message
-    Failed,
-    /// Client sent message successfully.
-    Succeeded,
-}
-
 /// A client wrapper. The difference between this and the `ClientPool` that it only cares about how to create a client.
 #[async_trait]
-pub trait ClientWrapper<T: DnsHandle>: Sync + Send + Clone {
+pub trait ClientWrapper<T: DnsHandle>: 'static + Sync + Send + Clone {
     /// Create a DNSSEC client based on stream
     async fn create(&self) -> Result<T>;
 
@@ -67,89 +60,74 @@ pub trait ClientWrapper<T: DnsHandle>: Sync + Send + Clone {
     fn conn_type(&self) -> &'static str;
 }
 
-/// A client wrapper that makes the underlying `impl DnsHandle` a `client pool`.
+/// A client pool that implements bb8 trait
 pub struct ClientPool<T: ClientWrapper<U>, U: DnsHandle> {
-    // A client instance used for creating clients
-    client: T,
-    inner: Pinboard<U>,
+    // A client wrapper instance used for creating clients
+    wrapper: T,
+    inner: PhantomData<U>,
 }
 
 impl<T: ClientWrapper<U>, U: DnsHandle> ClientPool<T, U> {
     /// Create a new default client pool given the underlying client instance definition.
-    pub fn new(client: T) -> Self {
+    pub fn new(wrapper: T) -> Self {
         Self {
-            client,
-            inner: Pinboard::new_empty(),
+            wrapper,
+            inner: PhantomData,
         }
-    }
-
-    async fn get_client(&self) -> Result<U> {
-        Ok(if let Some(c) = self.inner.read() {
-            c
-        } else {
-            log::info!(
-                "No {} client in stock, creating a new one",
-                self.client.conn_type()
-            );
-            let c = self.client.create().await?;
-            self.inner.set(c.clone());
-            c
-        })
-    }
-
-    async fn return_client(&self, _: U, state: ClientState) -> Result<()> {
-        match state {
-            ClientState::Failed => {
-                log::info!(
-                    "client query errored, renewing the {} client",
-                    self.client.conn_type()
-                );
-                self.inner.set(self.client.create().await?);
-            }
-            // We don't need to return client cause all clients distrubuted are clones of the one held here.
-            ClientState::Succeeded => {}
-        }
-        Ok(())
     }
 }
 
-// TODO: Probabaly we can put `Client` and `ClientPool` together?
+#[async_trait]
+impl<T: ClientWrapper<U>, U: DnsHandle> ManageConnection for ClientPool<T, U> {
+    type Connection = U;
+    type Error = ClientPoolError;
+
+    /// Attempts to create a new connection.
+    async fn connect(&self) -> Result<Self::Connection> {
+        self.wrapper.create().await
+    }
+    /// Determines if the connection is still connected to the database.
+    // TODO: Test the connection
+    async fn is_valid(&self, _conn: &mut bb8::PooledConnection<'_, Self>) -> Result<()> {
+        Ok(())
+    }
+    /// Synchronously determine if the connection is no longer usable, if possible.
+    fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
+        false
+    }
+}
+
 // A Client that implements the `QHandle`.
 pub struct Client<T: ClientWrapper<U>, U: DnsHandle> {
-    pool: ClientPool<T, U>,
-    timeout_dur: Duration,
+    pool: Pool<ClientPool<T, U>>,
 }
 
 impl<T: ClientWrapper<U>, U: DnsHandle> Client<T, U> {
-    pub fn new(client: T, timeout_dur: Duration) -> Self {
-        Self {
-            pool: ClientPool::new(client),
-            timeout_dur,
-        }
+    pub async fn new(client: T) -> QHandleResult<Self> {
+        Ok(Self {
+            pool: {
+                let client_pool = ClientPool::new(client);
+                bb8::Pool::builder()
+                    .test_on_check_out(false)
+                    .max_size(15)
+                    .idle_timeout(Some(Duration::from_secs(2 * 60)))
+                    .max_lifetime(Some(Duration::from_secs(10 * 60)))
+                    .build(client_pool)
+                    .await?
+            },
+        })
     }
 }
 
 #[async_trait]
 impl<T: ClientWrapper<U>, U: DnsHandle<Error = ProtoError>> QHandle for Client<T, U> {
     async fn query(&self, msg: Message) -> QHandleResult<Message> {
-        let mut client = self.pool.get_client().await?;
-        let r = Message::from(match timeout(self.timeout_dur, client.send(msg)).await {
-            Ok(Ok(m)) => m,
-            Ok(Err(e)) => {
-                // Renew the client as it errored.
-                self.pool.return_client(client, ClientState::Failed).await?;
-                return Err(e.into());
-            }
-            Err(e) => {
-                self.pool.return_client(client, ClientState::Failed).await?;
-                return Err(e.into());
-            }
-        });
-
-        // If the response can be obtained sucessfully, we then push back the client to the client cache
-        self.pool
-            .return_client(client, ClientState::Succeeded)
-            .await?;
-        Ok(r)
+        log::info!(
+            "# of active conns: {}, # of idled conns: {}",
+            self.pool.state().connections,
+            self.pool.state().idle_connections
+        );
+        let mut client = self.pool.get().await?;
+        Ok(Message::from(client.send(msg).await?))
     }
 }

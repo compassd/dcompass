@@ -13,11 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, Matcher, Result};
+use super::{super::super::State, MatchError, Matcher, Result};
+use crate::AsyncTryInto;
+use async_trait::async_trait;
 use cidr_utils::{
     cidr::{IpCidr as Cidr, IpCidrError},
     utils::IpCidrCombiner as CidrCombiner,
 };
+use serde::Deserialize;
 use std::net::IpAddr;
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
@@ -68,11 +71,42 @@ impl Matcher for IpCidr {
     }
 }
 
+#[derive(Deserialize, Clone)]
+pub struct IpCidrBuilder(Vec<String>);
+
+impl Default for IpCidrBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IpCidrBuilder {
+    pub fn new() -> Self {
+        IpCidrBuilder(Vec::new())
+    }
+
+    pub fn add_file(mut self, s: impl ToString) -> Self {
+        self.0.push(s.to_string());
+        self
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<IpCidr> for IpCidrBuilder {
+    type Error = MatchError;
+
+    async fn try_into(self) -> Result<IpCidr> {
+        IpCidr::new(self.0).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::AsyncTryInto;
+
     use super::{
         super::{Matcher, State},
-        IpCidr,
+        IpCidrBuilder,
     };
     use once_cell::sync::Lazy;
     use std::str::FromStr;
@@ -83,7 +117,7 @@ mod tests {
 
     static RECORD_NOT_CHINA: Lazy<Record> = Lazy::new(|| {
         Record::from_rdata(
-            Name::from_str("apple.com").unwrap(),
+            Name::from_str("cloudflare-dns.com").unwrap(),
             10,
             RData::A("1.1.1.1".parse().unwrap()),
         )
@@ -92,7 +126,7 @@ mod tests {
         Record::from_rdata(
             Name::from_str("baidu.com").unwrap(),
             10,
-            RData::A("36.152.44.95".parse().unwrap()),
+            RData::A("180.101.49.12".parse().unwrap()),
         )
     });
 
@@ -110,18 +144,18 @@ mod tests {
     #[tokio::test]
     async fn newline_terminator_test() {
         // https://github.com/LEXUGE/dcompass/issues/33
-        IpCidr::new(
-            vec!["../data/ipcidr-test.txt".to_string()]
-                .into_iter()
-                .collect(),
-        )
-        .await
-        .unwrap();
+        IpCidrBuilder::new()
+            .add_file("../data/ipcidr-test.txt")
+            .try_into()
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test() {
-        let matcher = IpCidr::new(vec!["../data/ipcn.txt".to_string()].into_iter().collect())
+        let matcher = IpCidrBuilder::new()
+            .add_file("../data/ipcn.txt")
+            .try_into()
             .await
             .unwrap();
         assert_eq!(

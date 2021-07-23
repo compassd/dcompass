@@ -13,7 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, Matcher, Result};
+use super::{super::super::State, MatchError, Matcher, Result};
+use crate::AsyncTryInto;
+use async_trait::async_trait;
+use serde::Deserialize;
 use std::collections::HashSet;
 use trust_dns_proto::rr::record_type::RecordType;
 
@@ -30,5 +33,34 @@ impl QType {
 impl Matcher for QType {
     fn matches(&self, state: &State) -> bool {
         self.0.contains(&state.query.queries()[0].query_type())
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QTypeBuilder(HashSet<RecordType>);
+
+impl Default for QTypeBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl QTypeBuilder {
+    pub fn new() -> Self {
+        Self(HashSet::new())
+    }
+
+    pub fn add_rr(mut self, rr: RecordType) -> Self {
+        self.0.insert(rr);
+        self
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<QType> for QTypeBuilder {
+    type Error = MatchError;
+
+    async fn try_into(self) -> Result<QType> {
+        QType::new(self.0)
     }
 }

@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, Matcher, Result};
+use crate::AsyncTryInto;
+
+use super::{super::super::State, MatchError, Matcher, Result};
+use async_trait::async_trait;
 use dmatcher::domain::Domain as DomainAlg;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
@@ -57,5 +60,41 @@ impl Domain {
 impl Matcher for Domain {
     fn matches(&self, state: &State) -> bool {
         self.0.matches(&state.query.queries()[0].name().to_utf8())
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct DomainBuilder(Vec<ResourceType>);
+
+impl Default for DomainBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DomainBuilder {
+    /// Create a new domain builder
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn add_qnmae(mut self, s: impl ToString) -> Self {
+        self.0.push(ResourceType::Qname(s.to_string()));
+        self
+    }
+
+    pub fn add_file(mut self, s: impl AsRef<str>) -> Self {
+        self.0
+            .push(ResourceType::File(PathBuf::from_str(s.as_ref()).unwrap()));
+        self
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<Domain> for DomainBuilder {
+    type Error = MatchError;
+
+    async fn try_into(self) -> Result<Domain> {
+        Domain::new(self.0).await
     }
 }

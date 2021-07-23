@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, Matcher, Result};
+use super::{super::super::State, MatchError, Matcher, Result};
+use crate::AsyncTryInto;
+use async_trait::async_trait;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
-use std::{collections::HashSet, net::IpAddr};
+use serde::Deserialize;
+use std::{collections::HashSet, net::IpAddr, path::PathBuf, str::FromStr};
 use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
@@ -68,9 +71,53 @@ impl Matcher for GeoIp {
     }
 }
 
+#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+/// Arguments of the GeoIp.
+pub struct GeoIpBuilder {
+    /// Country codes to match on
+    codes: HashSet<String>,
+    /// Buf
+    buf: Vec<u8>,
+}
+
+impl GeoIpBuilder {
+    pub async fn from_path(path: impl AsRef<str>) -> Result<Self> {
+        // Per std documentation, this is infallible
+        let buf: Vec<u8> = tokio::fs::read(PathBuf::from_str(path.as_ref()).unwrap()).await?;
+        Ok(Self {
+            codes: HashSet::new(),
+            buf,
+        })
+    }
+
+    pub fn from_buf(buf: Vec<u8>) -> Self {
+        Self {
+            codes: HashSet::new(),
+            buf,
+        }
+    }
+
+    pub fn add_code(mut self, code: impl ToString) -> Self {
+        self.codes.insert(code.to_string());
+        self
+    }
+}
+
+#[async_trait]
+impl AsyncTryInto<GeoIp> for GeoIpBuilder {
+    async fn try_into(self) -> Result<GeoIp> {
+        // By default, we don't provide any builtin database.
+        Ok(GeoIp::new(self.codes, self.buf)?)
+    }
+
+    type Error = MatchError;
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{super::Matcher, GeoIp, State};
+    use super::{super::Matcher, GeoIpBuilder, State};
+    use crate::AsyncTryInto;
     use once_cell::sync::Lazy;
     use std::str::FromStr;
     use trust_dns_proto::{
@@ -107,38 +154,40 @@ mod tests {
         }
     }
 
-    #[test]
-    fn builtin_db_not_china() {
+    #[tokio::test]
+    async fn builtin_db_not_china() {
         assert_eq!(
-            GeoIp::new(
-                vec!["CN".to_string()].into_iter().collect(),
-                include_bytes!("../../../../../../data/full.mmdb").to_vec()
-            )
-            .unwrap()
-            .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
-            false
-        )
-    }
-
-    #[test]
-    fn not_china() {
-        assert_eq!(
-            GeoIp::new(vec!["CN".to_string()].into_iter().collect(), (PATH).clone(),)
+            GeoIpBuilder::from_buf(PATH.clone())
+                .add_code("CN")
+                .try_into()
+                .await
                 .unwrap()
                 .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
             false
         )
     }
 
-    #[test]
-    fn mixed() {
-        let geoip = GeoIp::new(
-            vec!["CN".to_string(), "AU".to_string()]
-                .into_iter()
-                .collect(),
-            (PATH).clone(),
+    #[tokio::test]
+    async fn not_china() {
+        assert_eq!(
+            GeoIpBuilder::from_buf(PATH.clone())
+                .add_code("CN")
+                .try_into()
+                .await
+                .unwrap()
+                .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
+            false
         )
-        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn mixed() {
+        let geoip = GeoIpBuilder::from_buf(PATH.clone())
+            .add_code("CN")
+            .add_code("AU")
+            .try_into()
+            .await
+            .unwrap();
         assert_eq!(
             geoip.matches(&create_state(vec![(RECORD_CHINA).clone()])),
             true
@@ -149,30 +198,39 @@ mod tests {
         )
     }
 
-    #[test]
-    fn empty_records() {
+    #[tokio::test]
+    async fn empty_records() {
         assert_eq!(
-            GeoIp::new(vec!["CN".to_string()].into_iter().collect(), (PATH).clone(),)
+            GeoIpBuilder::from_buf(PATH.clone())
+                .add_code("CN")
+                .try_into()
+                .await
                 .unwrap()
                 .matches(&State::default()),
             false,
         )
     }
 
-    #[test]
-    fn is_china() {
+    #[tokio::test]
+    async fn is_china() {
         assert_eq!(
-            GeoIp::new(vec!["CN".to_string()].into_iter().collect(), (PATH).clone(),)
+            GeoIpBuilder::from_buf(PATH.clone())
+                .add_code("CN")
+                .try_into()
+                .await
                 .unwrap()
                 .matches(&create_state(vec![(RECORD_CHINA).clone()])),
             true
         )
     }
 
-    #[test]
-    fn unordered_is_china() {
+    #[tokio::test]
+    async fn unordered_is_china() {
         assert_eq!(
-            GeoIp::new(vec!["CN".to_string()].into_iter().collect(), (PATH).clone(),)
+            GeoIpBuilder::from_buf(PATH.clone())
+                .add_code("CN")
+                .try_into()
+                .await
                 .unwrap()
                 .matches(&create_state(vec![
                     (RECORD_CHINA).clone(),

@@ -16,12 +16,12 @@
 //! `Upstream` wraps around the `QHandle` to manage cache-related business. It is method (UDP, TCP, Zone File, etc.) agnostic.
 //! `Upstreams` is a set of `Upstream` that manages `Hybrid` querying types and more.
 
+/// A module containing the builders for Upstreams, Upstream, and each client builder.
 pub mod builder;
 /// Module which contains the error type for the `upstreams` section.
 pub mod error;
 mod upstream;
 
-pub use builder::UpstreamsBuilder;
 pub use upstream::*;
 
 use self::{
@@ -36,16 +36,17 @@ use std::{
 };
 use trust_dns_client::op::Message;
 
-/// `Upstream` aggregated, used to create `Router`.
+/// [`Upstream`] aggregated, used to create `Router`.
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
+    // All the responses are cached together, however, they are seperately tagged, so there should be no contamination in place.
     cache: RespCache,
 }
 
 impl Validatable for Upstreams {
     type Error = UpstreamError;
     fn validate(&self, used: Option<&HashSet<Label>>) -> Result<()> {
-        // A bucket used to count the time each rule being used.
+        // A bucket used to count the time each upstream being used.
         let mut bucket: HashMap<&Label, (ValidateCell, &Upstream)> = self
             .upstreams
             .iter()
@@ -140,74 +141,65 @@ impl Upstreams {
 
 #[cfg(test)]
 mod tests {
-    use super::{UpstreamBuilder, UpstreamError, UpstreamsBuilder};
+    use crate::AsyncTryInto;
+
+    use super::{
+        builder::{HybridBuilder, UdpBuilder, UpstreamBuilder, UpstreamsBuilder},
+        UpstreamError,
+    };
 
     #[tokio::test]
     async fn should_not_fail_recursion() {
         // This should not fail because for the hybrid1, graph is like hybrid1 -> ((hybrid2 -> foo), foo), which is not recursive.
         // Previous detection algorithm mistakingly identifies this as recursion.
-        UpstreamsBuilder::new(
-            vec![
-                (
-                    "udp",
-                    UpstreamBuilder::Udp {
-                        addr: "127.0.0.1:53533".parse().unwrap(),
-                        dnssec: false,
-                        timeout: 1,
-                    },
-                ),
-                (
-                    "hybrid1",
-                    UpstreamBuilder::Hybrid(
-                        vec!["udp".into(), "hybrid2".into()].into_iter().collect(),
-                    ),
-                ),
-                (
-                    "hybrid2",
-                    UpstreamBuilder::Hybrid(vec!["udp".into()].into_iter().collect()),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-            std::num::NonZeroUsize::new(1).unwrap(),
-        )
-        .build()
-        .await
-        .ok()
-        .unwrap();
+        UpstreamsBuilder::new(1)
+            .unwrap()
+            .add_upstream(
+                "udp",
+                UpstreamBuilder::Udp(UdpBuilder {
+                    addr: "127.0.0.1:53533".parse().unwrap(),
+                    dnssec: false,
+                    timeout: 1,
+                }),
+            )
+            .add_upstream(
+                "hybrid1",
+                UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("udp").add_tag("hybrid2")),
+            )
+            .add_upstream(
+                "hybrid2",
+                UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("udp")),
+            )
+            .try_into()
+            .await
+            .ok()
+            .unwrap();
     }
 
     #[tokio::test]
     async fn fail_recursion() {
-        match UpstreamsBuilder::new(
-            vec![
-                (
-                    "udp",
-                    UpstreamBuilder::Udp {
-                        addr: "127.0.0.1:53533".parse().unwrap(),
-                        dnssec: false,
-                        timeout: 1,
-                    },
-                ),
-                (
-                    "hybrid1",
-                    UpstreamBuilder::Hybrid(
-                        vec!["udp".into(), "hybrid2".into()].into_iter().collect(),
-                    ),
-                ),
-                (
-                    "hybrid2",
-                    UpstreamBuilder::Hybrid(vec!["hybrid1".into()].into_iter().collect()),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-            std::num::NonZeroUsize::new(1).unwrap(),
-        )
-        .build()
-        .await
-        .err()
-        .unwrap()
+        match UpstreamsBuilder::new(1)
+            .unwrap()
+            .add_upstream(
+                "udp",
+                UpstreamBuilder::Udp(UdpBuilder {
+                    addr: "127.0.0.1:53533".parse().unwrap(),
+                    dnssec: false,
+                    timeout: 1,
+                }),
+            )
+            .add_upstream(
+                "hybrid1",
+                UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("hybrid2")),
+            )
+            .add_upstream(
+                "hybrid2",
+                UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("hybrid1")),
+            )
+            .try_into()
+            .await
+            .err()
+            .unwrap()
         {
             UpstreamError::HybridRecursion(_) => (),
             e => panic!("Not the right error type: {}", e),

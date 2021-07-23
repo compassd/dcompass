@@ -13,11 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-mod builder;
+pub mod builder;
 mod qhandle;
 pub(crate) mod resp_cache;
 
-pub use builder::UpstreamBuilder;
 pub use qhandle::{QHandle, QHandleError};
 
 use self::resp_cache::{RecordStatus::*, RespCache};

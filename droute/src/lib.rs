@@ -21,7 +21,7 @@
 //    Error - Any error which is fatal to the operation, but not the service or application (can't open a required file, missing data, etc.). These errors will force user (administrator, or direct user) intervention. These are usually reserved (in my apps) for incorrect connection strings, missing services, etc.
 //    Fatal - Any error that is forcing a shutdown of the service or application to prevent data loss (or further data loss). I reserve these only for the most heinous errors and situations where there is guaranteed to have been data corruption or loss.
 
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 #![deny(unsafe_code)]
 // Documentation
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.
@@ -30,16 +30,19 @@ pub mod error;
 pub mod mock;
 mod router;
 
+use async_trait::async_trait;
 use std::collections::HashSet;
 
 /// All the builders
+// API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
 pub mod builders {
+    // Here we don't aggregate action and matcher builders into rule builders module, because they are quite logically different.
     pub use super::router::{
         table::{
-            rule::{actions::builder::*, builder::*, matchers::builder::*},
+            rule::{actions::builder::*, builders::*, matchers::builder::*},
             TableBuilder,
         },
-        upstreams::{UpstreamBuilder, UpstreamsBuilder},
+        upstreams::builder::*,
         RouterBuilder,
     };
 }
@@ -62,6 +65,13 @@ const MAX_TTL: u32 = 86400_u32;
 
 /// The type used for tag names in upstreams and routing tables.
 pub type Label = Arc<str>;
+
+#[async_trait]
+pub trait AsyncTryInto<T>: Send {
+    type Error;
+
+    async fn try_into(self) -> Result<T, Self::Error>;
+}
 
 /// A object that can be validated
 pub trait Validatable {

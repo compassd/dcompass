@@ -15,7 +15,7 @@
 
 use super::{ClientWrapper, Result};
 use async_trait::async_trait;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpStream as TokioTcpStream;
 use trust_dns_client::{client::AsyncClient, tcp::TcpClientStream};
 use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
@@ -24,19 +24,23 @@ use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 #[derive(Clone)]
 pub struct Tcp {
     addr: SocketAddr,
+    timeout: Duration,
 }
 
 impl Tcp {
     /// Create a new TCP client creator instance. with the given remote server address.
-    pub fn new(addr: SocketAddr) -> Self {
-        Self { addr }
+    pub fn new(addr: SocketAddr, timeout: Duration) -> Self {
+        Self { addr, timeout }
     }
 }
 
 #[async_trait]
 impl ClientWrapper<AsyncClient> for Tcp {
     async fn create(&self) -> Result<AsyncClient> {
-        let (stream, sender) = TcpClientStream::<AsyncIoTokioAsStd<TokioTcpStream>>::new(self.addr);
+        let (stream, sender) = TcpClientStream::<AsyncIoTokioAsStd<TokioTcpStream>>::with_timeout(
+            self.addr,
+            self.timeout,
+        );
         let (client, bg) = AsyncClient::new(Box::new(stream), sender, None).await?;
 
         tokio::spawn(bg);

@@ -15,7 +15,7 @@
 
 use super::{ClientWrapper, Result};
 use async_trait::async_trait;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 use tokio::net::UdpSocket;
 use trust_dns_client::{
     client::{AsyncClient, AsyncDnssecClient},
@@ -26,19 +26,20 @@ use trust_dns_client::{
 #[derive(Clone)]
 pub struct Udp {
     addr: SocketAddr,
+    timeout: Duration,
 }
 
 impl Udp {
     /// Create a new UDP client creator instance. with the given remote server address.
-    pub fn new(addr: SocketAddr) -> Self {
-        Self { addr }
+    pub fn new(addr: SocketAddr, timeout: Duration) -> Self {
+        Self { addr, timeout }
     }
 }
 
 #[async_trait]
 impl ClientWrapper<AsyncClient> for Udp {
     async fn create(&self) -> Result<AsyncClient> {
-        let stream = UdpClientStream::<UdpSocket>::new(self.addr);
+        let stream = UdpClientStream::<UdpSocket>::with_timeout(self.addr, self.timeout);
         let (client, bg) = AsyncClient::connect(stream).await?;
         tokio::spawn(bg);
         Ok(client)

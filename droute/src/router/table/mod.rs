@@ -17,7 +17,8 @@ pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::{builders::*, Label, Validatable, ValidateCell};
+use crate::{AsyncTryInto, Label, Validatable, ValidateCell};
+use async_trait::async_trait;
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -61,13 +62,13 @@ pub struct State {
 // Traverse and validate the routing table.
 fn traverse(
     // A bucket to count the time each tag being used.
-    bucket: &mut HashMap<&Label, (ValidateCell, &Rule)>,
+    bucket: &mut HashMap<&Label, (ValidateCell, &Box<dyn Rule>)>,
     // Tag of the rule that we are currently on.
     tag: &Label,
 ) -> Result<()> {
     // Hacky workaround on the borrow checker.
-    let (val, on_match, no_match) = if let Some((c, r)) = bucket.get_mut(tag) {
-        (c.val(), r.on_match_next(), r.no_match_next())
+    let (val, dsts) = if let Some((c, r)) = bucket.get_mut(tag) {
+        (c.val(), r.dsts())
     } else {
         return Err(TableError::UndefinedTag(tag.clone()));
     };
@@ -75,11 +76,10 @@ fn traverse(
         Err(TableError::RuleRecursion(tag.clone()))
     } else {
         bucket.get_mut(tag).unwrap().0.add(1);
-        if on_match != &"end".into() {
-            traverse(bucket, on_match)?;
-        }
-        if no_match != &"end".into() {
-            traverse(bucket, no_match)?;
+        for dst in dsts {
+            if dst != "end".into() {
+                traverse(bucket, &dst)?;
+            }
         }
         bucket.get_mut(tag).unwrap().0.sub(1);
         Ok(())
@@ -88,7 +88,7 @@ fn traverse(
 
 /// A simple routing table.
 pub struct Table {
-    rules: HashMap<Label, Rule>,
+    rules: HashMap<Label, Box<dyn Rule>>,
     // Upstreams used in this table.
     used_upstreams: HashSet<Label>,
 }
@@ -97,7 +97,7 @@ impl Validatable for Table {
     type Error = TableError;
     fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
         // A bucket used to count the time each rule being used.
-        let mut bucket: HashMap<&Label, (ValidateCell, &Rule)> = self
+        let mut bucket: HashMap<&Label, (ValidateCell, &Box<dyn Rule>)> = self
             .rules
             .iter()
             .map(|(k, v)| (k, (ValidateCell::default(), v)))
@@ -119,9 +119,9 @@ impl Validatable for Table {
 
 impl Table {
     /// Create a routing table from a bunch of `Rule`s.
-    pub fn new(table: HashMap<Label, Rule>) -> Result<Self> {
+    pub fn new(table: HashMap<Label, Box<dyn Rule>>) -> Result<Self> {
         // A bucket used to count the time each rule being used.
-        let mut bucket: HashMap<&Label, (ValidateCell, &Rule)> = table
+        let mut bucket: HashMap<&Label, (ValidateCell, &Box<dyn Rule>)> = table
             .iter()
             .map(|(k, v)| (k, (ValidateCell::default(), v)))
             .collect();
@@ -177,19 +177,35 @@ impl Table {
 
 /// A builder for the routing table.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct TableBuilder<M: MatcherBuilder, A: ActionBuilder>(HashMap<Label, RuleBuilder<M, A>>);
+pub struct TableBuilder<R: AsyncTryInto<Box<dyn Rule>, Error = TableError>>(HashMap<Label, R>);
 
-impl<M: MatcherBuilder, A: ActionBuilder> TableBuilder<M, A> {
+impl<R: AsyncTryInto<Box<dyn Rule>, Error = TableError>> TableBuilder<R> {
     /// Create a `TableBuilder` from a set of rules
-    pub fn new(table: HashMap<impl Into<Label>, RuleBuilder<M, A>>) -> Self {
+    pub fn from_map(table: HashMap<impl Into<Label>, R>) -> Self {
         Self(table.into_iter().map(|(k, v)| (k.into(), v)).collect())
     }
 
+    /// Create a builder with an empty set of rules
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    /// Add new rule
+    pub fn add_rule(mut self, tag: impl Into<Label>, rule: R) -> Self {
+        self.0.insert(tag.into(), rule);
+        self
+    }
+}
+
+#[async_trait]
+impl<R: AsyncTryInto<Box<dyn Rule>, Error = TableError>> AsyncTryInto<Table> for TableBuilder<R> {
+    type Error = TableError;
+
     /// Build the rounting table from a `TableBuilder`
-    pub async fn build(self) -> Result<Table> {
+    async fn try_into(self) -> Result<Table> {
         let mut rules = HashMap::new();
         for (tag, r) in self.0 {
-            rules.insert(tag, r.build().await?);
+            rules.insert(tag, r.try_into().await?);
         }
         Table::new(rules)
     }
@@ -197,66 +213,49 @@ impl<M: MatcherBuilder, A: ActionBuilder> TableBuilder<M, A> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        rule::{actions::CacheMode, matchers::ResourceType},
-        TableError,
-    };
-    use crate::{builders::*, Label};
+    use super::{rule::actions::CacheMode, TableError};
+    use crate::{builders::*, AsyncTryInto, Label};
 
     #[tokio::test]
     async fn is_not_recursion() {
-        TableBuilder::new(
-            vec![
-                (
-                    "start".into(),
-                    RuleBuilder::new(
-                        BuiltinMatcherBuilder::Any,
-                        BranchBuilder::<BuiltinActionBuilder>::new(vec![], "foo"),
-                        BranchBuilder::new(vec![], "foo"),
-                    ),
-                ),
-                (
-                    "foo",
-                    RuleBuilder::new(
-                        BuiltinMatcherBuilder::Any,
-                        BranchBuilder::default(),
-                        BranchBuilder::default(),
-                    ),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        )
-        .build()
-        .await
-        .ok()
-        .unwrap();
+        TableBuilder::new()
+            .add_rule(
+                "start",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
+                    no_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
+                }),
+            )
+            .add_rule(
+                "foo",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::<BuiltinActionBuilders>::default(),
+                    no_match: BranchBuilder::<BuiltinActionBuilders>::default(),
+                }),
+            )
+            .try_into()
+            .await
+            .ok()
+            .unwrap();
     }
 
     #[tokio::test]
     async fn fail_table_recursion() {
-        match TableBuilder::new(
-            vec![(
+        match TableBuilder::new()
+            .add_rule(
                 "start",
-                RuleBuilder::new(
-                    BuiltinMatcherBuilder::Any,
-                    BranchBuilder::new(
-                        vec![BuiltinActionBuilder::Query(
-                            "mock".into(),
-                            CacheMode::default(),
-                        )],
-                        "end",
-                    ),
-                    BranchBuilder::new(vec![], "start"),
-                ),
-            )]
-            .into_iter()
-            .collect(),
-        )
-        .build()
-        .await
-        .err()
-        .unwrap()
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::<BuiltinActionBuilders>::default(),
+                    no_match: BranchBuilder::<BuiltinActionBuilders>::new("start"),
+                }),
+            )
+            .try_into()
+            .await
+            .err()
+            .unwrap()
         {
             TableError::RuleRecursion(_) => {}
             e => panic!("Not the right error type: {}", e),
@@ -265,46 +264,38 @@ mod tests {
 
     #[tokio::test]
     async fn fail_unused_rules() {
-        match TableBuilder::new(
-            vec![
-                (
-                    "start".into(),
-                    RuleBuilder::new(
-                        BuiltinMatcherBuilder::Any,
-                        BranchBuilder::new(
-                            vec![BuiltinActionBuilder::Query(
-                                "mock".into(),
-                                CacheMode::default(),
-                            )],
-                            "end",
-                        ),
-                        BranchBuilder::default(),
-                    ),
-                ),
-                (
-                    "mock",
-                    RuleBuilder::new(
-                        BuiltinMatcherBuilder::Any,
-                        BranchBuilder::default(),
-                        BranchBuilder::default(),
-                    ),
-                ),
-                (
-                    "unused",
-                    RuleBuilder::new(
-                        BuiltinMatcherBuilder::Any,
-                        BranchBuilder::default(),
-                        BranchBuilder::default(),
-                    ),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        )
-        .build()
-        .await
-        .err()
-        .unwrap()
+        // Both `mock` and `unused` should be unused here because the `mock` tag in query action refers to upstreams but not rules
+        match TableBuilder::new()
+            .add_rule(
+                "start",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                        QueryBuilder::new("mock", CacheMode::default()),
+                    )),
+                    no_match: BranchBuilder::default(),
+                }),
+            )
+            .add_rule(
+                "mock",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::default(),
+                    no_match: BranchBuilder::default(),
+                }),
+            )
+            .add_rule(
+                "unused",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Any,
+                    on_match: BranchBuilder::default(),
+                    no_match: BranchBuilder::default(),
+                }),
+            )
+            .try_into()
+            .await
+            .err()
+            .unwrap()
         {
             TableError::UnusedRules(v) => {
                 assert_eq!(
@@ -321,35 +312,24 @@ mod tests {
 
     #[tokio::test]
     async fn success_domain_table() {
-        TableBuilder::new(
-            vec![(
+        TableBuilder::new()
+            .add_rule(
                 "start",
-                RuleBuilder::new(
-                    BuiltinMatcherBuilder::Domain(vec![ResourceType::File(
-                        "../data/china.txt.gz".into(),
-                    )]),
-                    BranchBuilder::new(
-                        vec![BuiltinActionBuilder::Query(
-                            "mock".into(),
-                            CacheMode::default(),
-                        )],
-                        "end",
+                RuleBuilders::IfBlock(IfBlockBuilder {
+                    matcher: BuiltinMatcherBuilders::Domain(
+                        DomainBuilder::new().add_file("../data/china.txt.gz"),
                     ),
-                    BranchBuilder::new(
-                        vec![BuiltinActionBuilder::Query(
-                            "another_mock".into(),
-                            CacheMode::default(),
-                        )],
-                        "end",
-                    ),
-                ),
-            )]
-            .into_iter()
-            .collect(),
-        )
-        .build()
-        .await
-        .ok()
-        .unwrap();
+                    on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                        QueryBuilder::new("mock", CacheMode::default()),
+                    )),
+                    no_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                        QueryBuilder::new("another_mock", CacheMode::default()),
+                    )),
+                }),
+            )
+            .try_into()
+            .await
+            .ok()
+            .unwrap();
     }
 }

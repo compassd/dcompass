@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use droute::{actions::CacheMode, builders::*, mock::Server, Router};
+use droute::{actions::CacheMode, builders::*, mock::Server, AsyncTryInto, Router};
 use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
 use trust_dns_client::op::Message;
@@ -26,7 +26,7 @@ use trust_dns_proto::{
 static DUMMY_MSG: Lazy<Message> = Lazy::new(|| {
     let mut msg = Message::new();
     msg.add_answer(Record::from_rdata(
-        Name::from_utf8("www.apple.com").unwrap(),
+        Name::from_utf8("www.cloudflare-dns.com").unwrap(),
         32,
         RData::A("1.1.1.1".parse().unwrap()),
     ));
@@ -44,43 +44,33 @@ static QUERY: Lazy<Message> = Lazy::new(|| {
 
 async fn create_router(c: usize) -> Router {
     RouterBuilder::new(
-        TableBuilder::new(
-            vec![(
-                "start",
-                RuleBuilder::new(
-                    BuiltinMatcherBuilder::Any,
-                    BranchBuilder::new(
-                        vec![BuiltinActionBuilder::Query(
-                            "mock".into(),
-                            if c != 1 {
-                                CacheMode::default()
-                            } else {
-                                CacheMode::Disabled
-                            },
-                        )],
-                        "end",
+        TableBuilder::new().add_rule(
+            "start",
+            RuleBuilders::IfBlock(IfBlockBuilder {
+                matcher: BuiltinMatcherBuilders::Any,
+                on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                    QueryBuilder::new(
+                        "mock",
+                        if c != 1 {
+                            CacheMode::default()
+                        } else {
+                            CacheMode::Disabled
+                        },
                     ),
-                    BranchBuilder::default(),
-                ),
-            )]
-            .into_iter()
-            .collect(),
+                )),
+                no_match: BranchBuilder::default(),
+            }),
         ),
-        UpstreamsBuilder::new(
-            vec![(
-                "mock",
-                UpstreamBuilder::Udp {
-                    addr: "127.0.0.1:53533".parse().unwrap(),
-                    dnssec: false,
-                    timeout: 1,
-                },
-            )]
-            .into_iter()
-            .collect(),
-            std::num::NonZeroUsize::new(c).unwrap(),
+        UpstreamsBuilder::new(c).unwrap().add_upstream(
+            "mock",
+            UpstreamBuilder::Udp(UdpBuilder {
+                addr: "127.0.0.1:53533".parse().unwrap(),
+                dnssec: false,
+                timeout: 1,
+            }),
         ),
     )
-    .build()
+    .try_into()
     .await
     .unwrap()
 }

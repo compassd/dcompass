@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use droute::{actions::CacheMode, builders::*, mock::Server};
+use droute::{actions::CacheMode, builders::*, mock::Server, AsyncTryInto};
 use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
 use trust_dns_proto::{
@@ -49,39 +49,26 @@ async fn test_resolve() {
     tokio::spawn(server.run(DUMMY_MSG.clone()));
 
     let router = RouterBuilder::new(
-        TableBuilder::new(
-            vec![(
-                "start",
-                RuleBuilder::new(
-                    BuiltinMatcherBuilder::Any,
-                    BranchBuilder::new(
-                        vec![BuiltinActionBuilder::Query(
-                            "mock".into(),
-                            CacheMode::default(),
-                        )],
-                        "end",
-                    ),
-                    BranchBuilder::default(),
-                ),
-            )]
-            .into_iter()
-            .collect(),
+        TableBuilder::new().add_rule(
+            "start",
+            RuleBuilders::IfBlock(IfBlockBuilder {
+                matcher: BuiltinMatcherBuilders::Any,
+                on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                    QueryBuilder::new("mock", CacheMode::default()),
+                )),
+                no_match: BranchBuilder::default(),
+            }),
         ),
-        UpstreamsBuilder::new(
-            vec![(
-                "mock",
-                UpstreamBuilder::Udp {
-                    addr: "127.0.0.1:53533".parse().unwrap(),
-                    dnssec: false,
-                    timeout: 10,
-                },
-            )]
-            .into_iter()
-            .collect(),
-            std::num::NonZeroUsize::new(1).unwrap(),
+        UpstreamsBuilder::new(1).unwrap().add_upstream(
+            "mock",
+            UdpBuilder {
+                addr: "127.0.0.1:53533".parse().unwrap(),
+                dnssec: false,
+                timeout: 10,
+            },
         ),
     )
-    .build()
+    .try_into()
     .await
     .unwrap();
 
