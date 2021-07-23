@@ -71,6 +71,7 @@ impl Matcher for IpCidr {
     }
 }
 
+/// A builder for IpCidr matcher plugin
 #[derive(Deserialize, Clone)]
 pub struct IpCidrBuilder(Vec<String>);
 
@@ -81,10 +82,12 @@ impl Default for IpCidrBuilder {
 }
 
 impl IpCidrBuilder {
+    /// Create an empty builder
     pub fn new() -> Self {
         IpCidrBuilder(Vec::new())
     }
 
+    /// Add a file of IP CIDR addresses to the matcher builder
     pub fn add_file(mut self, s: impl ToString) -> Self {
         self.0.push(s.to_string());
         self

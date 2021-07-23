@@ -123,6 +123,7 @@ impl<A: AsyncTryInto<Box<dyn Action>, Error = ActionError>> BranchBuilder<A> {
         }
     }
 
+    /// Create a branch builder from a list of action builders
     pub fn from_actions(seq: Vec<A>, next: impl Into<Label>) -> Self {
         Self {
             seq,
@@ -130,6 +131,7 @@ impl<A: AsyncTryInto<Box<dyn Action>, Error = ActionError>> BranchBuilder<A> {
         }
     }
 
+    /// Add a single action builder to the list (in order)
     pub fn add_action(mut self, action: A) -> Self {
         self.seq.push(action);
         self
@@ -162,6 +164,7 @@ impl<A: AsyncTryInto<Box<dyn Action>, Error = ActionError>> Default for BranchBu
     }
 }
 
+/// A builder for rule block
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 pub enum RuleBuilders<M, A>
@@ -169,6 +172,7 @@ where
     M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
     A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
 {
+    /// If syntax rule
     IfBlock(IfBlockBuilder<M, A>),
 }
 

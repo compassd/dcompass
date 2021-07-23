@@ -63,6 +63,7 @@ impl Matcher for Domain {
     }
 }
 
+/// A builder for domain matcher
 #[derive(Deserialize, Clone)]
 pub struct DomainBuilder(Vec<ResourceType>);
 
@@ -78,11 +79,13 @@ impl DomainBuilder {
         Self(Vec::new())
     }
 
+    /// Add a domain name to the match list
     pub fn add_qnmae(mut self, s: impl ToString) -> Self {
         self.0.push(ResourceType::Qname(s.to_string()));
         self
     }
 
+    /// Add a file of domain names to the match list
     pub fn add_file(mut self, s: impl AsRef<str>) -> Self {
         self.0
             .push(ResourceType::File(PathBuf::from_str(s.as_ref()).unwrap()));

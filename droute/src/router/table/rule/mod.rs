@@ -29,10 +29,11 @@ use async_trait::async_trait;
 use log::*;
 use std::collections::HashSet;
 
+/// Rule block abstraction
 #[async_trait]
 pub trait Rule: Send + Sync {
     // `name` refers to the name of the Rule itself
-    // Returns the label of the next rule.
+    /// Returns the label of the next rule.
     async fn route(
         &self,
         tag: &Label,
@@ -41,10 +42,11 @@ pub trait Rule: Send + Sync {
         name: &str,
     ) -> Result<Label>;
 
-    // Possible destinations of this rule block
+    /// Possible destinations of this rule block
     // TODO: Can we change it to a more cost friendly version?
     fn dsts(&self) -> HashSet<Label>;
 
+    /// Possibly used upstream tags
     fn used_upstreams(&self) -> HashSet<Label>;
 }
 

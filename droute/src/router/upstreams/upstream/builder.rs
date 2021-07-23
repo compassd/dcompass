@@ -70,6 +70,7 @@ mod remote_def {
     }
 }
 
+/// A builder for hybrid upstream
 #[derive(Serialize, Deserialize, Clone)]
 pub struct HybridBuilder(HashSet<Label>);
 
@@ -80,10 +81,12 @@ impl Default for HybridBuilder {
 }
 
 impl HybridBuilder {
+    /// Create an empty hybrid builder
     pub fn new() -> Self {
         Self(HashSet::new())
     }
 
+    /// Add another upstream to the hybrid upstream about to build
     pub fn add_tag(mut self, tag: impl Into<Label>) -> Self {
         self.0.insert(tag.into());
         self
@@ -99,6 +102,7 @@ impl AsyncTryInto<Upstream> for HybridBuilder {
     }
 }
 
+/// A builder for DNS over HTTPS upstream
 #[cfg(feature = "doh")]
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
@@ -138,6 +142,7 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
     }
 }
 
+/// A builder for DNS over TLS upstream
 #[cfg(feature = "dot")]
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
@@ -177,6 +182,7 @@ impl AsyncTryInto<Upstream> for TlsBuilder {
     }
 }
 
+/// A builder for UDP upstream
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UdpBuilder {
@@ -215,6 +221,7 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
     }
 }
 
+/// A builder for TCP upstream
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TcpBuilder {
@@ -237,6 +244,7 @@ impl AsyncTryInto<Upstream> for TcpBuilder {
     }
 }
 
+/// A builder for local DNS zone upstream
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ZoneBuilder {

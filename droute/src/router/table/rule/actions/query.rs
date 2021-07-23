@@ -66,10 +66,12 @@ impl Action for Query {
     }
 }
 
+/// A builder for query action plugin
 #[derive(Deserialize, Clone)]
 pub struct QueryBuilder(pub Label, pub CacheMode);
 
 impl QueryBuilder {
+    /// Create a new query builder by supplying the label and the cache mode
     pub fn new(label: impl Into<Label>, mode: CacheMode) -> Self {
         Self(label.into(), mode)
     }

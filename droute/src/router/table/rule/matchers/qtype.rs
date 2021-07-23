@@ -36,6 +36,7 @@ impl Matcher for QType {
     }
 }
 
+/// A builder for qtype matcher plugin
 #[derive(Deserialize, Clone)]
 pub struct QTypeBuilder(HashSet<RecordType>);
 
@@ -46,10 +47,12 @@ impl Default for QTypeBuilder {
 }
 
 impl QTypeBuilder {
+    /// Create an empty builder
     pub fn new() -> Self {
         Self(HashSet::new())
     }
 
+    /// Add a record type to match
     pub fn add_rr(mut self, rr: RecordType) -> Self {
         self.0.insert(rr);
         self
