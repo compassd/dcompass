@@ -62,7 +62,7 @@ pub struct State {
 // Traverse and validate the routing table.
 fn traverse(
     // A bucket to count the time each tag being used.
-    bucket: &mut HashMap<&Label, (ValidateCell, &Box<dyn Rule>)>,
+    bucket: &mut HashMap<&Label, (ValidateCell, &dyn Rule)>,
     // Tag of the rule that we are currently on.
     tag: &Label,
 ) -> Result<()> {
@@ -97,10 +97,10 @@ impl Validatable for Table {
     type Error = TableError;
     fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
         // A bucket used to count the time each rule being used.
-        let mut bucket: HashMap<&Label, (ValidateCell, &Box<dyn Rule>)> = self
+        let mut bucket: HashMap<&Label, (ValidateCell, &dyn Rule)> = self
             .rules
             .iter()
-            .map(|(k, v)| (k, (ValidateCell::default(), v)))
+            .map(|(k, v)| (k, (ValidateCell::default(), v.as_ref())))
             .collect();
         traverse(&mut bucket, &"start".into())?;
         let unused: HashSet<Label> = bucket
@@ -121,9 +121,9 @@ impl Table {
     /// Create a routing table from a bunch of `Rule`s.
     pub fn new(table: HashMap<Label, Box<dyn Rule>>) -> Result<Self> {
         // A bucket used to count the time each rule being used.
-        let mut bucket: HashMap<&Label, (ValidateCell, &Box<dyn Rule>)> = table
+        let mut bucket: HashMap<&Label, (ValidateCell, &dyn Rule)> = table
             .iter()
-            .map(|(k, v)| (k, (ValidateCell::default(), v)))
+            .map(|(k, v)| (k, (ValidateCell::default(), v.as_ref())))
             .collect();
         traverse(&mut bucket, &"start".into())?;
         let used_upstreams = bucket

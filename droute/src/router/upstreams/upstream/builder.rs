@@ -104,8 +104,8 @@ impl AsyncTryInto<Upstream> for HybridBuilder {
 
 /// A builder for DNS over HTTPS upstream
 #[cfg(feature = "doh")]
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct HttpsBuilder {
     /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
     pub name: String,
@@ -144,8 +144,8 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
 
 /// A builder for DNS over TLS upstream
 #[cfg(feature = "dot")]
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct TlsBuilder {
     /// The domain name of the server. e.g. `cloudflare-dns.com` for Cloudflare DNS.
     pub name: String,
@@ -183,8 +183,8 @@ impl AsyncTryInto<Upstream> for TlsBuilder {
 }
 
 /// A builder for UDP upstream
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct UdpBuilder {
     /// Address of the remote server
     pub addr: SocketAddr,
@@ -222,8 +222,8 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
 }
 
 /// A builder for TCP upstream
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct TcpBuilder {
     /// Address of the remote server
     pub addr: SocketAddr,
@@ -245,8 +245,8 @@ impl AsyncTryInto<Upstream> for TcpBuilder {
 }
 
 /// A builder for local DNS zone upstream
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub struct ZoneBuilder {
     /// The type of the DNS zone.
     #[serde(with = "ZoneTypeDef")]
@@ -271,8 +271,8 @@ impl AsyncTryInto<Upstream> for ZoneBuilder {
     }
 }
 
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 /// The builder for `Upstream`
 pub enum UpstreamBuilder {
     /// Race various different upstreams concurrently. You can use it recursively, meaning Hybrid over (Hybrid over (DoH + UDP) + UDP) is legal.

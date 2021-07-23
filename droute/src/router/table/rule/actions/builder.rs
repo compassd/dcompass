@@ -22,8 +22,8 @@ use serde::{Deserialize, Deserializer};
 /// Builtin Parsed Actions
 /// This is a default enum which implements serde's deserialize trait to help you parse stuff into an action.
 /// You can rewrite your own parsed enum to support customized action and more functionalities on your needs.
-#[serde(rename_all = "lowercase")]
 #[derive(Clone, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum BuiltinActionBuilders {
     /// Set response to a message that "disables" requestor to retry.
     Blackhole,
@@ -38,8 +38,8 @@ fn de_query<'de, D>(deserializer: D) -> Result<QueryBuilder, D::Error>
 where
     D: Deserializer<'de>,
 {
-    #[serde(rename_all = "lowercase")]
     #[derive(Clone, Deserialize)]
+    #[serde(rename_all = "lowercase")]
     struct ExplicitQuery {
         tag: Label,
         cache_policy: CacheMode,

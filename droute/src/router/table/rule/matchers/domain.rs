@@ -24,8 +24,8 @@ use std::{path::PathBuf, str::FromStr};
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
 
-#[serde(rename_all = "lowercase")]
 #[derive(Deserialize, Clone, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 /// Type of the domain resources to add to the matcher.
 pub enum ResourceType {
     /// Query Name

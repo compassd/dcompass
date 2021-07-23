@@ -28,8 +28,8 @@ fn default_cache_size() -> NonZeroUsize {
     NonZeroUsize::new(2048).unwrap()
 }
 
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 /// The Builder for upstreams
 pub struct UpstreamsBuilder<U: AsyncTryInto<Upstream, Error = QHandleError>> {
     upstreams: HashMap<Label, U>,
