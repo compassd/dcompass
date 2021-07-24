@@ -27,7 +27,6 @@ use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
 use async_trait::async_trait;
 use log::*;
-use std::collections::HashSet;
 
 /// Rule block abstraction
 #[async_trait]
@@ -37,17 +36,17 @@ pub trait Rule: Send + Sync {
     async fn route(
         &self,
         tag: &Label,
-        state: &mut State,
+        state: &mut State<'_>,
         upstreams: &Upstreams,
         name: &str,
     ) -> Result<Label>;
 
     /// Possible destinations of this rule block
     // TODO: Can we change it to a more cost friendly version?
-    fn dsts(&self) -> HashSet<Label>;
+    fn dsts(&self) -> Vec<Label>;
 
     /// Possibly used upstream tags
-    fn used_upstreams(&self) -> HashSet<Label>;
+    fn used_upstreams(&self) -> Vec<Label>;
 }
 
 /// If-like control flow rule
@@ -77,15 +76,15 @@ impl IfBlock {
 
 #[async_trait]
 impl Rule for IfBlock {
-    fn used_upstreams(&self) -> HashSet<Label> {
-        let mut h = HashSet::new();
+    fn used_upstreams(&self) -> Vec<Label> {
+        let mut h = Vec::new();
         self.on_match
             .0
             .iter()
             .chain(self.no_match.0.iter()) // Put two iterators together
             .for_each(|a| {
                 if let Some(l) = a.used_upstream() {
-                    h.insert(l);
+                    h.push(l);
                 }
             });
         h
@@ -94,7 +93,7 @@ impl Rule for IfBlock {
     async fn route(
         &self,
         tag: &Label,
-        state: &mut State,
+        state: &mut State<'_>,
         upstreams: &Upstreams,
         name: &str,
     ) -> Result<Label> {
@@ -113,11 +112,8 @@ impl Rule for IfBlock {
         }
     }
 
-    fn dsts(&self) -> HashSet<Label> {
-        let mut h = HashSet::new();
-        h.insert(self.on_match.1.clone());
-        h.insert(self.no_match.1.clone());
-        h
+    fn dsts(&self) -> Vec<Label> {
+        vec![self.on_match.1.clone(), self.no_match.1.clone()]
     }
 }
 
@@ -125,6 +121,8 @@ impl Rule for IfBlock {
 
 #[cfg(test)]
 mod tests {
+    use trust_dns_client::op::Message;
+
     use super::super::{State, Upstreams};
     use crate::{builders::*, AsyncTryInto};
 
@@ -141,7 +139,10 @@ mod tests {
         assert_eq!(
             rule.route(
                 &"mock".into(), // This doesn't matter
-                &mut State::default(),
+                &mut State {
+                    resp: Message::default(),
+                    query: &mut Message::default(),
+                },
                 &Upstreams::new(
                     vec![].into_iter().collect(),
                     std::num::NonZeroUsize::new(1).unwrap()

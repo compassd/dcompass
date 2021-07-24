@@ -77,5 +77,5 @@ pub enum MatchError {
 /// A matcher determines if something matches or not given the current state.
 pub trait Matcher: Sync + Send {
     /// Determine if match.
-    fn matches(&self, state: &State) -> bool;
+    fn matches(&self, state: &State<'_>) -> bool;
 }

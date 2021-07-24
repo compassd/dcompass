@@ -53,10 +53,9 @@ pub enum TableError {
     UndefinedTag(Label),
 }
 
-#[derive(Default)]
-pub struct State {
+pub struct State<'a> {
     resp: Message,
-    query: Message,
+    query: &'a Message,
 }
 
 // Traverse and validate the routing table.
@@ -90,12 +89,12 @@ fn traverse(
 pub struct Table {
     rules: HashMap<Label, Box<dyn Rule>>,
     // Upstreams used in this table.
-    used_upstreams: HashSet<Label>,
+    used_upstreams: Vec<Label>,
 }
 
 impl Validatable for Table {
     type Error = TableError;
-    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
+    fn validate(&self, _: Option<&Vec<Label>>) -> Result<()> {
         // A bucket used to count the time each rule being used.
         let mut bucket: HashMap<&Label, (ValidateCell, &dyn Rule)> = self
             .rules
@@ -147,17 +146,17 @@ impl Table {
     }
 
     // Not intended to be used by end-users
-    pub(super) fn used_upstreams(&self) -> &HashSet<Label> {
+    pub(super) fn used_upstreams(&self) -> &Vec<Label> {
         &self.used_upstreams
     }
 
     // Not intended to be used by end-users
-    pub(super) async fn route(&self, query: Message, upstreams: &Upstreams) -> Result<Message> {
+    pub(super) async fn route(&self, query: &Message, upstreams: &Upstreams) -> Result<Message> {
         let name = query.queries().iter().next().unwrap().name().to_utf8();
         let id = query.id();
         let mut s = State {
             query,
-            ..Default::default()
+            resp: Message::default(),
         };
 
         let mut tag = "start".into();
@@ -214,7 +213,7 @@ impl<R: AsyncTryInto<Box<dyn Rule>, Error = TableError>> AsyncTryInto<Table> for
 #[cfg(test)]
 mod tests {
     use super::{rule::actions::CacheMode, TableError};
-    use crate::{builders::*, AsyncTryInto, Label};
+    use crate::{builders::*, AsyncTryInto};
 
     #[tokio::test]
     async fn is_not_recursion() {
@@ -298,12 +297,10 @@ mod tests {
             .unwrap()
         {
             TableError::UnusedRules(v) => {
+                // This is now order dependent because of Vec, we compare it like this
                 assert_eq!(
                     v,
-                    vec!["mock", "unused"]
-                        .into_iter()
-                        .map(|s| Label::from(s))
-                        .collect()
+                    vec!["unused".into(), "mock".into()].into_iter().collect()
                 )
             }
             e => panic!("Not the right error type: {}", e),

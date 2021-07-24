@@ -22,20 +22,21 @@ pub use qhandle::{QHandle, QHandleError};
 use self::resp_cache::{RecordStatus::*, RespCache};
 use super::{super::table::rule::actions::CacheMode, error::Result};
 use crate::Label;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 use trust_dns_client::op::Message;
 
 /// A single upstream. Opposite to the `Upstreams`.
 #[derive(Clone)]
 pub enum Upstream {
     /// Hybrid upstream type
-    Hybrid(HashSet<Label>),
+    // We don't use HashSet because we don't need to look up
+    Hybrid(Vec<Label>),
     /// Other upstream types, like Zone or ClientPool.
     Others(Arc<dyn QHandle>),
 }
 
 impl Upstream {
-    pub(super) fn try_hybrid(&self) -> Option<HashSet<&Label>> {
+    pub(super) fn try_hybrid(&self) -> Option<Vec<&Label>> {
         match &self {
             Self::Hybrid(v) => Some(v.iter().collect()),
             _ => None,

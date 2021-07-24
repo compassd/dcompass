@@ -31,7 +31,6 @@ pub mod mock;
 mod router;
 
 use async_trait::async_trait;
-use std::collections::HashSet;
 
 /// All the builders
 // API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
@@ -82,7 +81,7 @@ pub trait Validatable {
     type Error;
     /// Validate oneself.
     /// `used`: some of the tags used by other parts, which should be existed.
-    fn validate(&self, used: Option<&HashSet<Label>>) -> std::result::Result<(), Self::Error>;
+    fn validate(&self, used: Option<&Vec<Label>>) -> std::result::Result<(), Self::Error>;
 }
 
 // A cell used for bucket for validations

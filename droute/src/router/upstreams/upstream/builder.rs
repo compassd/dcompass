@@ -25,7 +25,7 @@ use super::{
 use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use trust_dns_client::client::{AsyncClient, AsyncDnssecClient};
 #[cfg(feature = "dot")]
 use trust_dns_proto::DnssecDnsHandle;
@@ -72,7 +72,7 @@ mod remote_def {
 
 /// A builder for hybrid upstream
 #[derive(Serialize, Deserialize, Clone)]
-pub struct HybridBuilder(HashSet<Label>);
+pub struct HybridBuilder(Vec<Label>);
 
 impl Default for HybridBuilder {
     fn default() -> Self {
@@ -83,12 +83,12 @@ impl Default for HybridBuilder {
 impl HybridBuilder {
     /// Create an empty hybrid builder
     pub fn new() -> Self {
-        Self(HashSet::new())
+        Self(Vec::new())
     }
 
     /// Add another upstream to the hybrid upstream about to build
     pub fn add_tag(mut self, tag: impl Into<Label>) -> Self {
-        self.0.insert(tag.into());
+        self.0.push(tag.into());
         self
     }
 }

@@ -143,14 +143,14 @@ mod tests {
         )
     });
 
-    fn create_state(v: Vec<Record>) -> State {
+    fn create_state(v: Vec<Record>, m: &Message) -> State<'_> {
         State {
             resp: {
                 let mut m = Message::new();
                 m.insert_answers(v);
                 m
             },
-            ..Default::default()
+            query: m,
         }
     }
 
@@ -162,7 +162,10 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
+                .matches(&create_state(
+                    vec![(RECORD_NOT_CHINA).clone()],
+                    &Message::new()
+                )),
             false
         )
     }
@@ -175,7 +178,10 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
+                .matches(&create_state(
+                    vec![(RECORD_NOT_CHINA).clone()],
+                    &Message::new()
+                )),
             false
         )
     }
@@ -189,24 +195,31 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            geoip.matches(&create_state(vec![(RECORD_CHINA).clone()])),
+            geoip.matches(&create_state(vec![(RECORD_CHINA).clone()], &Message::new())),
             true
         );
         assert_eq!(
-            geoip.matches(&create_state(vec![(RECORD_NOT_CHINA).clone()])),
+            geoip.matches(&create_state(
+                vec![(RECORD_NOT_CHINA).clone()],
+                &Message::new()
+            )),
             true
         )
     }
 
     #[tokio::test]
     async fn empty_records() {
+        let em = Message::default();
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&State::default()),
+                .matches(&State {
+                    resp: Message::default(),
+                    query: &em,
+                }),
             false,
         )
     }
@@ -219,7 +232,7 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(vec![(RECORD_CHINA).clone()])),
+                .matches(&create_state(vec![(RECORD_CHINA).clone()], &Message::new())),
             true
         )
     }
@@ -232,15 +245,18 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(vec![
-                    (RECORD_CHINA).clone(),
-                    (RECORD_NOT_CHINA).clone(),
-                    Record::from_rdata(
-                        Name::from_str("baidu.com").unwrap(),
-                        10,
-                        RData::NS(Name::from_str("baidu.com").unwrap()),
-                    ),
-                ])),
+                .matches(&create_state(
+                    vec![
+                        (RECORD_CHINA).clone(),
+                        (RECORD_NOT_CHINA).clone(),
+                        Record::from_rdata(
+                            Name::from_str("baidu.com").unwrap(),
+                            10,
+                            RData::NS(Name::from_str("baidu.com").unwrap()),
+                        ),
+                    ],
+                    &Message::new()
+                )),
             true
         )
     }

@@ -26,7 +26,7 @@ impl Default for Any {
 }
 
 impl Matcher for Any {
-    fn matches(&self, _: &State) -> bool {
+    fn matches(&self, _: &State<'_>) -> bool {
         true
     }
 }

@@ -91,7 +91,7 @@ fn bench_resolve(c: &mut Criterion) {
     c.bench_function("non_cache_resolve", |b| {
         b.to_async(&rt).iter(|| async {
             assert_eq!(
-                router.resolve(QUERY.clone()).await.unwrap().answers(),
+                router.resolve(&QUERY).await.unwrap().answers(),
                 DUMMY_MSG.answers()
             );
         })
@@ -100,11 +100,7 @@ fn bench_resolve(c: &mut Criterion) {
     c.bench_function("cached_resolve", |b| {
         b.to_async(&rt).iter(|| async {
             assert_eq!(
-                cached_router
-                    .resolve(QUERY.clone())
-                    .await
-                    .unwrap()
-                    .answers(),
+                cached_router.resolve(&QUERY).await.unwrap().answers(),
                 DUMMY_MSG.answers()
             );
         })

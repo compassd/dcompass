@@ -133,14 +133,14 @@ mod tests {
         )
     });
 
-    fn create_state(v: Vec<Record>) -> State {
+    fn create_state(v: Vec<Record>, m: &Message) -> State<'_> {
         State {
             resp: {
                 let mut m = Message::new();
                 m.insert_answers(v);
                 m
             },
-            ..Default::default()
+            query: &m,
         }
     }
 
@@ -162,11 +162,17 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            matcher.matches(&create_state(vec![(*RECORD_CHINA).clone()])),
+            matcher.matches(&create_state(
+                vec![(*RECORD_CHINA).clone()],
+                &Message::new()
+            )),
             true
         );
         assert_eq!(
-            matcher.matches(&create_state(vec![(*RECORD_NOT_CHINA).clone()])),
+            matcher.matches(&create_state(
+                vec![(*RECORD_NOT_CHINA).clone()],
+                &Message::new()
+            )),
             false
         )
     }

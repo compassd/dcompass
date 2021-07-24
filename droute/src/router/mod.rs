@@ -28,7 +28,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use log::warn;
-use std::collections::HashSet;
 use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.
@@ -39,7 +38,7 @@ pub struct Router {
 
 impl Validatable for Router {
     type Error = DrouteError;
-    fn validate(&self, _: Option<&HashSet<Label>>) -> Result<()> {
+    fn validate(&self, _: Option<&Vec<Label>>) -> Result<()> {
         self.table.validate(None)?;
         self.upstreams.validate(Some(self.table.used_upstreams()))?;
         Ok(())
@@ -55,7 +54,7 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: Message) -> Result<Message> {
+    pub async fn resolve(&self, msg: &Message) -> Result<Message> {
         let (id, op_code) = (msg.id(), msg.op_code());
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.

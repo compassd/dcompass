@@ -45,15 +45,17 @@ pub struct Upstreams {
 
 impl Validatable for Upstreams {
     type Error = UpstreamError;
-    fn validate(&self, used: Option<&HashSet<Label>>) -> Result<()> {
+    fn validate(&self, used: Option<&Vec<Label>>) -> Result<()> {
         // A bucket used to count the time each upstream being used.
         let mut bucket: HashMap<&Label, (ValidateCell, &Upstream)> = self
             .upstreams
             .iter()
             .map(|(k, v)| (k, (ValidateCell::default(), v)))
             .collect();
-        for tag in used.unwrap_or(&HashSet::new()) {
-            Self::traverse(&mut bucket, tag)?
+        if let Some(u) = used {
+            for tag in u {
+                Self::traverse(&mut bucket, tag)?
+            }
         }
         let unused: HashSet<Label> = bucket
             .into_iter()
@@ -82,7 +84,7 @@ impl Upstreams {
     }
 
     /// Return the tags of all the upstreams.
-    pub fn tags(&self) -> HashSet<Label> {
+    pub fn tags(&self) -> Vec<Label> {
         self.upstreams.keys().cloned().collect()
     }
 
