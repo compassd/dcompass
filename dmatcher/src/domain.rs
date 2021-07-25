@@ -105,13 +105,8 @@ impl Domain {
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
     pub fn matches(&self, domain: &str) -> bool {
-        let lvs: Vec<&str> = domain
-            .split('.')
-            .filter(|lv| !lv.is_empty())
-            .rev()
-            .collect();
         let mut ptr = &self.root;
-        for lv in lvs {
+        for lv in domain.split('.').filter(|lv| !lv.is_empty()).rev() {
             if ptr.next_lvs.is_empty() {
                 break;
             }

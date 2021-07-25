@@ -131,7 +131,7 @@ impl Upstreams {
             Ok(if let Some(v) = u.try_hybrid() {
                 // Hybrid will never call `u.resolve()`
                 let v = v.iter().map(|t| self.resolve(t, cache_mode, msg));
-                let (r, _) = select_ok(v.clone()).await?;
+                let (r, _) = select_ok(v).await?;
                 r
             } else {
                 u.resolve(tag, &self.cache, cache_mode, msg).await?

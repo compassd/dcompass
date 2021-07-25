@@ -32,11 +32,7 @@ pub async fn worker(
     debug!("Received message: {:?}", request);
     info!(
         "Received queries with names: {:?}",
-        request
-            .queries()
-            .iter()
-            .map(|x| x.name().to_utf8())
-            .collect::<Vec<String>>()
+        request.queries().iter().next().map(|x| x.name().to_utf8())
     );
     socket
         .send_to(&router.resolve(&request).await?.to_vec()?, src)

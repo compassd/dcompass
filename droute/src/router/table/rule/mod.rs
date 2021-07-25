@@ -35,11 +35,11 @@ pub trait Rule: Send + Sync {
     /// Returns the label of the next rule.
     async fn route(
         &self,
-        tag: &Label,
+        tag: &str,
         state: &mut State<'_>,
         upstreams: &Upstreams,
         name: &str,
-    ) -> Result<Label>;
+    ) -> Result<&Label>;
 
     /// Possible destinations of this rule block
     // TODO: Can we change it to a more cost friendly version?
@@ -92,23 +92,23 @@ impl Rule for IfBlock {
 
     async fn route(
         &self,
-        tag: &Label,
+        tag: &str,
         state: &mut State<'_>,
         upstreams: &Upstreams,
         name: &str,
-    ) -> Result<Label> {
+    ) -> Result<&Label> {
         if self.matcher.matches(&state) {
             info!("Domain \"{}\" matches at rule `{}`", name, tag);
             for action in &self.on_match.0 {
                 action.act(state, upstreams).await?;
             }
-            Ok(self.on_match.1.clone())
+            Ok(&self.on_match.1)
         } else {
             info!("Domain \"{}\" doesn't match at rule `{}`", name, tag);
             for action in &self.no_match.0 {
                 action.act(state, upstreams).await?;
             }
-            Ok(self.no_match.1.clone())
+            Ok(&self.no_match.1)
         }
     }
 
@@ -138,7 +138,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             rule.route(
-                &"mock".into(), // This doesn't matter
+                "mock", // This doesn't matter
                 &mut State {
                     resp: Message::default(),
                     query: &mut Message::default(),
@@ -151,8 +151,9 @@ mod tests {
                 "foo"
             )
             .await
-            .unwrap(),
-            "yes".into()
+            .unwrap()
+            .as_ref(),
+            "yes"
         );
     }
 }

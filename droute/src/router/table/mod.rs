@@ -159,13 +159,13 @@ impl Table {
             resp: Message::default(),
         };
 
-        let mut tag = "start".into();
-        while tag != "end".into() {
+        let mut tag = "start";
+        while tag != "end" {
             tag = self
                 .rules
-                .get(&tag)
+                .get(tag)
                 .unwrap()
-                .route(&tag, &mut s, upstreams, &name)
+                .route(tag, &mut s, upstreams, &name)
                 .await?;
         }
         info!("Domain \"{}\" has finished routing", name);

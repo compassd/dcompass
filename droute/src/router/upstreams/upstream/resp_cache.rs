@@ -27,53 +27,50 @@ use std::{
 use trust_dns_client::op::{Message, Query, ResponseCode};
 
 // Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
-trait KeyPair<A, B> {
+trait KeyPair<A: ?Sized, B: ?Sized> {
     /// Obtains the first element of the pair.
     fn a(&self) -> &A;
     /// Obtains the second element of the pair.
     fn b(&self) -> &B;
 }
 
-impl<'a, A, B> Borrow<dyn KeyPair<A, B> + 'a> for (A, B)
+impl<'a, A: ?Sized, B: ?Sized, C, D> Borrow<dyn KeyPair<A, B> + 'a> for (C, D)
 where
     A: Eq + Hash + 'a,
     B: Eq + Hash + 'a,
+    C: Borrow<A> + 'a,
+    D: Borrow<B> + 'a,
 {
     fn borrow(&self) -> &(dyn KeyPair<A, B> + 'a) {
         self
     }
 }
 
-impl<A: Hash, B: Hash> Hash for (dyn KeyPair<A, B> + '_) {
+impl<A: Hash + ?Sized, B: Hash + ?Sized> Hash for (dyn KeyPair<A, B> + '_) {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.a().hash(state);
         self.b().hash(state);
     }
 }
 
-impl<A: Eq, B: Eq> PartialEq for (dyn KeyPair<A, B> + '_) {
+impl<A: Eq + ?Sized, B: Eq + ?Sized> PartialEq for (dyn KeyPair<A, B> + '_) {
     fn eq(&self, other: &Self) -> bool {
         self.a() == other.a() && self.b() == other.b()
     }
 }
 
-impl<A: Eq, B: Eq> Eq for (dyn KeyPair<A, B> + '_) {}
+impl<A: Eq + ?Sized, B: Eq + ?Sized> Eq for (dyn KeyPair<A, B> + '_) {}
 
-impl<A, B> KeyPair<A, B> for (A, B) {
+impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for (C, D)
+where
+    C: Borrow<A>,
+    D: Borrow<B>,
+{
     fn a(&self) -> &A {
-        &self.0
+        self.0.borrow()
     }
     fn b(&self) -> &B {
-        &self.1
-    }
-}
-
-impl<A, B> KeyPair<A, B> for (&A, &B) {
-    fn a(&self) -> &A {
-        self.0
-    }
-    fn b(&self) -> &B {
-        self.1
+        self.1.borrow()
     }
 }
 
@@ -139,17 +136,31 @@ impl RespCache {
     }
 
     pub fn get(&self, tag: &Label, msg: &Message) -> Option<RecordStatus> {
-        let queries: Vec<Query> = msg.queries().to_vec();
         let mut cache = self.cache.lock().unwrap();
-        match cache.get(&(tag, &queries) as &dyn KeyPair<Label, Vec<Query>>) {
+        match cache.get(&(tag, msg.queries()) as &dyn KeyPair<Label, [_]>) {
             Some(r) => {
                 // Get record only once.
                 let resp = r.get();
                 if r.validate() {
-                    info!("Cache hit for queries: {:?}", queries);
+                    info!(
+                        "Cache hit for {}",
+                        // It is guaranteed that we have at least one query here
+                        msg.queries()
+                            .iter()
+                            .next()
+                            .map(|q| q.name().to_utf8())
+                            .unwrap()
+                    );
                     Some(Alive(resp))
                 } else {
-                    info!("TTL passed, returning expired record.");
+                    info!(
+                        "TTL passed for {}, returning expired record.",
+                        msg.queries()
+                            .iter()
+                            .next()
+                            .map(|q| q.name().to_utf8())
+                            .unwrap()
+                    );
                     Some(Expired(resp))
                 }
             }
