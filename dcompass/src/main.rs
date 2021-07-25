@@ -25,12 +25,26 @@ use droute::{
     error::DrouteError,
     AsyncTryInto, Router,
 };
+use governor::{
+    clock::DefaultClock,
+    state::{direct::NotKeyed, InMemoryState},
+    Quota, RateLimiter,
+};
 use log::*;
-use ratelimit::Limiter;
 use simple_logger::SimpleLogger;
-use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr, num::NonZeroU32, path::PathBuf, result::Result as StdResult, sync::Arc,
+    time::Duration,
+};
 use structopt::StructOpt;
-use tokio::{fs::File, io::AsyncReadExt, net::UdpSocket, signal};
+use tokio::{
+    fs::File,
+    io::AsyncReadExt,
+    net::UdpSocket,
+    signal,
+    sync::broadcast::{self, Sender},
+    time::sleep,
+};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -47,7 +61,7 @@ struct DcompassOpts {
     validate: bool,
 }
 
-async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), DrouteError> {
+async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, NonZeroU32), DrouteError> {
     Ok((
         RouterBuilder::new(
             p.table,
@@ -61,7 +75,12 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, u32), Dr
     ))
 }
 
-async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, mut ratelimit: Limiter) {
+async fn serve(
+    socket: Arc<UdpSocket>,
+    router: Arc<Router>,
+    ratelimit: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+    tx: &Sender<()>,
+) {
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = [0; 1232];
@@ -76,14 +95,25 @@ async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, mut ratelimit: Limit
 
         let router = router.clone();
         let socket = socket.clone();
+        let mut shutdown = tx.subscribe();
+        #[rustfmt::skip]
         tokio::spawn(async move {
-            match worker(router, socket, &buf, src).await {
-                Ok(_) => (),
-                Err(e) => warn!("Handling query failed: {}", e),
+            tokio::select! {
+                res = worker(router, socket, &buf, src) => {
+                    match res {
+                        Ok(_) => (),
+                        Err(e) => warn!("Handling query failed: {}", e),
+                    }
+                }
+                _ = shutdown.recv() => {
+                    // If a shutdown signal is received, return from the spawned task.
+                    // This will result in the task terminating.
+                    log::warn!("Worker shutted down");
+                }
             }
         });
 
-        ratelimit.wait();
+        ratelimit.until_ready().await;
     }
 }
 
@@ -153,11 +183,7 @@ async fn main() -> Result<()> {
         .with_level(verbosity)
         .init()?;
 
-    let ratelimit = ratelimit::Builder::new()
-        .capacity(1500) // TODO: to be determined if this is a proper value
-        .quantum(ratelimit)
-        .interval(Duration::new(1, 0)) // add quantum tokens every 1 second
-        .build();
+    let ratelimit = RateLimiter::direct(Quota::per_second(ratelimit));
 
     info!("Dcompass ready!");
 
@@ -169,9 +195,24 @@ async fn main() -> Result<()> {
             .with_context(|| format!("Failed to bind to {}", addr))?,
     );
 
+    // Create a shutdown broadcast channel
+    let (tx, _) = broadcast::channel::<()>(10);
+
+    // We don't have to worry about incoming requests when shutting down, because when we initiate shutdown, the loop was already terminated
+    #[rustfmt::skip]
     tokio::select! {
-    _ = serve(socket, router, ratelimit) => (),
-    _ = signal::ctrl_c() => {log::info!("Ctrl-C received, shutting down");}
+        _ = serve(socket, router, ratelimit, &tx) => (),
+        _ = signal::ctrl_c() => {
+            log::warn!("Ctrl-C received, shutting down");
+            // Error implies that there is no receiver/active worker, we are done
+            if tx.send(()).is_ok() {
+                while tx.receiver_count() != 0 {
+                    log::warn!("Waiting 5 seconds for workers to exit...");
+                    sleep(Duration::from_secs(5)).await
+                }
+            }
+            log::warn!("Gracefully shutted down!");
+        }
     };
     Ok(())
 }

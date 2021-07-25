@@ -20,11 +20,9 @@ use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     path::PathBuf,
 };
-
-pub const GET_U32_MAX: fn() -> u32 = || u32::MAX;
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -114,6 +112,11 @@ fn default_cache_size() -> NonZeroUsize {
     NonZeroUsize::new(2048).unwrap()
 }
 
+fn default_rate_limit() -> NonZeroU32 {
+    // Is this a good default?
+    NonZeroU32::new(100).unwrap()
+}
+
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
@@ -126,6 +129,6 @@ pub struct Parsed {
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,
     // Set default ratelimit to maximum, resulting in non-blocking (non-throttling) mode forever as the burst time is infinity.
-    #[serde(default = "GET_U32_MAX")]
-    pub ratelimit: u32,
+    #[serde(default = "default_rate_limit")]
+    pub ratelimit: NonZeroU32,
 }
