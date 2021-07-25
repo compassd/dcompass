@@ -108,7 +108,7 @@ async fn serve(
                 _ = shutdown.recv() => {
                     // If a shutdown signal is received, return from the spawned task.
                     // This will result in the task terminating.
-                    log::warn!("Worker shutted down");
+                    log::warn!("Worker shut down");
                 }
             }
         });
@@ -211,7 +211,7 @@ async fn main() -> Result<()> {
                     sleep(Duration::from_secs(5)).await
                 }
             }
-            log::warn!("Gracefully shutted down!");
+            log::warn!("Gracefully shut down!");
         }
     };
     Ok(())
