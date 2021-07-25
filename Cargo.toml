@@ -11,7 +11,6 @@ lto = true
 opt-level = 's'
 codegen-units = 1
 panic = "abort"
-debug = 1
 
 # [patch.crates-io]
 # implement Clone for FileAuthority.
