@@ -418,7 +418,6 @@ dependencies = [
  "trust-dns-proto",
  "trust-dns-rustls",
  "trust-dns-server",
- "webpki",
  "webpki-roots",
 ]
 

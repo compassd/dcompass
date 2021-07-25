@@ -26,6 +26,8 @@ pub use self::https::Https;
 pub use self::tls::Tls;
 
 #[cfg(any(feature = "doh", feature = "dot"))]
+use once_cell::sync::Lazy;
+#[cfg(any(feature = "doh", feature = "dot"))]
 use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 #[cfg(any(feature = "doh", feature = "dot"))]
 use std::sync::Arc;
@@ -34,9 +36,15 @@ use std::sync::Arc;
 #[cfg(any(feature = "doh", feature = "dot"))]
 const ALPN_H2: &[u8] = b"h2";
 
+#[cfg(any(feature = "doh", feature = "dot"))]
+static SNI_CFG: Lazy<Arc<ClientConfig>> = Lazy::new(|| create_client_config_inner(&false));
+
+#[cfg(any(feature = "doh", feature = "dot"))]
+static NO_SNI_CFG: Lazy<Arc<ClientConfig>> = Lazy::new(|| create_client_config_inner(&true));
+
 // Create client config for TLS and HTTPS clients
 #[cfg(any(feature = "doh", feature = "dot"))]
-fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
+fn create_client_config_inner(no_sni: &bool) -> Arc<ClientConfig> {
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     let versions = vec![ProtocolVersion::TLSv1_2];
@@ -49,4 +57,13 @@ fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
     client_config.enable_sni = !no_sni; // Disable SNI on need.
 
     Arc::new(client_config)
+}
+
+#[cfg(any(feature = "doh", feature = "dot"))]
+fn create_client_config(no_sni: &bool) -> Arc<ClientConfig> {
+    if *no_sni {
+        NO_SNI_CFG.clone()
+    } else {
+        SNI_CFG.clone()
+    }
 }

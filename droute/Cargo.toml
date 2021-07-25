@@ -11,7 +11,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 # common denominator for DoH and DoT, should not be used by end-users
-crypto = ["rustls", "webpki-roots", "webpki"]
+crypto = ["rustls", "webpki-roots"]
 dot = ["trust-dns-rustls", "crypto"]
 doh = ["trust-dns-https", "crypto"]
 
@@ -29,7 +29,6 @@ trust-dns-proto = { version = "^0.20", features = ["serde-config"] }
 trust-dns-rustls = { version = "^0.20", optional = true }
 rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
 webpki-roots = { version = "^0.21", optional = true }
-webpki = { version = "^0.21", optional = true }
 
 maxminddb = { version = "^0.17", optional = true }
 
