@@ -12,8 +12,6 @@ opt-level = 's'
 codegen-units = 1
 panic = "abort"
 
-# [patch.crates-io]
-# implement Clone for FileAuthority.
-# trust-dns-server = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
-# trust-dns-proto = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
-# trust-dns-client = { git = "https://github.com/LEXUGE/trust-dns", branch = "main" }
+[patch.crates-io]
+governor = { git = "https://github.com/antifuchs/governor", branch = "master" }
+
