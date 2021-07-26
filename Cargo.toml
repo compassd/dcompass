@@ -11,7 +11,3 @@ lto = true
 opt-level = 's'
 codegen-units = 1
 panic = "abort"
-
-[patch.crates-io]
-governor = { git = "https://github.com/antifuchs/governor", branch = "master" }
-
