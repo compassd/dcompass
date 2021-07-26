@@ -22,6 +22,9 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 
 # Notice
 
+**[2021-07-26] Performance improvement and change on timeout syntax**  
+We refactored most part of the code to improve the memory usage and response performance by up to 50%. Due to internal code changes, timeout configuration in DoT and DoH upstreams will not take affect anymore.
+
 **[2021-03-22] New syntax on writing rule blocks and upstream definitions.**  
 Breaking changes happened as new routing scheme has been adopted, see configuration section below to adapt.
 
