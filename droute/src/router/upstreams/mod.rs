@@ -22,6 +22,7 @@ pub mod builder;
 pub mod error;
 mod upstream;
 
+use bytes::Bytes;
 pub use upstream::*;
 
 use self::{
@@ -29,12 +30,12 @@ use self::{
     upstream::resp_cache::RespCache,
 };
 use crate::{actions::CacheMode, Label, Validatable, ValidateCell};
+use domain::base::Message;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
 };
-use trust_dns_client::op::Message;
 
 /// [`Upstream`] aggregated, used to create `Router`.
 pub struct Upstreams {
@@ -124,8 +125,8 @@ impl Upstreams {
         &'a self,
         tag: &'a Label,
         cache_mode: &'a CacheMode,
-        msg: &'a Message,
-    ) -> BoxFuture<'a, Result<Message>> {
+        msg: &'a Message<Bytes>,
+    ) -> BoxFuture<'a, Result<Message<Bytes>>> {
         async move {
             let u = self.upstreams.get(tag).unwrap();
             Ok(if let Some(v) = u.try_hybrid() {
@@ -160,7 +161,6 @@ mod tests {
                 "udp",
                 UpstreamBuilder::Udp(UdpBuilder {
                     addr: "127.0.0.1:53533".parse().unwrap(),
-                    dnssec: false,
                     timeout: 1,
                 }),
             )
@@ -186,7 +186,6 @@ mod tests {
                 "udp",
                 UpstreamBuilder::Udp(UdpBuilder {
                     addr: "127.0.0.1:53533".parse().unwrap(),
-                    dnssec: false,
                     timeout: 1,
                 }),
             )

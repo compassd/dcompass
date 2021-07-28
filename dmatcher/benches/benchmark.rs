@@ -13,18 +13,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
 use dmatcher::domain::Domain;
-use std::{fs::File, io::Read};
+use domain::base::Dname;
+use std::{fs::File, io::Read, str::FromStr};
 
 fn bench_match(c: &mut Criterion) {
     let mut file = File::open("./benches/sample.txt").unwrap();
     let mut contents = String::new();
     let mut matcher = Domain::new();
     file.read_to_string(&mut contents).unwrap();
-    matcher.insert_multi(&contents);
+    let domains: Vec<Dname<Bytes>> = contents
+        .split('\n')
+        .filter(|&x| !x.is_empty())
+        .map(|x| Dname::from_str(x).unwrap())
+        .collect();
+
+    let test = Dname::from_str("store.www.baidu.com").unwrap();
+    matcher.insert_multi(&domains);
     c.bench_function("match", |b| {
-        b.iter(|| assert_eq!(matcher.matches("你好.store.www.baidu.com"), true))
+        b.iter(|| assert_eq!(matcher.matches(&test), true))
     });
 }
 

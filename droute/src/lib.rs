@@ -62,6 +62,9 @@ use std::sync::Arc;
 //   Setting this to a value of 1 day, in seconds
 const MAX_TTL: u32 = 86400_u32;
 
+// Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
+const MAX_LEN: usize = 1232_usize;
+
 /// The type used for tag names in upstreams and routing tables.
 pub type Label = Arc<str>;
 

@@ -10,27 +10,21 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-# common denominator for DoH and DoT, should not be used by end-users
-crypto = ["rustls", "webpki-roots"]
-dot = ["trust-dns-rustls", "crypto"]
-doh = ["trust-dns-https", "crypto"]
-
+doh = ["reqwest"]
 geoip = ["maxminddb"]
-
 # enable all features
-all = ["dot", "doh", "geoip"]
+all = ["doh", "geoip"]
 
 [dependencies]
 # DNS-implementation related dependencies
-trust-dns-server = "^0.20"
-trust-dns-client = { version = "^0.20", default-features = false, features = ["dnssec-ring"] }
-trust-dns-https = { version = "^0.20", optional = true }
-trust-dns-proto = { version = "^0.20", features = ["serde-config"] }
-trust-dns-rustls = { version = "^0.20", optional = true }
-rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
-webpki-roots = { version = "^0.21", optional = true }
+domain = {version = "^0.6", features = ["bytes"]}
+bytes = "^1"
 
+# geoip
 maxminddb = { version = "^0.17", optional = true }
+
+# doh
+reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false, optional = true}
 
 # Async-aware dependencies
 futures = "^0.3"
@@ -46,7 +40,6 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 clru = "^0.5"
 thiserror = "^1.0"
 async-trait = "^0.1"
-dyn-clonable = "^0.9"
 bb8 = "^0.7"
 
 # (de)compression libs (TODO: can we rewrite it to make it async?)

@@ -16,29 +16,127 @@
 use super::{super::super::State, MatchError, Matcher, Result};
 use crate::AsyncTryInto;
 use async_trait::async_trait;
+use domain::base::iana::rtype::Rtype;
 use serde::Deserialize;
 use std::collections::HashSet;
-use trust_dns_proto::rr::record_type::RecordType;
 
 /// A matcher that matches if first query is of any of the record types provided.
-pub struct QType(HashSet<RecordType>);
+pub struct QType(HashSet<Rtype>);
 
 impl QType {
     /// Create a new `QType` matcher.
-    pub fn new(types: HashSet<RecordType>) -> Result<Self> {
+    pub fn new(types: HashSet<Rtype>) -> Result<Self> {
         Ok(Self(types))
     }
 }
 
 impl Matcher for QType {
     fn matches(&self, state: &State) -> bool {
-        self.0.contains(&state.query.queries()[0].query_type())
+        self.0
+            .contains(&state.query.first_question().unwrap().qtype())
     }
 }
 
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+#[serde(remote = "Rtype")]
+pub enum RtypeDef {
+    A,
+    Ns,
+    Md,
+    Mf,
+    Cname,
+    Soa,
+    Mb,
+    Mg,
+    Mr,
+    Null,
+    Wks,
+    Ptr,
+    Hinfo,
+    Minfo,
+    Mx,
+    Txt,
+    Rp,
+    Afsdb,
+    X25,
+    Isdn,
+    Rt,
+    Nsap,
+    Nsapptr,
+    Sig,
+    Key,
+    Px,
+    Gpos,
+    Aaaa,
+    Loc,
+    Nxt,
+    Eid,
+    Nimloc,
+    Srv,
+    Atma,
+    Naptr,
+    Kx,
+    Cert,
+    A6,
+    Dname,
+    Sink,
+    Opt,
+    Apl,
+    Ds,
+    Sshfp,
+    Ipseckey,
+    Rrsig,
+    Nsec,
+    Dnskey,
+    Dhcid,
+    Nsec3,
+    Nsec3param,
+    Tlsa,
+    Smimea,
+    Hip,
+    Ninfo,
+    Rkey,
+    Talink,
+    Cds,
+    Cdnskey,
+    Openpgpkey,
+    Csync,
+    Zonemd,
+    Spf,
+    Uinfo,
+    Uid,
+    Gid,
+    Unspec,
+    Nid,
+    L32,
+    L64,
+    Lp,
+    Eui48,
+    Eui64,
+    Tkey,
+    Tsig,
+    Ixfr,
+    Axfr,
+    Mailb,
+    Maila,
+    Any,
+    Uri,
+    Caa,
+    Avc,
+    Doa,
+    Ta,
+    Dlv,
+    Int(u16),
+}
+
+// TODO: remove it once domain supports deserializing rtype
+#[derive(Deserialize, Clone, PartialEq, Eq, Hash)]
+struct Adaptor(#[serde(with = "RtypeDef")] Rtype);
+
 /// A builder for qtype matcher plugin
 #[derive(Deserialize, Clone)]
-pub struct QTypeBuilder(HashSet<RecordType>);
+pub struct QTypeBuilder(HashSet<Adaptor>);
 
 impl Default for QTypeBuilder {
     fn default() -> Self {
@@ -53,8 +151,8 @@ impl QTypeBuilder {
     }
 
     /// Add a record type to match
-    pub fn add_rr(mut self, rr: RecordType) -> Self {
-        self.0.insert(rr);
+    pub fn add_rr(mut self, rr: Rtype) -> Self {
+        self.0.insert(Adaptor(rr));
         self
     }
 }
@@ -64,6 +162,6 @@ impl AsyncTryInto<QType> for QTypeBuilder {
     type Error = MatchError;
 
     async fn try_into(self) -> Result<QType> {
-        QType::new(self.0)
+        QType::new(self.0.iter().map(|x| x.0).collect())
     }
 }

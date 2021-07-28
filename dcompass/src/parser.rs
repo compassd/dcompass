@@ -114,7 +114,7 @@ fn default_cache_size() -> NonZeroUsize {
 
 fn default_rate_limit() -> NonZeroU32 {
     // Is this a good default?
-    NonZeroU32::new(100).unwrap()
+    NonZeroU32::new(3000).unwrap()
 }
 
 #[derive(Deserialize, Clone)]

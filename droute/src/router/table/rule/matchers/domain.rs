@@ -17,7 +17,9 @@ use crate::AsyncTryInto;
 
 use super::{super::super::State, MatchError, Matcher, Result};
 use async_trait::async_trait;
+use bytes::Bytes;
 use dmatcher::domain::Domain as DomainAlg;
+use domain::base::{name::FromStrError, Dname, ToDname};
 use serde::Deserialize;
 use std::{path::PathBuf, str::FromStr};
 
@@ -35,6 +37,21 @@ pub enum ResourceType {
     File(PathBuf),
 }
 
+fn into_dnames(list: &str) -> std::result::Result<Vec<Dname<Bytes>>, FromStrError> {
+    list.split('\n')
+        .filter(|&x| {
+            (!x.is_empty())
+                && (x.chars().all(|c| {
+                    char::is_ascii_alphabetic(&c)
+                        | char::is_ascii_digit(&c)
+                        | (c == '-')
+                        | (c == '.')
+                }))
+        })
+        .map(|x| Dname::from_str(x))
+        .collect()
+}
+
 impl Domain {
     /// Create a new `Domain` matcher from a list of files where each domain is seperated from one another by `\n`.
     pub async fn new(p: Vec<ResourceType>) -> Result<Self> {
@@ -42,13 +59,13 @@ impl Domain {
             let mut matcher = DomainAlg::new();
             for r in p {
                 match r {
-                    ResourceType::Qname(n) => matcher.insert_multi(&n),
+                    ResourceType::Qname(n) => matcher.insert_multi(&into_dnames(&n)?),
                     ResourceType::File(l) => {
                         // TODO: Can we make it async?
                         let (mut file, _) = niffler::from_path(l)?;
                         let mut data = String::new();
                         file.read_to_string(&mut data)?;
-                        matcher.insert_multi(&data);
+                        matcher.insert_multi(&into_dnames(&data)?);
                     }
                 }
             }
@@ -59,7 +76,11 @@ impl Domain {
 
 impl Matcher for Domain {
     fn matches(&self, state: &State) -> bool {
-        self.0.matches(&state.query.queries()[0].name().to_utf8())
+        if let Ok(name) = state.query.first_question().unwrap().qname().to_dname() {
+            self.0.matches(&name)
+        } else {
+            false
+        }
     }
 }
 

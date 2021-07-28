@@ -24,11 +24,12 @@ use self::{
 };
 use crate::{
     error::{DrouteError, Result},
-    AsyncTryInto, Label, Validatable,
+    AsyncTryInto, Label, Validatable, MAX_LEN,
 };
 use async_trait::async_trait;
+use bytes::{Bytes, BytesMut};
+use domain::base::{iana::rcode::Rcode, Message, MessageBuilder};
 use log::warn;
-use trust_dns_client::op::{Message, ResponseCode};
 
 /// Router implementation.
 pub struct Router {
@@ -54,23 +55,30 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: &Message) -> Result<Message> {
-        let (id, op_code) = (msg.id(), msg.op_code());
+    pub async fn resolve(&self, msg: Message<Bytes>) -> Result<Message<Bytes>> {
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.
-        if !msg.queries().is_empty() {
-            Ok(match self.table.route(msg, &self.upstreams).await {
-                Ok(m) => m,
-                Err(e) => {
-                    // Catch all server failure here and return server fail
-                    warn!("Upstream encountered error: {}, returning SERVFAIL", e);
-                    Message::error_msg(id, op_code, ResponseCode::ServFail)
+        Ok(match msg.sole_question() {
+            Ok(_) => {
+                // Clone should be cheap here guaranteed by Bytes
+                match self.table.route(msg.clone(), &self.upstreams).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        // Catch all server failure here and return server fail
+                        warn!("Upstream encountered error: {}, returning SERVFAIL", e);
+                        MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))?
+                            .start_answer(&msg, Rcode::ServFail)?
+                            .into_message()
+                    }
                 }
-            })
-        } else {
-            warn!("DNS message contains zero querie(s), doing nothing.");
-            Ok(Message::error_msg(id, op_code, ResponseCode::ServFail))
-        }
+            }
+            Err(e) => {
+                warn!("DNS message parsing errored: {}.", e);
+                MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))?
+                    .start_answer(&msg, Rcode::ServFail)?
+                    .into_message()
+            }
+        })
     }
 }
 

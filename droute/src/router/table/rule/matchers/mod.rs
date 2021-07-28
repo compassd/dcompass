@@ -30,11 +30,15 @@ pub use self::{
     ipcidr::IpCidr,
     qtype::QType,
 };
-
 use super::super::State;
+use ::domain::{
+    base::{name::FromStrError, octets::ParseError, Message, ParsedDname, Rtype},
+    rdata::AllRecordData,
+};
+use bytes::Bytes;
 #[cfg(feature = "geoip")]
 use maxminddb::MaxMindDBError;
-use std::fmt::Debug;
+use std::{fmt::Debug, net::IpAddr};
 use thiserror::Error;
 
 /// A shorthand for returning action error.
@@ -72,10 +76,43 @@ pub enum MatchError {
     /// Other error.
     #[error("An error encountered in matcher: {0}")]
     Other(String),
+
+    /// Failed to convert dname from string
+    #[error(transparent)]
+    FromStrError(#[from] FromStrError),
+
+    /// Failed to parse the record
+    #[error(transparent)]
+    ParseError(#[from] ParseError),
 }
 
 /// A matcher determines if something matches or not given the current state.
 pub trait Matcher: Sync + Send {
     /// Determine if match.
-    fn matches(&self, state: &State<'_>) -> bool;
+    fn matches(&self, state: &State) -> bool;
+}
+
+fn get_ip_addr(msg: &Message<Bytes>) -> Result<Option<IpAddr>> {
+    let record = msg
+        .answer()?
+        .filter(|r| r.is_ok())
+        .find(|r| matches!(r.as_ref().unwrap().rtype(), Rtype::A | Rtype::Aaaa));
+
+    let record = record
+        .map(|r| {
+            r.unwrap()
+                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
+                .ok()
+        })
+        .flatten()
+        .flatten();
+    if let Some(record) = record {
+        Ok(Some(match record.data() {
+            AllRecordData::A(x) => IpAddr::V4(x.addr()),
+            AllRecordData::Aaaa(x) => IpAddr::V6(x.addr()),
+            _ => unreachable!(),
+        }))
+    } else {
+        Ok(None)
+    }
 }

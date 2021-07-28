@@ -43,15 +43,11 @@ upstreams:
 
   cloudflare:
     https:
-      no_sni: true
-      name: cloudflare-dns.com
-      addr: 1.1.1.1:443
+      uri: https://1.0.0.1/dns-query
 
   quad9:
     https:
-      no_sni: true
-      name: dns.quad9.net
-      addr: 9.9.9.9:443
+      uri: https://9.9.9.9/dns-query
 
   secure:
     hybrid:

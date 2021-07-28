@@ -14,28 +14,25 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use bytes::Bytes;
+use domain::base::Message;
 use droute::Router;
 use log::*;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
-use trust_dns_proto::op::Message;
 
 /// Handle a single incoming packet
 pub async fn worker(
     router: Arc<Router>,
     socket: Arc<UdpSocket>,
-    buf: &[u8],
+    buf: Bytes,
     src: SocketAddr,
 ) -> Result<()> {
-    let request = Message::from_vec(buf)?;
-
-    debug!("Received message: {:?}", request);
-    info!(
-        "Received queries with names: {:?}",
-        request.queries().iter().next().map(|x| x.name().to_utf8())
-    );
     socket
-        .send_to(&router.resolve(&request).await?.to_vec()?, src)
+        .send_to(
+            &router.resolve(Message::from_octets(buf)?).await?.as_slice(),
+            src,
+        )
         .await
         .unwrap_or_else(|e| {
             warn!("Failed to send back response: {}", e);

@@ -17,23 +17,18 @@
 //!
 //! Features:
 //!
-//! -  Super fast (167 ns per match for a 73300+ domain rule set)
+//! -  Super fast (187 ns per match for a 73300+ domain rule set)
 //! -  No dependencies
 //!
-//! # Getting Started
-//!
-//! ```
-//! use dmatcher::domain::Domain;
-//! let mut matcher = Domain::new();
-//! matcher.insert("apple.com");
-//! assert_eq!(matcher.matches("store.apple.com"), true);
-//! ```
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-#[derive(Debug, PartialEq, Clone)]
+use bytes::Bytes;
+use domain::base::{name::OwnedLabel, Dname};
+
+#[derive(PartialEq)]
 struct LevelNode {
-    next_lvs: HashMap<Arc<str>, LevelNode>,
+    next_lvs: HashMap<OwnedLabel, LevelNode>,
 }
 
 impl LevelNode {
@@ -44,7 +39,6 @@ impl LevelNode {
     }
 }
 
-#[derive(Debug, Clone)]
 /// Domain matcher algorithm
 pub struct Domain {
     root: LevelNode,
@@ -64,49 +58,29 @@ impl Domain {
         }
     }
 
-    #[cfg(test)]
-    fn get_root(&self) -> &LevelNode {
-        &self.root
-    }
-
     /// Pass in a string containing `\n` and get all domains inserted.
-    pub fn insert_multi(&mut self, domain: &str) {
+    pub fn insert_multi(&mut self, domain: &[Dname<Bytes>]) {
         // This gets rid of empty substrings for stability reasons. See also https://github.com/LEXUGE/dcompass/issues/33.
-        domain
-            .split('\n')
-            .filter(|&x| !x.is_empty())
-            .for_each(|lv| self.insert(lv));
+        domain.iter().for_each(|d| self.insert(d));
     }
 
     /// Pass in a domain and insert it into the matcher.
     /// This ignores any line containing chars other than A-Z, a-z, 1-9, and -.
     /// See also: https://tools.ietf.org/html/rfc1035
-    pub fn insert(&mut self, domain: &str) {
-        // Check if all the characters are valid.
-        let valid = domain.chars().all(|c| {
-            char::is_ascii_alphabetic(&c) | char::is_ascii_digit(&c) | (c == '-') | (c == '.')
-        });
-        if !valid {
-            return;
-        }
-        let lvs: Vec<&str> = domain
-            .split('.')
-            .filter(|lv| !lv.is_empty())
-            .rev()
-            .collect();
+    pub fn insert(&mut self, domain: &Dname<Bytes>) {
         let mut ptr = &mut self.root;
-        for lv in lvs {
+        for lv in domain.iter().rev() {
             ptr = ptr
                 .next_lvs
-                .entry(Arc::from(lv))
+                .entry(lv.to_owned())
                 .or_insert_with(LevelNode::new);
         }
     }
 
     /// Match the domain against inserted domain rules. If `apple.com` is inserted, then `www.apple.com` and `stores.www.apple.com` is considered as matched while `apple.cn` is not.
-    pub fn matches(&self, domain: &str) -> bool {
+    pub fn matches(&self, domain: &Dname<Bytes>) -> bool {
         let mut ptr = &self.root;
-        for lv in domain.split('.').filter(|lv| !lv.is_empty()).rev() {
+        for lv in domain.iter().rev() {
             if ptr.next_lvs.is_empty() {
                 break;
             }
@@ -122,93 +96,32 @@ impl Domain {
 
 #[cfg(test)]
 mod tests {
-    use super::{Domain, LevelNode};
-    use std::{collections::HashMap, sync::Arc};
+    use super::Domain;
+    use domain::base::Dname;
+    use std::str::FromStr;
+
+    macro_rules! dname {
+        ($s:expr) => {
+            Dname::from_str($s).unwrap()
+        };
+    }
 
     #[test]
     fn matches() {
         let mut matcher = Domain::new();
-        matcher.insert("apple.com");
-        matcher.insert("apple.cn");
-        assert_eq!(matcher.matches("store.apple.com"), true);
-        assert_eq!(matcher.matches("store.apple.com."), true);
-        assert_eq!(matcher.matches("baidu.com"), false);
-        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
+        matcher.insert(&dname!("apple.com"));
+        matcher.insert(&dname!("apple.cn"));
+        assert_eq!(matcher.matches(&dname!("store.apple.com")), true);
+        assert_eq!(matcher.matches(&dname!("store.apple.com.")), true);
+        assert_eq!(matcher.matches(&dname!("baidu.com")), false);
     }
 
     #[test]
     fn insert_multi() {
         let mut matcher = Domain::new();
-        matcher.insert_multi("apple.com\n\napple.cn");
-        assert_eq!(matcher.matches("store.apple.com"), true);
-        assert_eq!(matcher.matches("store.apple.com."), true);
-        assert_eq!(matcher.matches("baidu.com"), false);
-        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
-    }
-
-    #[test]
-    fn comment_not_matches() {
-        let mut matcher = Domain::new();
-        matcher.insert("# apple.com"); // This is invalid / a comment.
-        matcher.insert("*** apple.com"); // This is invalid, should be ignored.
-        matcher.insert("apple-cn.com"); // "-" is allowed here.
-        matcher.insert("apple.cn");
-        assert_eq!(matcher.matches("store.apple.com"), false);
-        assert_eq!(matcher.matches("store.apple.com."), false);
-        assert_eq!(matcher.matches("baidu.com"), false);
-        assert_eq!(matcher.matches("store.apple-cn.com"), true);
-        assert_eq!(matcher.matches("你好.store.www.apple.cn"), true);
-    }
-
-    #[test]
-    fn insertion() {
-        let mut matcher = Domain::new();
-        matcher.insert("apple.com");
-        matcher.insert("apple.cn");
-        println!("{:?}", matcher.get_root());
-        assert_eq!(
-            matcher.get_root(),
-            &LevelNode {
-                next_lvs: [
-                    (
-                        "cn".into(),
-                        LevelNode {
-                            next_lvs: [(
-                                "apple".into(),
-                                LevelNode {
-                                    next_lvs: []
-                                        .iter()
-                                        .cloned()
-                                        .collect::<HashMap<Arc<str>, LevelNode>>()
-                                }
-                            )]
-                            .iter()
-                            .cloned()
-                            .collect::<HashMap<Arc<str>, LevelNode>>()
-                        }
-                    ),
-                    (
-                        "com".into(),
-                        LevelNode {
-                            next_lvs: [(
-                                "apple".into(),
-                                LevelNode {
-                                    next_lvs: []
-                                        .iter()
-                                        .cloned()
-                                        .collect::<HashMap<Arc<str>, LevelNode>>()
-                                }
-                            )]
-                            .iter()
-                            .cloned()
-                            .collect::<HashMap<Arc<str>, LevelNode>>()
-                        }
-                    )
-                ]
-                .iter()
-                .cloned()
-                .collect::<HashMap<Arc<str>, LevelNode>>()
-            }
-        );
+        matcher.insert_multi(&[dname!("apple.com"), dname!("apple.cn")]);
+        assert_eq!(matcher.matches(&dname!("store.apple.cn")), true);
+        assert_eq!(matcher.matches(&dname!("store.apple.com.")), true);
+        assert_eq!(matcher.matches(&dname!("baidu.com")), false);
     }
 }

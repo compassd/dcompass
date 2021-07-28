@@ -17,13 +17,17 @@ pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::{AsyncTryInto, Label, Validatable, ValidateCell};
+use crate::{AsyncTryInto, Label, Validatable, ValidateCell, MAX_LEN};
 use async_trait::async_trait;
+use bytes::{Bytes, BytesMut};
+use domain::{
+    base::{name::PushError, octets::ParseError, Message, MessageBuilder, ParsedDname, ToDname},
+    rdata::AllRecordData,
+};
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
-use trust_dns_client::op::Message;
 
 type Result<T> = std::result::Result<T, TableError>;
 
@@ -51,11 +55,23 @@ pub enum TableError {
         "Rule with tag `{0}` is not found in the `table` section. Note that tag `start` is required"
     )]
     UndefinedTag(Label),
+
+    /// Failed to push the record
+    #[error(transparent)]
+    PushError(#[from] PushError),
+
+    /// Failed to parse the record
+    #[error(transparent)]
+    ParseError(#[from] ParseError),
+
+    /// Buf is too short
+    #[error(transparent)]
+    ShortBuf(#[from] domain::base::ShortBuf),
 }
 
-pub struct State<'a> {
-    resp: Message,
-    query: &'a Message,
+pub struct State {
+    resp: Message<Bytes>,
+    query: Message<Bytes>,
 }
 
 // Traverse and validate the routing table.
@@ -151,12 +167,16 @@ impl Table {
     }
 
     // Not intended to be used by end-users
-    pub(super) async fn route(&self, query: &Message, upstreams: &Upstreams) -> Result<Message> {
-        let name = query.queries().iter().next().unwrap().name().to_utf8();
-        let id = query.id();
+    pub(super) async fn route(
+        &self,
+        query: Message<Bytes>,
+        upstreams: &Upstreams,
+    ) -> Result<Message<Bytes>> {
+        let name = query.first_question().unwrap().qname().to_dname()?;
         let mut s = State {
-            query,
-            resp: Message::default(),
+            // Clone is cheap, just a ref count increment
+            query: query.clone(),
+            resp: query,
         };
 
         let mut tag = "start";
@@ -169,8 +189,41 @@ impl Table {
                 .await?;
         }
         info!("Domain \"{}\" has finished routing", name);
-        s.resp.set_id(id);
-        Ok(s.resp)
+
+        // Recreate the whole message to make sure that it is a valid response
+        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))?
+            .start_answer(&s.query, s.resp.header().rcode())?;
+        for item in s.resp.answer()?.flatten() {
+            if let Some(r) = item
+                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
+                .ok()
+                .flatten()
+            {
+                builder.push(r)?;
+            }
+        }
+        let mut builder = builder.authority();
+        for item in s.resp.authority()?.flatten() {
+            if let Some(r) = item
+                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
+                .ok()
+                .flatten()
+            {
+                builder.push(r)?;
+            }
+        }
+
+        let mut builder = builder.additional();
+        for item in s.resp.additional()?.flatten() {
+            if let Some(r) = item
+                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
+                .ok()
+                .flatten()
+            {
+                builder.push(r)?;
+            }
+        }
+        Ok(builder.into_message())
     }
 }
 

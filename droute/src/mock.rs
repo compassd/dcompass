@@ -14,9 +14,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This module is NOT intended to be used by regular users. It is used for mocking purpose only.
+use bytes::Bytes;
+use domain::base::Message;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use trust_dns_proto::op::Message;
 
 /// Mock echo server
 pub struct Server {
@@ -36,7 +37,7 @@ impl Server {
     }
 
     /// Run it
-    pub async fn run(self, mut msg: Message) -> Result<(), std::io::Error> {
+    pub async fn run(self, msg: Message<Bytes>) -> Result<(), std::io::Error> {
         let Server {
             socket,
             mut buf,
@@ -48,11 +49,7 @@ impl Server {
             // If so then we try to send it back to the original source, waiting
             // until it's writable and we're able to do so.
             if let Some(peer) = to_send {
-                // ID is required to match for trust-dns-client to accept response
-                let id = Message::from_vec(&buf).unwrap().id();
-                socket
-                    .send_to(&msg.set_id(id).to_vec().unwrap(), &peer)
-                    .await?;
+                socket.send_to(&msg.as_slice(), &peer).await?;
             }
 
             // If we're here then `to_send` is `None`, so we take a look for the

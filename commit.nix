@@ -21,9 +21,9 @@ lib.mkApp {
 
     set -e
 
-    find . -type f -name '*.sh' -exec shellcheck {} +
-    find . -type f -name '*.sh' -exec shfmt -w {} +
-    find . -type f -name '*.nix' -exec nixfmt {} +
+    find . -path ./target -prune -false -o -type f -name '*.sh' -exec shellcheck {} +
+    find . -path ./target -prune -false -o -type f -name '*.sh' -exec shfmt -w {} +
+    find . -path ./target -prune -false -o -type f -name '*.nix' -exec nixfmt {} +
     cargo update
     cargo fmt -- --check
     cargo build --all-features

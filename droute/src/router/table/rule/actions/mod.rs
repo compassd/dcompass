@@ -45,6 +45,10 @@ pub enum ActionError {
     /// Other error.
     #[error("An error encountered in action: {0}")]
     Other(String),
+
+    /// Short Buf
+    #[error(transparent)]
+    ShortBuf(#[from] domain::base::ShortBuf),
 }
 
 #[async_trait]

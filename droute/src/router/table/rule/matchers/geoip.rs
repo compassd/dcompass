@@ -13,14 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, MatchError, Matcher, Result};
+use super::{super::super::State, get_ip_addr, MatchError, Matcher, Result};
 use crate::AsyncTryInto;
 use async_trait::async_trait;
 use log::info;
 use maxminddb::{geoip2::Country, Reader};
 use serde::Deserialize;
-use std::{collections::HashSet, net::IpAddr, path::PathBuf, str::FromStr};
-use trust_dns_proto::rr::record_data::RData::{A, AAAA};
+use std::{collections::HashSet, path::PathBuf, str::FromStr};
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 pub struct GeoIp {
@@ -40,17 +39,7 @@ impl GeoIp {
 
 impl Matcher for GeoIp {
     fn matches(&self, state: &State) -> bool {
-        if let Some(ip) = state
-            .resp
-            .answers()
-            .iter()
-            .find(|&r| matches!(r.rdata(), A(_) | AAAA(_)))
-            .map(|r| match *r.rdata() {
-                A(addr) => IpAddr::V4(addr),
-                AAAA(addr) => IpAddr::V6(addr),
-                _ => unreachable!(),
-            })
-        {
+        if let Ok(Some(ip)) = get_ip_addr(&state.resp) {
             let r = if let Ok(r) = self.db.lookup::<Country>(ip) {
                 r
             } else {
@@ -117,39 +106,47 @@ impl AsyncTryInto<GeoIp> for GeoIpBuilder {
 #[cfg(test)]
 mod tests {
     use super::{super::Matcher, GeoIpBuilder, State};
-    use crate::AsyncTryInto;
+    use crate::{AsyncTryInto, MAX_LEN};
+    use bytes::{Bytes, BytesMut};
+    use domain::{
+        base::{Dname, Message, MessageBuilder},
+        rdata::A,
+    };
     use once_cell::sync::Lazy;
     use std::str::FromStr;
-    use trust_dns_proto::{
-        op::Message,
-        rr::{resource::Record, Name, RData},
-    };
 
     // Starting from droute's crate root
     static PATH: Lazy<Vec<u8>> =
         Lazy::new(|| include_bytes!("../../../../../../data/full.mmdb").to_vec());
-    static RECORD_NOT_CHINA: Lazy<Record> = Lazy::new(|| {
-        Record::from_rdata(
-            Name::from_str("apple.com").unwrap(),
-            10,
-            RData::A("1.1.1.1".parse().unwrap()),
-        )
+    static MESSAGE_NOT_CHINA: Lazy<Message<Bytes>> = Lazy::new(|| {
+        let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
+        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))
+            .unwrap()
+            .answer();
+        builder
+            .push((&name, 10, A::from_octets(1, 1, 1, 1)))
+            .unwrap();
+        builder.into_message()
     });
-    static RECORD_CHINA: Lazy<Record> = Lazy::new(|| {
-        Record::from_rdata(
-            Name::from_str("baidu.com").unwrap(),
-            10,
-            RData::A("36.152.44.95".parse().unwrap()),
-        )
+    static MESSAGE_CHINA: Lazy<Message<Bytes>> = Lazy::new(|| {
+        let name = Dname::<Bytes>::from_str("baidu.com").unwrap();
+        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))
+            .unwrap()
+            .answer();
+        // This makes sure that even with non-chinese records blended, GeoIP still works fine.
+        // But GeoIP only looks at the first A/AAAA record.
+        builder
+            .push((&name, 10, A::from_octets(180, 101, 49, 12)))
+            .unwrap();
+        builder
+            .push((&Dname::root_bytes(), 10, A::from_octets(1, 1, 1, 1)))
+            .unwrap();
+        builder.into_message()
     });
 
-    fn create_state(v: Vec<Record>, m: &Message) -> State<'_> {
+    fn create_state(m: Message<Bytes>) -> State {
         State {
-            resp: {
-                let mut m = Message::new();
-                m.insert_answers(v);
-                m
-            },
+            resp: m.clone(),
             query: m,
         }
     }
@@ -162,10 +159,7 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(
-                    vec![(RECORD_NOT_CHINA).clone()],
-                    &Message::new()
-                )),
+                .matches(&create_state(MESSAGE_NOT_CHINA.clone())),
             false
         )
     }
@@ -178,10 +172,7 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(
-                    vec![(RECORD_NOT_CHINA).clone()],
-                    &Message::new()
-                )),
+                .matches(&create_state(MESSAGE_NOT_CHINA.clone())),
             false
         )
     }
@@ -194,32 +185,24 @@ mod tests {
             .try_into()
             .await
             .unwrap();
+        assert_eq!(geoip.matches(&create_state(MESSAGE_CHINA.clone())), true);
         assert_eq!(
-            geoip.matches(&create_state(vec![(RECORD_CHINA).clone()], &Message::new())),
-            true
-        );
-        assert_eq!(
-            geoip.matches(&create_state(
-                vec![(RECORD_NOT_CHINA).clone()],
-                &Message::new()
-            )),
+            geoip.matches(&create_state(MESSAGE_NOT_CHINA.clone())),
             true
         )
     }
 
     #[tokio::test]
     async fn empty_records() {
-        let em = Message::default();
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&State {
-                    resp: Message::default(),
-                    query: &em,
-                }),
+                .matches(&create_state(
+                    Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap()
+                )),
             false,
         )
     }
@@ -232,31 +215,7 @@ mod tests {
                 .try_into()
                 .await
                 .unwrap()
-                .matches(&create_state(vec![(RECORD_CHINA).clone()], &Message::new())),
-            true
-        )
-    }
-
-    #[tokio::test]
-    async fn unordered_is_china() {
-        assert_eq!(
-            GeoIpBuilder::from_buf(PATH.clone())
-                .add_code("CN")
-                .try_into()
-                .await
-                .unwrap()
-                .matches(&create_state(
-                    vec![
-                        (RECORD_CHINA).clone(),
-                        (RECORD_NOT_CHINA).clone(),
-                        Record::from_rdata(
-                            Name::from_str("baidu.com").unwrap(),
-                            10,
-                            RData::NS(Name::from_str("baidu.com").unwrap()),
-                        ),
-                    ],
-                    &Message::new()
-                )),
+                .matches(&create_state(MESSAGE_CHINA.clone())),
             true
         )
     }

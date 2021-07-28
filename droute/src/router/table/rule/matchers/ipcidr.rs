@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, MatchError, Matcher, Result};
+use super::{super::super::State, get_ip_addr, MatchError, Matcher, Result};
 use crate::AsyncTryInto;
 use async_trait::async_trait;
 use cidr_utils::{
@@ -21,8 +21,6 @@ use cidr_utils::{
     utils::IpCidrCombiner as CidrCombiner,
 };
 use serde::Deserialize;
-use std::net::IpAddr;
-use trust_dns_proto::rr::record_data::RData::{A, AAAA};
 
 /// A matcher that matches the IP on dst.
 pub struct IpCidr {
@@ -53,17 +51,7 @@ impl IpCidr {
 
 impl Matcher for IpCidr {
     fn matches(&self, state: &State) -> bool {
-        if let Some(ip) = state
-            .resp
-            .answers()
-            .iter()
-            .find(|&r| matches!(r.rdata(), A(_) | AAAA(_)))
-            .map(|r| match *r.rdata() {
-                A(addr) => IpAddr::V4(addr),
-                AAAA(addr) => IpAddr::V6(addr),
-                _ => unreachable!(),
-            })
-        {
+        if let Ok(Some(ip)) = get_ip_addr(&state.resp) {
             self.matcher.contains(ip)
         } else {
             false
@@ -105,42 +93,45 @@ impl AsyncTryInto<IpCidr> for IpCidrBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::AsyncTryInto;
+    use crate::{AsyncTryInto, MAX_LEN};
 
     use super::{
         super::{Matcher, State},
         IpCidrBuilder,
     };
+    use bytes::{Bytes, BytesMut};
+    use domain::{
+        base::{Dname, Message, MessageBuilder},
+        rdata::A,
+    };
     use once_cell::sync::Lazy;
     use std::str::FromStr;
-    use trust_dns_proto::{
-        op::Message,
-        rr::{resource::Record, Name, RData},
-    };
 
-    static RECORD_NOT_CHINA: Lazy<Record> = Lazy::new(|| {
-        Record::from_rdata(
-            Name::from_str("cloudflare-dns.com").unwrap(),
-            10,
-            RData::A("1.1.1.1".parse().unwrap()),
-        )
+    static MESSAGE_NOT_CHINA: Lazy<Message<Bytes>> = Lazy::new(|| {
+        let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
+        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))
+            .unwrap()
+            .answer();
+        builder
+            .push((&name, 10, A::from_octets(1, 1, 1, 1)))
+            .unwrap();
+        builder.into_message()
     });
-    static RECORD_CHINA: Lazy<Record> = Lazy::new(|| {
-        Record::from_rdata(
-            Name::from_str("baidu.com").unwrap(),
-            10,
-            RData::A("180.101.49.12".parse().unwrap()),
-        )
+    static MESSAGE_CHINA: Lazy<Message<Bytes>> = Lazy::new(|| {
+        let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
+        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))
+            .unwrap()
+            .answer();
+        builder
+            .push((&name, 10, A::from_octets(180, 101, 49, 12)))
+            .unwrap();
+        builder.into_message()
     });
 
-    fn create_state(v: Vec<Record>, m: &Message) -> State<'_> {
+    fn create_state(m: Message<Bytes>) -> State {
         State {
-            resp: {
-                let mut m = Message::new();
-                m.insert_answers(v);
-                m
-            },
-            query: &m,
+            resp: m.clone(),
+            query: m,
         }
     }
 
@@ -162,17 +153,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            matcher.matches(&create_state(
-                vec![(*RECORD_CHINA).clone()],
-                &Message::new()
-            )),
+            matcher.matches(&create_state((*MESSAGE_CHINA).clone())),
             true
         );
         assert_eq!(
-            matcher.matches(&create_state(
-                vec![(*RECORD_NOT_CHINA).clone()],
-                &Message::new()
-            )),
+            matcher.matches(&create_state((*MESSAGE_NOT_CHINA).clone())),
             false
         )
     }

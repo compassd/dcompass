@@ -26,6 +26,8 @@ use self::{actions::Action, matchers::Matcher};
 use super::{super::upstreams::Upstreams, Result, State};
 use crate::Label;
 use async_trait::async_trait;
+use bytes::Bytes;
+use domain::base::Dname;
 use log::*;
 
 /// Rule block abstraction
@@ -36,9 +38,9 @@ pub trait Rule: Send + Sync {
     async fn route(
         &self,
         tag: &str,
-        state: &mut State<'_>,
+        state: &mut State,
         upstreams: &Upstreams,
-        name: &str,
+        name: &Dname<Bytes>,
     ) -> Result<&Label>;
 
     /// Possible destinations of this rule block
@@ -93,9 +95,9 @@ impl Rule for IfBlock {
     async fn route(
         &self,
         tag: &str,
-        state: &mut State<'_>,
+        state: &mut State,
         upstreams: &Upstreams,
-        name: &str,
+        name: &Dname<Bytes>,
     ) -> Result<&Label> {
         if self.matcher.matches(&state) {
             info!("Domain \"{}\" matches at rule `{}`", name, tag);
@@ -121,7 +123,8 @@ impl Rule for IfBlock {
 
 #[cfg(test)]
 mod tests {
-    use trust_dns_client::op::Message;
+    use bytes::Bytes;
+    use domain::base::{Dname, Message};
 
     use super::super::{State, Upstreams};
     use crate::{builders::*, AsyncTryInto};
@@ -140,15 +143,15 @@ mod tests {
             rule.route(
                 "mock", // This doesn't matter
                 &mut State {
-                    resp: Message::default(),
-                    query: &mut Message::default(),
+                    resp: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
+                    query: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
                 },
                 &Upstreams::new(
                     vec![].into_iter().collect(),
                     std::num::NonZeroUsize::new(1).unwrap()
                 )
                 .unwrap(),
-                "foo"
+                &Dname::root_bytes()
             )
             .await
             .unwrap()

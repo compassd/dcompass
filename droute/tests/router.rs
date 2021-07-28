@@ -13,33 +13,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::str::FromStr;
+
+use bytes::{Bytes, BytesMut};
+use domain::{
+    base::{Dname, Message, MessageBuilder, Rtype},
+    rdata::A,
+};
 use droute::{actions::CacheMode, builders::*, mock::Server, AsyncTryInto};
 use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
-use trust_dns_proto::{
-    op::{header::MessageType, query::Query, Message, OpCode, ResponseCode},
-    rr::{record_data::RData, record_type::RecordType, resource::Record, Name},
-};
 
-static DUMMY_MSG: Lazy<Message> = Lazy::new(|| {
-    let mut msg = Message::new();
-    msg.add_answer(Record::from_rdata(
-        Name::from_utf8("www.apple.com").unwrap(),
-        32,
-        RData::A("1.1.1.1".parse().unwrap()),
-    ));
-    msg.set_message_type(MessageType::Response);
-    msg
+static DUMMY_MSG: Lazy<Message<Bytes>> = Lazy::new(|| {
+    let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(1232)).unwrap();
+    let header = builder.header_mut();
+    header.set_id(0);
+    header.set_qr(true);
+    let mut builder = builder.question();
+    builder.push((&name, Rtype::A)).unwrap();
+    let mut builder = builder.answer();
+    builder
+        .push((&name, 10, A::from_octets(1, 1, 1, 1)))
+        .unwrap();
+    builder.into_message()
 });
 
-static QUERY: Lazy<Message> = Lazy::new(|| {
-    let mut msg = Message::new();
-    msg.add_query(Query::query(
-        Name::from_utf8("www.apple.com").unwrap(),
-        RecordType::A,
-    ));
-    msg.set_message_type(MessageType::Query);
-    msg
+static QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
+    let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(1232)).unwrap();
+    builder.header_mut().set_id(0);
+    let mut builder = builder.question();
+    builder.push((&name, Rtype::A)).unwrap();
+    builder.into_message()
 });
 
 #[tokio::test]
@@ -63,7 +69,6 @@ async fn test_resolve() {
             "mock",
             UdpBuilder {
                 addr: "127.0.0.1:53533".parse().unwrap(),
-                dnssec: false,
                 timeout: 10,
             },
         ),
@@ -73,13 +78,7 @@ async fn test_resolve() {
     .unwrap();
 
     assert_eq!(
-        router.resolve(&QUERY).await.unwrap().answers(),
-        DUMMY_MSG.answers()
-    );
-
-    // Shall not accept messages with no queries.
-    assert_eq!(
-        router.resolve(&Message::new()).await.unwrap(),
-        Message::error_msg(0, OpCode::Query, ResponseCode::ServFail)
+        router.resolve(QUERY.clone()).await.unwrap().into_octets(),
+        DUMMY_MSG.clone().into_octets()
     );
 }

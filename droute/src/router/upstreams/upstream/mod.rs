@@ -17,13 +17,15 @@ pub mod builder;
 mod qhandle;
 pub(crate) mod resp_cache;
 
+use std::sync::Arc;
+
+use bytes::Bytes;
 pub use qhandle::{QHandle, QHandleError};
 
 use self::resp_cache::{RecordStatus::*, RespCache};
 use super::{super::table::rule::actions::CacheMode, error::Result};
 use crate::Label;
-use std::sync::Arc;
-use trust_dns_client::op::Message;
+use domain::base::Message;
 
 /// A single upstream. Opposite to the `Upstreams`.
 #[derive(Clone)]
@@ -49,18 +51,18 @@ impl Upstream {
         tag: &Label,
         cache: &RespCache,
         cache_mode: &CacheMode,
-        msg: &Message,
-    ) -> Result<Message> {
+        msg: &Message<Bytes>,
+    ) -> Result<Message<Bytes>> {
         if let Self::Others(inner) = &self {
             log::info!("querying with upstream: {}", tag);
             // Manage cache with caching policies
             let r = match cache_mode {
-                CacheMode::Disabled => inner.query(msg.clone()).await?,
+                CacheMode::Disabled => inner.query(&msg).await?,
                 CacheMode::Standard => match cache.get(tag, &msg) {
                     // Cache available within TTL constraints
                     Some(Alive(r)) => r,
                     // No cache or cache expired
-                    Some(Expired(_)) | None => inner.query(msg.clone()).await?,
+                    Some(Expired(_)) | None => inner.query(&msg).await?,
                 },
                 CacheMode::Persistent => match cache.get(tag, &msg) {
                     // Cache available within TTL constraints
@@ -76,13 +78,13 @@ impl Upstream {
                         tokio::spawn(async move {
                             // We have to update the cache though
                             // We don't care about failures here.
-                            if let Ok(r) = inner.query(msg).await {
+                            if let Ok(r) = inner.query(&msg).await {
                                 cache.put(tag, r)
                             }
                         });
                         r
                     }
-                    None => inner.query(msg.clone()).await?,
+                    None => inner.query(&msg).await?,
                 },
             };
             if cache_mode != &CacheMode::Disabled {

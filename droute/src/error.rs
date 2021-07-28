@@ -38,4 +38,8 @@ pub enum DrouteError {
     /// Error related to the `upstreams` section.
     #[error(transparent)]
     UpstreamError(#[from] UpstreamError),
+
+    /// The buffer is too short
+    #[error(transparent)]
+    ShortBuf(#[from] domain::base::ShortBuf),
 }

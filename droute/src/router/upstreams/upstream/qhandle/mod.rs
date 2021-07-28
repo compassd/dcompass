@@ -13,31 +13,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-mod client_pool;
-mod zone;
-
 #[cfg(feature = "doh")]
-pub use self::client_pool::Https;
-#[cfg(feature = "dot")]
-pub use self::client_pool::Tls;
-pub use self::{
-    client_pool::{Client, Tcp, Udp},
-    zone::Zone,
-};
+pub mod https;
+pub mod udp;
 
-use self::client_pool::ClientPoolError;
 use async_trait::async_trait;
 use bb8::RunError;
+use bytes::Bytes;
+use domain::base::Message;
+#[cfg(feature = "doh")]
+use reqwest::StatusCode;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
-use trust_dns_client::{error::ClientError, op::Message};
-use trust_dns_proto::error::ProtoError;
-use trust_dns_server::authority::LookupError;
 
 #[async_trait]
 //#[clonable]
 pub trait QHandle: Send + Sync {
-    async fn query(&self, mut msg: Message) -> Result<Message>;
+    async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>>;
 }
 
 pub type Result<T> = std::result::Result<T, QHandleError>;
@@ -45,31 +37,30 @@ pub type Result<T> = std::result::Result<T, QHandleError>;
 /// Error related to client pools
 #[derive(Debug, Error)]
 pub enum QHandleError {
-    /// Error originated from client pools.
-    #[error(transparent)]
-    ClientPoolError(#[from] ClientPoolError),
-
-    /// Error forwarded from `trust-dns-client`.
-    #[error(transparent)]
-    ClientError(#[from] ClientError),
-
-    /// There is error in the process of zone creation
-    #[error("An error occured in creating an DNS zone upstream: {0}")]
-    ZoneCreationFailed(String),
-
     /// Error forwarded from `tokio::time::error`. This indicates a timeout probably.
     #[error(transparent)]
     TimeError(#[from] Elapsed),
 
-    /// Error forwarded from `trust_dns_server::authority::LookupError`.
+    /// IO Error
     #[error(transparent)]
-    LookupError(#[from] LookupError),
+    IoError(#[from] std::io::Error),
 
-    /// Error forwarded from `trust-dns-proto`.
+    /// Run error from bb8
     #[error(transparent)]
-    ProtoError(#[from] ProtoError),
+    RunError(#[from] RunError<std::io::Error>),
 
-    /// Error forwarded from bb8.
+    #[cfg(feature = "doh")]
     #[error(transparent)]
-    Bb8Error(#[from] RunError<ClientPoolError>),
+    ReqwestError(#[from] reqwest::Error),
+
+    #[cfg(feature = "doh")]
+    #[error("the URI is invalid")]
+    InvalidUri,
+
+    #[cfg(feature = "doh")]
+    #[error("unsuccessful HTTP code: {0}")]
+    FailedHttp(StatusCode),
+
+    #[error(transparent)]
+    ShortBuf(#[from] domain::base::ShortBuf),
 }

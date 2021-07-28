@@ -13,6 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 mod parser;
 #[cfg(test)]
 mod tests;
@@ -20,6 +27,7 @@ mod worker;
 
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use droute::{
     builders::{RouterBuilder, UpstreamsBuilder},
     error::DrouteError,
@@ -85,7 +93,7 @@ async fn serve(
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = [0; 1232];
         // On windows, some applications may go away after they got their first response, resulting in a broken pipe, we should discard errors on receiving/sending messages.
-        let (_, src) = match socket.recv_from(&mut buf).await {
+        let (len, src) = match socket.recv_from(&mut buf).await {
             Ok(r) => r,
             Err(e) => {
                 warn!("Failed to receive query: {}", e);
@@ -99,7 +107,7 @@ async fn serve(
         #[rustfmt::skip]
         tokio::spawn(async move {
             tokio::select! {
-                res = worker(router, socket, &buf, src) => {
+                res = worker(router, socket, Bytes::copy_from_slice(&buf[..len]), src) => {
                     match res {
                         Ok(_) => (),
                         Err(e) => warn!("Handling query failed: {}", e),
@@ -178,8 +186,6 @@ async fn main() -> Result<()> {
     // Start logging
     SimpleLogger::new()
         // These modules are quite chatty, we want to disable it.
-        .with_module_level("trust_dns_https::https_client_stream", LevelFilter::Off)
-        .with_module_level("trust_dns_proto::udp", LevelFilter::Off)
         .with_level(verbosity)
         .init()?;
 
@@ -204,6 +210,7 @@ async fn main() -> Result<()> {
         _ = serve(socket, router, ratelimit, &tx) => (),
         _ = signal::ctrl_c() => {
             log::warn!("Ctrl-C received, shutting down");
+	    sleep(Duration::from_millis(500)).await;
             // Error implies that there is no receiver/active worker, we are done
             if tx.send(()).is_ok() {
                 while tx.receiver_count() != 0 {

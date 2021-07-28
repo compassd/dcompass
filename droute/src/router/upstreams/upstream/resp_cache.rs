@@ -15,7 +15,9 @@
 
 use self::RecordStatus::*;
 use crate::{Label, MAX_TTL};
+use bytes::Bytes;
 use clru::CLruCache;
+use domain::base::{name::ToDname, question::Question, Dname, Message};
 use log::*;
 use std::{
     borrow::Borrow,
@@ -24,7 +26,6 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use trust_dns_client::op::{Message, Query, ResponseCode};
 
 // Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
 trait KeyPair<A: ?Sized, B: ?Sized> {
@@ -76,19 +77,25 @@ where
 
 struct CacheRecord {
     created_instant: Instant,
-    msg: Message,
+    msg: Message<Bytes>,
     ttl: Duration,
 }
 
 impl CacheRecord {
-    pub fn new(msg: Message) -> Self {
+    pub fn new(msg: Message<Bytes>) -> Self {
         let ttl = Duration::from_secs(u64::from(
-            msg.answers()
-                .iter()
-                .map(|r| r.ttl())
-                .min()
+            msg.answer()
+                .ok()
+                .map(|records| {
+                    records
+                        .filter(|r| r.is_ok())
+                        .map(|r| r.unwrap().ttl())
+                        .min()
+                })
+                .flatten()
                 .unwrap_or(MAX_TTL),
         ));
+
         Self {
             created_instant: Instant::now(),
             msg,
@@ -96,7 +103,7 @@ impl CacheRecord {
         }
     }
 
-    pub fn get(&self) -> Message {
+    pub fn get(&self) -> Message<Bytes> {
         self.msg.clone()
     }
 
@@ -106,15 +113,15 @@ impl CacheRecord {
 }
 
 pub enum RecordStatus {
-    Alive(Message),
-    Expired(Message),
+    Alive(Message<Bytes>),
+    Expired(Message<Bytes>),
 }
 
 // A LRU cache for responses
 #[derive(Clone)]
 pub struct RespCache {
     #[allow(clippy::type_complexity)]
-    cache: Arc<Mutex<CLruCache<(Label, Vec<Query>), CacheRecord>>>,
+    cache: Arc<Mutex<CLruCache<(Label, Question<Dname<Bytes>>), CacheRecord>>>,
 }
 
 impl RespCache {
@@ -124,43 +131,44 @@ impl RespCache {
         }
     }
 
-    pub fn put(&self, tag: Label, msg: Message) {
-        if msg.response_code() == ResponseCode::NoError {
-            self.cache
-                .lock()
-                .unwrap()
-                .put((tag, msg.queries().to_vec()), CacheRecord::new(msg));
+    pub fn put(&self, tag: Label, msg: Message<Bytes>) {
+        if msg.no_error() {
+            // We are assured that it should parse and exist
+            let question = msg.first_question().unwrap();
+            self.cache.lock().unwrap().put(
+                (
+                    tag,
+                    (
+                        question.qname().to_bytes(),
+                        question.qtype(),
+                        question.qclass(),
+                    )
+                        .into(),
+                ),
+                // Clone should be cheap here
+                CacheRecord::new(msg),
+            );
         } else {
             info!("Response errored, not caching erroneous upstream response.");
         };
     }
 
-    pub fn get(&self, tag: &Label, msg: &Message) -> Option<RecordStatus> {
+    pub fn get(&self, tag: &Label, msg: &Message<Bytes>) -> Option<RecordStatus> {
         let mut cache = self.cache.lock().unwrap();
-        match cache.get(&(tag, msg.queries()) as &dyn KeyPair<Label, [_]>) {
+        let question = msg.first_question().unwrap();
+        let qname = question.qname().to_bytes();
+        let question: Question<Dname<Bytes>> =
+            (qname.clone(), question.qtype(), question.qclass()).into();
+
+        match cache.get(&(tag, question) as &dyn KeyPair<Label, Question<Dname<Bytes>>>) {
             Some(r) => {
                 // Get record only once.
                 let resp = r.get();
                 if r.validate() {
-                    info!(
-                        "Cache hit for {}",
-                        // It is guaranteed that we have at least one query here
-                        msg.queries()
-                            .iter()
-                            .next()
-                            .map(|q| q.name().to_utf8())
-                            .unwrap()
-                    );
+                    info!("Cache hit for {}", qname);
                     Some(Alive(resp))
                 } else {
-                    info!(
-                        "TTL passed for {}, returning expired record.",
-                        msg.queries()
-                            .iter()
-                            .next()
-                            .map(|q| q.name().to_utf8())
-                            .unwrap()
-                    );
+                    info!("TTL passed for {}, returning expired record.", qname);
                     Some(Expired(resp))
                 }
             }
