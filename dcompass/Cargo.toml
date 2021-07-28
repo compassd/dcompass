@@ -27,8 +27,10 @@ structopt = "^0.3"
 governor = "^0.3"
 bytes = "^1"
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-jemallocator = {version = "^0.3", features = ["background_threads"]}
+# Both musl and msvc are not well-supoorted
+# Only allow on gnu or none env AND not on windows
+[target.'cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))'.dependencies]
+tikv-jemallocator = {version = "^0.4", features = ["background_threads"]}
 
 [dev-dependencies]
 tokio-test = "^0.4"

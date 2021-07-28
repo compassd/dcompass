@@ -38,7 +38,7 @@ impl Https {
             client: Client::builder()
                 .user_agent(APP_USER_AGENT)
                 .connect_timeout(Duration::from_secs(3))
-                .pool_max_idle_per_host(15)
+                .pool_max_idle_per_host(32)
                 .build()?,
             addr,
             timeout,

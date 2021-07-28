@@ -63,7 +63,7 @@ impl Udp {
             pool: {
                 bb8::Pool::builder()
                     .test_on_check_out(false)
-                    .max_size(15)
+                    .max_size(32)
                     .idle_timeout(Some(Duration::from_secs(2 * 60)))
                     .max_lifetime(Some(Duration::from_secs(10 * 60)))
                     .build(ConnPool { addr })
