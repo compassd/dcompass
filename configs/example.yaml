@@ -43,11 +43,11 @@ upstreams:
 
   cloudflare:
     https:
-      uri: https://1.0.0.1/dns-query
+      addr: https://1.0.0.1/dns-query
 
   quad9:
     https:
-      uri: https://9.9.9.9/dns-query
+      addr: https://9.9.9.9/dns-query
 
   secure:
     hybrid:

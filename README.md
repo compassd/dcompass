@@ -14,13 +14,16 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 - Fast (~2500 qps in wild where upstream perf is about the same)
 - Fearless hot switch between network environments
 - Customized routing rules that are easy to compose and maintain
-- DoH/DoT/UDP supports
+- DoH/UDP supports
 - "Always-on" cache mechanism to ensure DNS quality under severe network environments.
 - Option to send no SNI indication to better counter censorship
 - Option to disable AAAA query for those having network with incomplete IPv6 supports
 - Written in pure Rust
 
 # Notice
+
+**[2021-07-28] 2x faster and breaking changes**  
+We adopted a brand new bare metal DNS library `domain` which allows us to manipulate DNS messages without much allocation. This adoption, together with the adoption of `jemalloc`, significantly improves the memory footprint and throughput of dcompass. Due to this major refactorization, DoT/TCP/zone protocol are temporarily unavailable, however, UDP and DoH connections are now blazing fast. We will gradually put back those protocols.
 
 **[2021-07-26] Performance improvement and change on timeout syntax**  
 We refactored most part of the code to improve the memory usage and response performance by up to 50%. Due to internal code changes, timeout configuration in DoT and DoH upstreams will not take affect anymore.
