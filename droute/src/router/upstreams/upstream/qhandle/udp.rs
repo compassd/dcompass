@@ -99,7 +99,8 @@ impl QHandle for Udp {
             loop {
                 let mut buf = BytesMut::with_capacity(MAX_LEN);
                 buf.resize(MAX_LEN, 0);
-                socket.recv(&mut buf).await?;
+                let len = socket.recv(&mut buf).await?;
+                buf.resize(len, 0);
 
                 // We ignore garbage since there is a timer on this whole thing.
                 let answer = match Message::from_octets(buf.freeze()) {
