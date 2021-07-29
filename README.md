@@ -97,11 +97,11 @@ Different matchers: (More matchers to come)
 
 Different querying methods:
 
-- `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
-- `tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
+- `https`: DNS over HTTPS querying methods. `addr` is the remote server address in the form like `https://1.1.1.1:443/dns-query`.
+- `tls`: [CURRENTLY UNSUPPORTED] DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
-- `zone`: use local DNS zone file to provide customized responses. See also [zone config example](configs/success_zone.yaml)
+- `zone`: [CURRENTLY UNSUPOORTED] use local DNS zone file to provide customized responses. See also [zone config example](configs/success_zone.yaml)
 
 See [example.yaml](configs/example.yaml) for a pre-configured out-of-box anti-pollution configuration (Only works with `full` or `cn` version, to use with `min`, please provide your own database).
 
@@ -134,20 +134,19 @@ table:
 Mocked benchmark:
 
 ```
-non_cache_resolve       time:   [10.624 us 10.650 us 10.679 us]
-                        change: [-0.9733% -0.0478% +0.8159%] (p = 0.93 > 0.05)
-                        No change in performance detected.
-Found 12 outliers among 100 measurements (12.00%)
-  1 (1.00%) low mild
+Gnuplot not found, using plotters backend
+non_cache_resolve       time:   [20.548 us 20.883 us 21.282 us]
+                        change: [-33.128% -30.416% -27.511%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 11 outliers among 100 measurements (11.00%)
   6 (6.00%) high mild
   5 (5.00%) high severe
 
-cached_resolve          time:   [10.712 us 10.748 us 10.785 us]
-                        change: [-5.2060% -4.1827% -3.1967%] (p = 0.00 < 0.05)
+cached_resolve          time:   [2.6429 us 2.6493 us 2.6566 us]
+                        change: [-90.684% -90.585% -90.468%] (p = 0.00 < 0.05)
                         Performance has improved.
-Found 10 outliers among 100 measurements (10.00%)
-  2 (2.00%) low mild
-  7 (7.00%) high mild
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
   1 (1.00%) high severe
 ```
 

@@ -15,7 +15,7 @@
 
 use super::{QHandle, QHandleError, Result};
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use domain::base::Message;
 use reqwest::Client;
 use std::time::Duration;
@@ -49,7 +49,11 @@ impl Https {
 #[async_trait]
 impl QHandle for Https {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
-        let body: reqwest::Body = msg.as_octets().clone().into();
+        // Randomnize the message
+        let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
+        msg.header_mut().set_random_id();
+
+        let body: reqwest::Body = msg.into_octets().freeze().into();
         let res = self
             .client
             .post(self.addr.as_str())

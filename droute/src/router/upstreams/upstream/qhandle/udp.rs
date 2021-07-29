@@ -13,10 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::MAX_LEN;
+
 use super::{QHandle, Result};
 use async_trait::async_trait;
 use bb8::{ManageConnection, Pool};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use domain::base::Message;
 use std::{net::SocketAddr, time::Duration};
 use tokio::{net::UdpSocket, time::timeout};
@@ -85,16 +87,22 @@ fn bind_addr(is_ipv4: bool) -> SocketAddr {
 #[async_trait]
 impl QHandle for Udp {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
+        // Randomnize the message
+        let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
+        msg.header_mut().set_random_id();
+        let msg = msg.for_slice();
+
         let socket = self.pool.get().await?;
         socket.send(msg.as_slice()).await?;
 
         timeout(self.timeout, async {
             loop {
-                let mut buf = [0; 1232];
-                let len = socket.recv(&mut buf).await?;
+                let mut buf = BytesMut::with_capacity(MAX_LEN);
+                buf.resize(MAX_LEN, 0);
+                socket.recv(&mut buf).await?;
 
                 // We ignore garbage since there is a timer on this whole thing.
-                let answer = match Message::from_octets(Bytes::copy_from_slice(&buf[..len])) {
+                let answer = match Message::from_octets(buf.freeze()) {
                     Ok(answer) => answer,
                     Err(_) => continue,
                 };

@@ -10,10 +10,12 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
+# This should only take effect when doh gets enabled
+vendored = ["reqwest/native-tls-vendored"]
 doh = ["reqwest"]
 geoip = ["maxminddb"]
-# enable all features
-all = ["doh", "geoip"]
+# enable all transports and geoip options
+full = ["doh", "geoip"]
 
 [dependencies]
 # DNS-implementation related dependencies
@@ -24,7 +26,7 @@ bytes = "^1"
 maxminddb = { version = "^0.17", optional = true }
 
 # doh
-reqwest = { version = "0.11", features = ["native-tls-vendored"], default-features = false, optional = true}
+reqwest = { version = "0.11", optional = true}
 
 # Async-aware dependencies
 futures = "^0.3"

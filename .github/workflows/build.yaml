@@ -133,7 +133,7 @@ jobs:
       if: contains(matrix.target, 'mipsel')
       run: sudo apt-get install binutils-mipsel-linux-gnu
 
-      - name: Install mips tools
+    - name: Install mips tools
       if: contains(matrix.target, 'mips-')
       run: sudo apt-get install binutils-mips-linux-gnu
 

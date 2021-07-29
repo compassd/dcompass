@@ -1,24 +1,28 @@
 { pkgs, lib }:
 with pkgs;
-lib.mkApp {
-  drv = pkgs.writeShellScriptBin "dcompass-commit" ''
-    export PATH=${
-      pkgs.lib.strings.makeBinPath [
-        shellcheck
-        shfmt
-        git
-        coreutils
-        findutils
-        nixfmt
 
-        gcc
-        # write rustfmt first to ensure we are using nightly rustfmt
-        rust-bin.nightly."2021-01-01".rustfmt
-        rust-bin.stable.latest.default
-        binutils-unwrapped
-      ]
-    }
+pkgs.mkShell {
+  # this will make all the build inputs from hello and gnutar
+  # available to the shell environment
+  nativeBuildInputs = [
+    shellcheck
+    shfmt
+    git
+    coreutils
+    findutils
+    nixfmt
 
+    gcc
+    # write rustfmt first to ensure we are using nightly rustfmt
+    rust-bin.nightly."2021-01-01".rustfmt
+    rust-bin.stable.latest.default
+    binutils-unwrapped
+
+    perl
+    gnumake
+  ];
+
+  shellHook = ''
     set -e
 
     find . -path ./target -prune -false -o -type f -name '*.sh' -exec shellcheck {} +
@@ -47,6 +51,5 @@ lib.mkApp {
     echo -n "Pushing..."
     git push
     echo "Done."
-
   '';
 }

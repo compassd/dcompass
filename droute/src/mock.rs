@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This module is NOT intended to be used by regular users. It is used for mocking purpose only.
-use bytes::Bytes;
+use bytes::BytesMut;
 use domain::base::Message;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
@@ -37,24 +37,29 @@ impl Server {
     }
 
     /// Run it
-    pub async fn run(self, msg: Message<Bytes>) -> Result<(), std::io::Error> {
+    pub async fn run(self, mut msg: Message<BytesMut>) -> Result<(), std::io::Error> {
         let Server {
             socket,
             mut buf,
             mut to_send,
         } = self;
 
+        let mut id = 0_u16;
+
         loop {
             // First we check to see if there's a message we need to echo back.
             // If so then we try to send it back to the original source, waiting
             // until it's writable and we're able to do so.
             if let Some(peer) = to_send {
+                msg.header_mut().set_id(id);
                 socket.send_to(&msg.as_slice(), &peer).await?;
             }
 
             // If we're here then `to_send` is `None`, so we take a look for the
             // next message we're going to echo back.
-            to_send = Some(socket.recv_from(&mut buf).await?.1);
+            let res = socket.recv_from(&mut buf).await?;
+            to_send = Some(res.1);
+            id = Message::from_octets(&buf[..res.0]).unwrap().header().id();
         }
     }
 }

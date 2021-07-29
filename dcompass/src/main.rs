@@ -27,7 +27,7 @@ mod worker;
 
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
-use bytes::Bytes;
+use bytes::BytesMut;
 use droute::{
     builders::{RouterBuilder, UpstreamsBuilder},
     error::DrouteError,
@@ -91,7 +91,8 @@ async fn serve(
 ) {
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
-        let mut buf = [0; 1232];
+        let mut buf = BytesMut::with_capacity(1024);
+        buf.resize(1024, 0);
         // On windows, some applications may go away after they got their first response, resulting in a broken pipe, we should discard errors on receiving/sending messages.
         let (len, src) = match socket.recv_from(&mut buf).await {
             Ok(r) => r,
@@ -100,6 +101,7 @@ async fn serve(
                 continue;
             }
         };
+        buf.resize(len, 0);
 
         let router = router.clone();
         let socket = socket.clone();
@@ -107,7 +109,7 @@ async fn serve(
         #[rustfmt::skip]
         tokio::spawn(async move {
             tokio::select! {
-                res = worker(router, socket, Bytes::copy_from_slice(&buf[..len]), src) => {
+                res = worker(router, socket, buf.freeze(), src) => {
                     match res {
                         Ok(_) => (),
                         Err(e) => warn!("Handling query failed: {}", e),

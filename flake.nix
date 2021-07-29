@@ -5,7 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     utils.url = "github:numtide/flake-utils";
-    naersk.url = "github:nmattia/naersk";
+    naersk.url = "github:yusdacra/naersk/feat/cargolock-git-deps";
   };
 
   outputs = { nixpkgs, rust-overlay, utils, naersk, ... }:
@@ -16,13 +16,18 @@
         builtins.listToAttrs (map (v:
           attrsets.nameValuePair "dcompass-${strings.removePrefix "geoip-" v}"
           (f v)) features);
-      pkgSet = lib:
+      pkgSet = system:
         forEachFeature (v:
-          lib.buildPackage {
+          naersk.lib."${system}".buildPackage {
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
             root = ./.;
             passthru.exePath = "/bin/dcompass";
+            nativeBuildInputs = with import nixpkgs { system = "${system}"; }; [
+              # required for vendoring
+              gnumake
+              perl
+            ];
             cargoBuildOptions = default:
               (default ++ [
                 "--manifest-path ./dcompass/Cargo.toml"
@@ -31,11 +36,21 @@
           });
     in utils.lib.eachSystem (utils.lib.defaultSystems) (system: rec {
       # `nix build`
-      packages = (pkgSet naersk.lib."${system}");
+      packages = (pkgSet system) // {
+        # We have to do it like `nix develop .#commit` because libraries don't play well with `makeBinPath` or `makeLibraryPath`.
+        commit = (import ./commit.nix {
+          lib = utils.lib;
+          pkgs = import nixpkgs {
+            system = "${system}";
+            overlays = [ rust-overlay.overlay ];
+          };
+        });
+      };
 
       defaultPackage = packages.dcompass-maxmind;
 
-      checks = packages;
+      # We don't check packages.commit because techinically it is not a pacakge
+      checks = builtins.removeAttrs packages [ "commit" ];
 
       # `nix run`
       apps = {
@@ -50,17 +65,11 @@
               gzip -f -k ./data/ipcn.txt
             '';
         };
-        commit = (import ./commit.nix {
-          lib = utils.lib;
-          pkgs = import nixpkgs {
-            system = "${system}";
-            overlays = [ rust-overlay.overlay ];
-          };
-        });
       } // (forEachFeature (v:
         utils.lib.mkApp {
           drv = packages."dcompass-${strings.removePrefix "geoip-" v}";
         }));
+
       defaultApp = apps.dcompass-maxmind;
 
       # `nix develop`
@@ -78,6 +87,9 @@
 
             binutils-unwrapped
             cargo-cache
+
+            perl
+            gnumake
           ];
         };
     }) // {

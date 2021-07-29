@@ -25,7 +25,7 @@ use std::str::FromStr;
 use tokio::net::UdpSocket;
 
 // It is fine for us to have the same ID, because each query is sent from different source addr, meaning there is no collision on that
-static DUMMY_MSG: Lazy<Message<Bytes>> = Lazy::new(|| {
+static DUMMY_MSG: Lazy<Message<BytesMut>> = Lazy::new(|| {
     let name = Dname::<Bytes>::from_str("cloudflare-dns.com").unwrap();
     let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(1232)).unwrap();
     let header = builder.header_mut();
@@ -37,7 +37,7 @@ static DUMMY_MSG: Lazy<Message<Bytes>> = Lazy::new(|| {
     builder
         .push((&name, 10, A::from_octets(1, 1, 1, 1)))
         .unwrap();
-    builder.into_message()
+    Message::from_octets(BytesMut::from(builder.as_slice())).unwrap()
 });
 
 static QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
