@@ -22,7 +22,11 @@ use super::{
 use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
 // Default value for timeout
 fn default_timeout() -> u64 {
@@ -66,8 +70,10 @@ impl AsyncTryInto<Upstream> for HybridBuilder {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct HttpsBuilder {
-    /// The address of the server. e.g. `https://1.1.1.1` for Cloudflare DNS.
-    pub addr: String,
+    /// The URL of the DoH server. e.g. `https://cloudflare-dns.com/dns-query`
+    pub uri: String,
+    /// The address of the server. e.g. `1.1.1.1` for Cloudflare DNS.
+    pub addr: IpAddr,
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -80,7 +86,7 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
 
     async fn try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
-            Https::new(self.addr, Duration::from_secs(self.timeout)).await?,
+            Https::new(self.uri, self.addr, Duration::from_secs(self.timeout)).await?,
         )))
     }
 }

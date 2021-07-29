@@ -56,16 +56,6 @@ async fn check_example_cn() {
 }
 
 #[tokio::test]
-async fn check_example_full() {
-    assert_eq!(
-        init(serde_yaml::from_str(include_str!("../../configs/example_full.yaml")).unwrap())
-            .await
-            .is_ok(),
-        true
-    );
-}
-
-#[tokio::test]
 async fn check_success_rule() {
     assert_eq!(
         init(serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap())

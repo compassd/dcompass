@@ -1,23 +1,24 @@
 {
-  "verbosity": "info",
-  "address": "0.0.0.0:2053",
-  "table": {
-    "start": {
-      "if": "any",
-      "then": [
-        {
-          "query": "cloudflare"
-        },
-        "end"
-      ],
+    "verbosity": "info",
+    "address": "0.0.0.0:2053",
+    "table": {
+        "start": {
+            "if": "any",
+            "then": [
+                {
+                    "query": "cloudflare"
+                },
+                "end"
+            ]
+        }
+    },
+    "upstreams": {
+        "cloudflare": {
+            "https": {
+                "timeout": 4,
+                "uri": "https://cloudflare-dns.com/dns-query",
+                "addr": "1.0.0.1"
+            }
+        }
     }
-  },
-  "upstreams": {
-    "cloudflare": {
-      "https": {
-        "timeout": 4,
-        "addr": "https://1.0.0.1:443/dns-query"
-      }
-    }
-  }
 }

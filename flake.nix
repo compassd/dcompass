@@ -23,11 +23,11 @@
             version = "git";
             root = ./.;
             passthru.exePath = "/bin/dcompass";
-            nativeBuildInputs = with import nixpkgs { system = "${system}"; }; [
-              # required for vendoring
-              gnumake
-              perl
-            ];
+            # nativeBuildInputs = with import nixpkgs { system = "${system}"; }; [
+            #   # required for vendoring
+            #   gnumake
+            #   perl
+            # ];
             cargoBuildOptions = default:
               (default ++ [
                 "--manifest-path ./dcompass/Cargo.toml"
@@ -88,8 +88,8 @@
             binutils-unwrapped
             cargo-cache
 
-            perl
-            gnumake
+            # perl
+            # gnumake
           ];
         };
     }) // {

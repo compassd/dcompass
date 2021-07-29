@@ -17,15 +17,19 @@ use super::{QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
-use reqwest::Client;
-use std::time::Duration;
+use reqwest::{Client, Url};
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+    time::Duration,
+};
 use tokio::time::timeout;
 
 /// Client instance for UDP connections
 #[derive(Clone)]
 pub struct Https {
     client: Client,
-    addr: String,
+    uri: Url,
     timeout: Duration,
 }
 
@@ -33,14 +37,20 @@ static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_P
 
 impl Https {
     /// Create a new HTTPS client creator instance. with the given remote server address.
-    pub async fn new(addr: String, timeout: Duration) -> Result<Self> {
+    pub async fn new(uri: String, addr: IpAddr, timeout: Duration) -> Result<Self> {
+        let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
+        let domain = uri
+            .domain()
+            .ok_or_else(|| QHandleError::InvalidDomain(uri.clone()))?;
         Ok(Self {
             client: Client::builder()
+                // The port in socket addr doesn't take effect here per documentation
+                .resolve(domain, SocketAddr::new(addr, 0))
                 .user_agent(APP_USER_AGENT)
                 .connect_timeout(Duration::from_secs(3))
                 .pool_max_idle_per_host(32)
                 .build()?,
-            addr,
+            uri,
             timeout,
         })
     }
@@ -56,7 +66,7 @@ impl QHandle for Https {
         let body: reqwest::Body = msg.into_octets().freeze().into();
         let res = self
             .client
-            .post(self.addr.as_str())
+            .post(self.uri.clone())
             .header("content-type", "application/dns-message")
             .body(body)
             .send()

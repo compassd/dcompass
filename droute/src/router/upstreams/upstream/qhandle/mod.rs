@@ -23,6 +23,7 @@ use bytes::Bytes;
 use domain::base::Message;
 #[cfg(feature = "doh")]
 use reqwest::StatusCode;
+use reqwest::Url;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 
@@ -54,8 +55,12 @@ pub enum QHandleError {
     ReqwestError(#[from] reqwest::Error),
 
     #[cfg(feature = "doh")]
-    #[error("the URI is invalid")]
-    InvalidUri,
+    #[error("the URL '{0}' is invalid")]
+    InvalidUri(String),
+
+    #[cfg(feature = "doh")]
+    #[error("the URL '{0}' doesn't contain a valid domain")]
+    InvalidDomain(Url),
 
     #[cfg(feature = "doh")]
     #[error("unsuccessful HTTP code: {0}")]

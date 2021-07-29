@@ -20,6 +20,5 @@ upstreams:
   secure:
     https:
       timeout: 2
-      no_sni: false
-      name: dns.quad9.net
-      addr: 9.9.9.9:443
+      uri: https://dns.quad9.net/dns-query
+      addr: 9.9.9.9

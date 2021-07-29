@@ -18,8 +18,8 @@ pkgs.mkShell {
     rust-bin.stable.latest.default
     binutils-unwrapped
 
-    perl
-    gnumake
+    # perl
+    # gnumake
   ];
 
   shellHook = ''

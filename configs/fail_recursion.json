@@ -1,37 +1,42 @@
 {
-  "verbosity": "off",
-  "address": "0.0.0.0:2053",
-  "table": {
-    "start": {
-      "if": "any",
-      "then": [
-        {
-          "query": "secure"
+    "verbosity": "off",
+    "address": "0.0.0.0:2053",
+    "table": {
+        "start": {
+            "if": "any",
+            "then": [
+                {
+                    "query": "secure"
+                },
+                "end"
+            ]
+        }
+    },
+    "upstreams": {
+        "114": {
+            "udp": {
+                "addr": "114.114.114.114:53",
+                "timeout": 1
+            }
         },
-        "end"
-      ]
+        "quad9": {
+            "https": {
+                "timeout": 2,
+                "uri": "https://dns.quad9.net/dns-query",
+                "addr": "9.9.9.9"
+            }
+        },
+        "domestic": {
+            "hybrid": [
+                "114",
+                "secure"
+            ]
+        },
+        "secure": {
+            "hybrid": [
+                "quad9",
+                "domestic"
+            ]
+        }
     }
-  },
-  "upstreams": {
-    "114": {
-      "udp": {
-        "addr": "114.114.114.114:53",
-        "timeout": 1
-      }
-    },
-    "quad9": {
-      "https": {
-        "timeout": 2,
-        "no_sni": false,
-        "name": "dns.quad9.net",
-        "addr": "9.9.9.9:443"
-      }
-    },
-    "domestic": {
-      "hybrid": ["114", "secure"]
-    },
-    "secure": {
-      "hybrid": ["quad9", "domestic"]
-    }
-  }
 }
