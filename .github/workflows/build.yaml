@@ -69,12 +69,8 @@ jobs:
       fail-fast: false
       matrix:
         # armv5te-unknown-linux-musleabi being temporarily removed due to https://github.com/antifuchs/governor/issues/89
-        target: [x86_64-unknown-linux-musl, mips-unknown-linux-musl, mipsel-unknown-linux-musl, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd]
+        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd]
         include:
-          - target: mips-unknown-linux-musl
-            os: ubuntu-latest
-          - target: mipsel-unknown-linux-musl
-            os: ubuntu-latest
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl

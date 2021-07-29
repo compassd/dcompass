@@ -98,7 +98,7 @@
         "dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=";
 
       overlay = final: prev: {
-        dcompass = recurseIntoAttrs (pkgSet naersk.lib."${prev.pkgs.system}");
+        dcompass = recurseIntoAttrs (pkgSet prev.pkgs.system);
       };
     };
 }
