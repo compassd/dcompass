@@ -69,23 +69,19 @@ jobs:
       fail-fast: false
       matrix:
         # armv5te-unknown-linux-musleabi being temporarily removed due to https://github.com/antifuchs/governor/issues/89
-        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, armv7-unknown-linux-gnueabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, aarch64-unknown-linux-gnu, x86_64-unknown-netbsd, i686-unknown-linux-musl, i686-unknown-linux-gnu, x86_64-unknown-freebsd]
+        target: [x86_64-unknown-linux-musl, mips-unknown-linux-musl, mipsel-unknown-linux-musl, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd]
         include:
-          - target: x86_64-unknown-netbsd
+          - target: mips-unknown-linux-musl
             os: ubuntu-latest
-          - target: x86_64-unknown-linux-gnu
+          - target: mipsel-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-unknown-netbsd
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-          - target: i686-unknown-linux-gnu
-            os: ubuntu-latest
           - target: i686-unknown-linux-musl
             os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
           - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-          - target: armv7-unknown-linux-gnueabihf
             os: ubuntu-latest
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
@@ -132,6 +128,14 @@ jobs:
     - name: Install i686 tools
       if: contains(matrix.target, 'i686')
       run: sudo apt-get install binutils-i686-linux-gnu
+
+    - name: Install mipsel tools
+      if: contains(matrix.target, 'mipsel')
+      run: sudo apt-get install binutils-mipsel-linux-gnu
+
+      - name: Install mips tools
+      if: contains(matrix.target, 'mips-')
+      run: sudo apt-get install binutils-mips-linux-gnu
 
     - name: Install aarch64 tools
       if: contains(matrix.target, 'aarch64')
@@ -201,6 +205,20 @@ jobs:
         arm-linux-gnueabihf-strip ./dcompass-${{ matrix.target }}-full
         arm-linux-gnueabihf-strip ./dcompass-${{ matrix.target }}
 
+    - name: Strip mipsel
+      if: contains(matrix.target, 'mipsel')
+      shell: bash
+      run: |
+        mipsel-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
+        mipsel-linux-gnu-strip ./dcompass-${{ matrix.target }}
+
+    - name: Strip mips
+      if: contains(matrix.target, 'mips-')
+      shell: bash
+      run: |
+        mips-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
+        mips-linux-gnu-strip ./dcompass-${{ matrix.target }}
+
     - name: Strip i686
       if: contains(matrix.target, 'i686')
       shell: bash
@@ -228,11 +246,11 @@ jobs:
         fi
 
     - name: Echo body
-      if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+      if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
       run: git --no-pager log --since yesterday --pretty=format:%h%x09%an%x09%ad%x09%s --date short > changelog.txt
 
     - name: Publish
-      if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+      if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'
@@ -242,7 +260,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Publish (no notes)
-      if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
+      if: ${{ matrix.target != 'x86_64-unknown-linux-musl' }}
       uses: softprops/action-gh-release@v1
       with:
         files: 'dcompass*'

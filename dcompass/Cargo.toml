@@ -24,7 +24,7 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 serde_yaml = "^0.8"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 structopt = "^0.3"
-governor = "^0.3"
+governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}
 bytes = "^1"
 
 # Both musl and msvc are not well-supoorted
