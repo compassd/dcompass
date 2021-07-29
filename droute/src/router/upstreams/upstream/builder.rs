@@ -22,11 +22,9 @@ use super::{
 use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
+#[cfg(feature = "doh")]
+use std::net::IpAddr;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 // Default value for timeout
 fn default_timeout() -> u64 {

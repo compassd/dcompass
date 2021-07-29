@@ -46,6 +46,7 @@ impl Https {
             client: Client::builder()
                 // The port in socket addr doesn't take effect here per documentation
                 .resolve(domain, SocketAddr::new(addr, 0))
+                .https_only(true)
                 .user_agent(APP_USER_AGENT)
                 .connect_timeout(Duration::from_secs(3))
                 .pool_max_idle_per_host(32)
@@ -59,9 +60,9 @@ impl Https {
 #[async_trait]
 impl QHandle for Https {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
-        // Randomnize the message
+        // Per RFC, the message ID should be set to 0 to better facilitate HTTPS caching.
         let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
-        msg.header_mut().set_random_id();
+        msg.header_mut().set_id(0);
 
         let body: reqwest::Body = msg.into_octets().freeze().into();
         let res = self

@@ -22,8 +22,7 @@ use bb8::RunError;
 use bytes::Bytes;
 use domain::base::Message;
 #[cfg(feature = "doh")]
-use reqwest::StatusCode;
-use reqwest::Url;
+use reqwest::{StatusCode, Url};
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 
