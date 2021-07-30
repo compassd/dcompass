@@ -52,7 +52,7 @@ impl Server {
             // until it's writable and we're able to do so.
             if let Some(peer) = to_send {
                 msg.header_mut().set_id(id);
-                socket.send_to(&msg.as_slice(), &peer).await?;
+                socket.send_to(msg.as_slice(), &peer).await?;
             }
 
             // If we're here then `to_send` is `None`, so we take a look for the

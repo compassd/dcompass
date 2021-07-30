@@ -30,7 +30,7 @@ pub async fn worker(
 ) -> Result<()> {
     socket
         .send_to(
-            &router.resolve(Message::from_octets(buf)?).await?.as_slice(),
+            router.resolve(Message::from_octets(buf)?).await?.as_slice(),
             src,
         )
         .await

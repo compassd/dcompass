@@ -57,14 +57,14 @@ impl Upstream {
             log::info!("querying with upstream: {}", tag);
             // Manage cache with caching policies
             let r = match cache_mode {
-                CacheMode::Disabled => inner.query(&msg).await?,
-                CacheMode::Standard => match cache.get(tag, &msg) {
+                CacheMode::Disabled => inner.query(msg).await?,
+                CacheMode::Standard => match cache.get(tag, msg) {
                     // Cache available within TTL constraints
                     Some(Alive(r)) => r,
                     // No cache or cache expired
-                    Some(Expired(_)) | None => inner.query(&msg).await?,
+                    Some(Expired(_)) | None => inner.query(msg).await?,
                 },
-                CacheMode::Persistent => match cache.get(tag, &msg) {
+                CacheMode::Persistent => match cache.get(tag, msg) {
                     // Cache available within TTL constraints
                     Some(Alive(r)) => r,
                     Some(Expired(r)) => {
@@ -84,7 +84,7 @@ impl Upstream {
                         });
                         r
                     }
-                    None => inner.query(&msg).await?,
+                    None => inner.query(msg).await?,
                 },
             };
             if cache_mode != &CacheMode::Disabled {

@@ -97,7 +97,7 @@ Different matchers: (More matchers to come)
 
 Different querying methods:
 
-- `https`: DNS over HTTPS querying methods. `addr` is the remote server address in the form like `https://1.1.1.1:443/dns-query`.
+- `https`: DNS over HTTPS querying methods. `uri` is the remote server address in the form like `https://cloudflare-dns.com/dns-query`. `addr` is the server IP address (both IPv6 and IPv4) are accepted. HTTP and SOCKS5 proxies are also accepted on establishing connections via `proxy`, whose format is like `socks5://[user:[passwd]]@[ip:[port]]`.
 - `tls`: [CURRENTLY UNSUPPORTED] DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
 - `udp`: Typical UDP querying method. `addr` is the remote server address.
 - `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.

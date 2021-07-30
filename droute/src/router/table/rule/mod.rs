@@ -99,7 +99,7 @@ impl Rule for IfBlock {
         upstreams: &Upstreams,
         name: &Dname<Bytes>,
     ) -> Result<&Label> {
-        if self.matcher.matches(&state) {
+        if self.matcher.matches(state) {
             info!("Domain \"{}\" matches at rule `{}`", name, tag);
             for action in &self.on_match.0 {
                 action.act(state, upstreams).await?;

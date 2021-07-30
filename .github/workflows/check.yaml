@@ -90,10 +90,9 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: bench
-          args: --no-run
+      - run: cargo bench --no-run
+        env:
+          RUSTFLAGS: -D warnings
 
   clippy:
     name: Clippy
@@ -113,6 +112,6 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
+      - run: cargo clippy
+        env:
+          RUSTFLAGS: -D warnings
