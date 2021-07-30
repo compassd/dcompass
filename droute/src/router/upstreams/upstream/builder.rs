@@ -72,6 +72,8 @@ pub struct HttpsBuilder {
     pub uri: String,
     /// The address of the server. e.g. `1.1.1.1` for Cloudflare DNS.
     pub addr: IpAddr,
+    /// The Proxy URL used to connect the upstream server. Supporting HTTP and SOCKS5 proxy formats.
+    pub proxy: Option<String>,
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -84,7 +86,13 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
 
     async fn try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
-            Https::new(self.uri, self.addr, Duration::from_secs(self.timeout)).await?,
+            Https::new(
+                self.uri,
+                self.addr,
+                self.proxy,
+                Duration::from_secs(self.timeout),
+            )
+            .await?,
         )))
     }
 }

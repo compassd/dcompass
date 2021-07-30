@@ -24,7 +24,7 @@ bytes = "^1"
 maxminddb = { version = "^0.17", optional = true }
 
 # doh
-reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false, optional = true}
+reqwest = { version = "0.11", features = ["rustls-tls", "socks"], default-features = false, optional = true}
 
 # Async-aware dependencies
 futures = "^0.3"

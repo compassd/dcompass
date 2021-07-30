@@ -17,7 +17,7 @@ use super::{QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
-use reqwest::{Client, Url};
+use reqwest::{Client, Proxy, Url};
 use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
@@ -37,20 +37,32 @@ static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_P
 
 impl Https {
     /// Create a new HTTPS client creator instance. with the given remote server address.
-    pub async fn new(uri: String, addr: IpAddr, timeout: Duration) -> Result<Self> {
+    pub async fn new(
+        uri: String,
+        addr: IpAddr,
+        proxy: Option<String>,
+        timeout: Duration,
+    ) -> Result<Self> {
         let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
         let domain = uri
             .domain()
             .ok_or_else(|| QHandleError::InvalidDomain(uri.clone()))?;
+
+        let client = Client::builder()
+            // The port in socket addr doesn't take effect here per documentation
+            .resolve(domain, SocketAddr::new(addr, 0))
+            .https_only(true)
+            .user_agent(APP_USER_AGENT)
+            .connect_timeout(Duration::from_secs(3))
+            .pool_max_idle_per_host(32);
+
+        let client = if let Some(proxy) = proxy {
+            client.proxy(Proxy::all(proxy)?)
+        } else {
+            client
+        };
         Ok(Self {
-            client: Client::builder()
-                // The port in socket addr doesn't take effect here per documentation
-                .resolve(domain, SocketAddr::new(addr, 0))
-                .https_only(true)
-                .user_agent(APP_USER_AGENT)
-                .connect_timeout(Duration::from_secs(3))
-                .pool_max_idle_per_host(32)
-                .build()?,
+            client: client.build()?,
             uri,
             timeout,
         })
