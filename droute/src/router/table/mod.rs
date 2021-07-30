@@ -17,13 +17,10 @@ pub mod rule;
 
 use self::rule::{actions::ActionError, matchers::MatchError, Rule};
 use super::upstreams::Upstreams;
-use crate::{AsyncTryInto, Label, Validatable, ValidateCell, MAX_LEN};
+use crate::{AsyncTryInto, Label, Validatable, ValidateCell};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use domain::{
-    base::{name::PushError, octets::ParseError, Message, MessageBuilder, ParsedDname, ToDname},
-    rdata::AllRecordData,
-};
+use domain::base::{name::PushError, octets::ParseError, Message, ToDname};
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -190,40 +187,17 @@ impl Table {
         }
         info!("Domain \"{}\" has finished routing", name);
 
-        // Recreate the whole message to make sure that it is a valid response
-        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))?
-            .start_answer(&s.query, s.resp.header().rcode())?;
-        for item in s.resp.answer()?.flatten() {
-            if let Some(r) = item
-                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
-                .ok()
-                .flatten()
-            {
-                builder.push(r)?;
-            }
+        // Reset the header to make sure it is answering the query
+        let mut msg = Message::from_octets(BytesMut::from(s.resp.as_slice()))?;
+        {
+            let header = msg.header_mut();
+            header.set_id(s.query.header().id());
+            header.set_qr(true);
+            header.set_opcode(s.query.header().opcode());
+            header.set_rd(s.query.header().rd());
+            header.set_rcode(s.resp.header().rcode());
         }
-        let mut builder = builder.authority();
-        for item in s.resp.authority()?.flatten() {
-            if let Some(r) = item
-                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
-                .ok()
-                .flatten()
-            {
-                builder.push(r)?;
-            }
-        }
-
-        let mut builder = builder.additional();
-        for item in s.resp.additional()?.flatten() {
-            if let Some(r) = item
-                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
-                .ok()
-                .flatten()
-            {
-                builder.push(r)?;
-            }
-        }
-        Ok(builder.into_message())
+        Ok(Message::from_octets(msg.into_octets().freeze())?)
     }
 }
 
