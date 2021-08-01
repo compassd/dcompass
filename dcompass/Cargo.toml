@@ -24,13 +24,14 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 serde_yaml = "^0.8"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 structopt = "^0.3"
-governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}
+# governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}
+governor = "^0.3"
 bytes = "^1"
 
 # Both musl and msvc are not well-supoorted
 # Only allow on gnu or none env AND not on windows
-[target.'cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))'.dependencies]
-tikv-jemallocator = {version = "^0.4", features = ["background_threads"]}
+# [target.'cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))'.dependencies]
+# tikv-jemallocator = {version = "^0.4", features = ["background_threads"]}
 
 [dev-dependencies]
 tokio-test = "^0.4"

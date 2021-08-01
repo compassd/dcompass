@@ -13,12 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+// #[cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))]
+// use tikv_jemallocator::Jemalloc;
+//
+// #[cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))]
+// #[global_allocator]
+// static GLOBAL: Jemalloc = Jemalloc;
 
 mod parser;
 #[cfg(test)]
