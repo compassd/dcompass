@@ -17,7 +17,8 @@
             "https": {
                 "timeout": 4,
                 "uri": "https://cloudflare-dns.com/dns-query",
-                "addr": "1.0.0.1"
+                "addr": "1.0.0.1",
+		"sni": false
             }
         }
     }

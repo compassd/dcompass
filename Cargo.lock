@@ -433,10 +433,12 @@ dependencies = [
  "niffler",
  "once_cell",
  "reqwest",
+ "rustls",
  "serde",
  "thiserror",
  "tokio",
  "tokio-test",
+ "webpki-roots",
 ]
 
 [[package]]

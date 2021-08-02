@@ -17,13 +17,36 @@ use super::{QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
+use once_cell::sync::Lazy;
 use reqwest::{Client, Proxy, Url};
+use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
+    sync::Arc,
     time::Duration,
 };
 use tokio::time::timeout;
+
+static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
+static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
+
+const ALPN_H2: &[u8] = b"h2";
+
+fn create_client_config(sni: &bool) -> ClientConfig {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+    let versions = vec![ProtocolVersion::TLSv1_3];
+
+    let mut client_config = ClientConfig::new();
+    client_config.root_store = root_store;
+    client_config.versions = versions;
+    client_config.alpn_protocols.push(ALPN_H2.to_vec());
+    client_config.key_log = Arc::new(KeyLogFile::new());
+    client_config.enable_sni = *sni; // Disable SNI on need.
+
+    client_config
+}
 
 /// Client instance for UDP connections
 #[derive(Clone)]
@@ -42,6 +65,7 @@ impl Https {
         addr: IpAddr,
         proxy: Option<String>,
         timeout: Duration,
+        sni: bool,
     ) -> Result<Self> {
         let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
         let domain = uri
@@ -51,6 +75,11 @@ impl Https {
         let client = Client::builder()
             // The port in socket addr doesn't take effect here per documentation
             .resolve(domain, SocketAddr::new(addr, 0))
+            .use_preconfigured_tls(if sni {
+                CLIENT_CFG.clone()
+            } else {
+                NO_SNI_CLIENT_CFG.clone()
+            })
             .https_only(true)
             .user_agent(APP_USER_AGENT)
             .connect_timeout(Duration::from_secs(3))

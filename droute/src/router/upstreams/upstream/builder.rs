@@ -77,6 +77,9 @@ pub struct HttpsBuilder {
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
+    /// SNI
+    #[serde(default)]
+    pub sni: bool,
 }
 
 #[cfg(feature = "doh")]
@@ -91,6 +94,7 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
                 self.addr,
                 self.proxy,
                 Duration::from_secs(self.timeout),
+                self.sni,
             )
             .await?,
         )))

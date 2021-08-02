@@ -10,7 +10,7 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-doh = ["reqwest"]
+doh = ["reqwest", "rustls", "webpki-roots"]
 geoip = ["maxminddb"]
 # enable all transports and geoip options
 full = ["doh", "geoip"]
@@ -25,6 +25,8 @@ maxminddb = { version = "^0.17", optional = true }
 
 # doh
 reqwest = { version = "0.11", features = ["rustls-tls", "socks"], default-features = false, optional = true}
+rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
+webpki-roots = { version = "^0.21", optional = true }
 
 # Async-aware dependencies
 futures = "^0.3"
