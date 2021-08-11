@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{QHandle, QHandleError, Result};
+use super::{ConnInitiator, QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
@@ -26,7 +26,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::time::timeout;
 
 static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
 static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
@@ -53,20 +52,13 @@ fn create_client_config(sni: &bool) -> ClientConfig {
 pub struct Https {
     client: Client,
     uri: Url,
-    timeout: Duration,
 }
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 impl Https {
     /// Create a new HTTPS client creator instance. with the given remote server address.
-    pub async fn new(
-        uri: String,
-        addr: IpAddr,
-        proxy: Option<String>,
-        timeout: Duration,
-        sni: bool,
-    ) -> Result<Self> {
+    pub async fn new(uri: String, addr: IpAddr, proxy: Option<String>, sni: bool) -> Result<Self> {
         let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
         let domain = uri
             .domain()
@@ -93,13 +85,29 @@ impl Https {
         Ok(Self {
             client: client.build()?,
             uri,
-            timeout,
         })
     }
 }
 
 #[async_trait]
-impl QHandle for Https {
+impl ConnInitiator for Https {
+    type Connection = PostClient;
+
+    async fn create(&self) -> std::io::Result<Self::Connection> {
+        // Client uses Arc internally, so ultimately we are getting back to the same client pool.
+        // It also follows the advise of reusing the client.
+        Ok(PostClient(self.client.clone(), self.uri.clone()))
+    }
+
+    fn conn_type(&self) -> &'static str {
+        "HTTPS"
+    }
+}
+
+pub struct PostClient(Client, Url);
+
+#[async_trait]
+impl QHandle for PostClient {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
         // Per RFC, the message ID should be set to 0 to better facilitate HTTPS caching.
         let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
@@ -107,22 +115,19 @@ impl QHandle for Https {
 
         let body: reqwest::Body = msg.into_octets().freeze().into();
         let res = self
-            .client
-            .post(self.uri.clone())
+            .0
+            .post(self.1.clone())
             .header("content-type", "application/dns-message")
             .body(body)
             .send()
             .await?;
 
-        timeout(self.timeout, async {
-            if res.status().is_success() {
-                let res = res.bytes().await?;
-                let answer = Message::from_octets(res)?;
-                Ok(answer)
-            } else {
-                Err(QHandleError::FailedHttp(res.status()))
-            }
-        })
-        .await?
+        if res.status().is_success() {
+            let res = res.bytes().await?;
+            let answer = Message::from_octets(res)?;
+            Ok(answer)
+        } else {
+            Err(QHandleError::FailedHttp(res.status()))
+        }
     }
 }

@@ -17,14 +17,61 @@
 pub mod https;
 pub mod udp;
 
+use std::time::Duration;
+
 use async_trait::async_trait;
-use bb8::RunError;
+use bb8::{ManageConnection, Pool, RunError};
 use bytes::Bytes;
 use domain::base::Message;
 #[cfg(feature = "doh")]
 use reqwest::{StatusCode, Url};
 use thiserror::Error;
-use tokio::time::error::Elapsed;
+use tokio::time::{error::Elapsed, timeout};
+
+const MAX_ERROR_TOLERANCE: u8 = 5;
+
+// The connection initiator, like Udp, Https. It is similar to ManageConnection.
+// The primary reason for its existence is that we want to reduce the boilderplate on implementing ManageConnection
+#[async_trait]
+pub trait ConnInitiator: Send + Sync + 'static {
+    type Connection: QHandle;
+
+    async fn create(&self) -> std::io::Result<Self::Connection>;
+
+    fn conn_type(&self) -> &'static str;
+}
+
+// A local ConnInitiator wrapper
+pub struct ConnInitWrapper<T: ConnInitiator>(T);
+
+#[async_trait]
+impl<T: ConnInitiator> ManageConnection for ConnInitWrapper<T> {
+    type Connection = (T::Connection, u8);
+
+    type Error = std::io::Error;
+
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        Ok((self.0.create().await?, 0))
+    }
+
+    async fn is_valid(
+        &self,
+        conn: &mut bb8::PooledConnection<'_, Self>,
+    ) -> std::result::Result<(), Self::Error> {
+        if conn.1 > MAX_ERROR_TOLERANCE {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "the number of error(s) encountered exceeded the threshold",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
+        conn.1 > MAX_ERROR_TOLERANCE
+    }
+}
 
 #[async_trait]
 //#[clonable]
@@ -67,4 +114,49 @@ pub enum QHandleError {
 
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
+}
+
+pub struct ConnPool<T: ConnInitiator> {
+    pool: Pool<ConnInitWrapper<T>>,
+    timeout: Duration,
+}
+
+impl<T: ConnInitiator> ConnPool<T> {
+    pub async fn new(initiator: T, timeout: Duration) -> std::io::Result<Self> {
+        Ok(Self {
+            pool: bb8::Pool::builder()
+                .max_size(32)
+                .idle_timeout(Some(Duration::from_secs(2 * 60)))
+                .max_lifetime(Some(Duration::from_secs(10 * 60)))
+                .build(ConnInitWrapper(initiator))
+                .await?,
+            timeout,
+        })
+    }
+}
+
+#[async_trait]
+impl<T: ConnInitiator> QHandle for ConnPool<T> {
+    async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
+        let mut conn = self.pool.get().await?;
+
+        // Use flatten in the future
+        match timeout(self.timeout, conn.0.query(msg)).await {
+            // Within the timeout, query was successful
+            Ok(Ok(m)) => {
+                conn.1 = 0;
+                Ok(m)
+            }
+            // Within the timeout, query was unsuccessful
+            Ok(Err(e)) => {
+                conn.1 += 1;
+                Err(e)
+            }
+            // Timedout
+            Err(e) => {
+                conn.1 += 1;
+                Err(QHandleError::TimeError(e))
+            }
+        }
+    }
 }

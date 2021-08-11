@@ -16,7 +16,7 @@
 #[cfg(feature = "doh")]
 use super::qhandle::https::Https;
 use super::{
-    qhandle::{udp::Udp, Result},
+    qhandle::{udp::Udp, ConnPool, Result},
     QHandleError, Upstream,
 };
 use crate::{AsyncTryInto, Label};
@@ -89,12 +89,9 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
 
     async fn try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
-            Https::new(
-                self.uri,
-                self.addr,
-                self.proxy,
+            ConnPool::new(
+                Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
                 Duration::from_secs(self.timeout),
-                self.sni,
             )
             .await?,
         )))
@@ -118,7 +115,11 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
 
     async fn try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
-            Udp::new(self.addr, Duration::from_secs(self.timeout)).await?,
+            ConnPool::new(
+                Udp::new(self.addr).await?,
+                Duration::from_secs(self.timeout),
+            )
+            .await?,
         )))
     }
 }

@@ -15,64 +15,38 @@
 
 use crate::MAX_LEN;
 
-use super::{QHandle, Result};
+use super::{ConnInitiator, QHandle, Result};
 use async_trait::async_trait;
-use bb8::{ManageConnection, Pool};
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
-use std::{net::SocketAddr, time::Duration};
-use tokio::{net::UdpSocket, time::timeout};
+use std::net::SocketAddr;
+use tokio::net::UdpSocket;
 
-struct ConnPool {
-    pub addr: SocketAddr,
+/// Client instance for UDP connections
+#[derive(Clone)]
+pub struct Udp {
+    addr: SocketAddr,
+}
+
+impl Udp {
+    /// Create a new UDP client creator instance. with the given remote server address.
+    pub async fn new(addr: SocketAddr) -> Result<Self> {
+        Ok(Self { addr })
+    }
 }
 
 #[async_trait]
-impl ManageConnection for ConnPool {
+impl ConnInitiator for Udp {
     type Connection = UdpSocket;
 
-    type Error = std::io::Error;
-
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn create(&self) -> std::io::Result<Self::Connection> {
         let socket = UdpSocket::bind(bind_addr(self.addr.is_ipv4())).await?;
         socket.connect(self.addr).await?;
         Ok(socket)
     }
 
-    async fn is_valid(
-        &self,
-        _conn: &mut bb8::PooledConnection<'_, Self>,
-    ) -> std::result::Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
-        false
-    }
-}
-
-/// Client instance for UDP connections
-#[derive(Clone)]
-pub struct Udp {
-    pool: Pool<ConnPool>,
-    timeout: Duration,
-}
-
-impl Udp {
-    /// Create a new UDP client creator instance. with the given remote server address.
-    pub async fn new(addr: SocketAddr, timeout: Duration) -> Result<Self> {
-        Ok(Self {
-            pool: {
-                bb8::Pool::builder()
-                    .test_on_check_out(false)
-                    .max_size(32)
-                    .idle_timeout(Some(Duration::from_secs(2 * 60)))
-                    .max_lifetime(Some(Duration::from_secs(10 * 60)))
-                    .build(ConnPool { addr })
-                    .await?
-            },
-            timeout,
-        })
+    fn conn_type(&self) -> &'static str {
+        "UDP"
     }
 }
 
@@ -85,34 +59,30 @@ fn bind_addr(is_ipv4: bool) -> SocketAddr {
 }
 
 #[async_trait]
-impl QHandle for Udp {
+impl QHandle for UdpSocket {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
         // Randomnize the message
         let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
         msg.header_mut().set_random_id();
         let msg = msg.for_slice();
 
-        let socket = self.pool.get().await?;
-        socket.send(msg.as_slice()).await?;
+        self.send(msg.as_slice()).await?;
 
-        timeout(self.timeout, async {
-            loop {
-                let mut buf = BytesMut::with_capacity(MAX_LEN);
-                buf.resize(MAX_LEN, 0);
-                let len = socket.recv(&mut buf).await?;
-                buf.resize(len, 0);
+        loop {
+            let mut buf = BytesMut::with_capacity(MAX_LEN);
+            buf.resize(MAX_LEN, 0);
+            let len = self.recv(&mut buf).await?;
+            buf.resize(len, 0);
 
-                // We ignore garbage since there is a timer on this whole thing.
-                let answer = match Message::from_octets(buf.freeze()) {
-                    Ok(answer) => answer,
-                    Err(_) => continue,
-                };
-                if !answer.is_answer(&msg) {
-                    continue;
-                }
-                return Ok(answer);
+            // We ignore garbage since there is a timer on this whole thing.
+            let answer = match Message::from_octets(buf.freeze()) {
+                Ok(answer) => answer,
+                Err(_) => continue,
+            };
+            if !answer.is_answer(&msg) {
+                continue;
             }
-        })
-        .await?
+            return Ok(answer);
+        }
     }
 }
