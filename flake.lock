@@ -15,40 +15,7 @@
         "type": "github"
       }
     },
-    "naersk": {
-      "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1623558292,
-        "narHash": "sha256-YjyRflpvKzstN9Yy5pVOmreckcL1Fu6TGe8Tf8y9fm4=",
-        "owner": "yusdacra",
-        "repo": "naersk",
-        "rev": "f411315a2954bd60bdcba2bc0cff7f4b0012a12a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "yusdacra",
-        "ref": "feat/cargolock-git-deps",
-        "repo": "naersk",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
-      "locked": {
-        "lastModified": 1627636663,
-        "narHash": "sha256-sUyyLVJMBn3LWkC1A60fldK0qIUC0hFmr4Qa3zuQo/8=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "bed52081e58807a23fcb2df38a3f865a2f37834e",
-        "type": "github"
-      },
-      "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
-      }
-    },
-    "nixpkgs_2": {
       "locked": {
         "lastModified": 1627391865,
         "narHash": "sha256-tPoWBO9Nzu3wuX37WcnctzL6LoDCErJLnfLGqqmXCm4=",
@@ -64,7 +31,7 @@
         "type": "github"
       }
     },
-    "nixpkgs_3": {
+    "nixpkgs_2": {
       "locked": {
         "lastModified": 1617325113,
         "narHash": "sha256-GksR0nvGxfZ79T91UUtWjjccxazv6Yh/MvEJ82v1Xmw=",
@@ -81,8 +48,7 @@
     },
     "root": {
       "inputs": {
-        "naersk": "naersk",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
         "utils": "utils"
       }
@@ -90,7 +56,7 @@
     "rust-overlay": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_2"
       },
       "locked": {
         "lastModified": 1627611520,

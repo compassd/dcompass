@@ -5,12 +5,16 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     utils.url = "github:numtide/flake-utils";
-    naersk.url = "github:yusdacra/naersk/feat/cargolock-git-deps";
   };
 
-  outputs = { nixpkgs, rust-overlay, utils, naersk, ... }:
+  outputs = { nixpkgs, rust-overlay, utils, ... }:
     with nixpkgs.lib;
     let
+      pkgsWithRust = system:
+        import nixpkgs {
+          system = "${system}";
+          overlays = [ rust-overlay.overlay ];
+        };
       features = [ "geoip-maxmind" "geoip-cn" ];
       forEachFeature = f:
         builtins.listToAttrs (map (v:
@@ -18,21 +22,16 @@
           (f v)) features);
       pkgSet = system:
         forEachFeature (v:
-          naersk.lib."${system}".buildPackage {
+          with (pkgsWithRust system);
+          (makeRustPlatform {
+            cargo = rust-bin.stable.latest.default;
+            rustc = rust-bin.stable.latest.default;
+          }).buildRustPackage {
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
-            root = ./.;
-            passthru.exePath = "/bin/dcompass";
-            # nativeBuildInputs = with import nixpkgs { system = "${system}"; }; [
-            #   # required for vendoring
-            #   gnumake
-            #   perl
-            # ];
-            cargoBuildOptions = default:
-              (default ++ [
-                "--manifest-path ./dcompass/Cargo.toml"
-                ''--features "${v}"''
-              ]);
+            src = lib.cleanSource ./.;
+            cargoLock = { lockFile = ./Cargo.lock; };
+            cargoBuildFlags = [ "--features ${v}" ];
           });
     in utils.lib.eachSystem (utils.lib.defaultSystems) (system: rec {
       # `nix build`
@@ -40,10 +39,7 @@
         # We have to do it like `nix develop .#commit` because libraries don't play well with `makeBinPath` or `makeLibraryPath`.
         commit = (import ./commit.nix {
           lib = utils.lib;
-          pkgs = import nixpkgs {
-            system = "${system}";
-            overlays = [ rust-overlay.overlay ];
-          };
+          pkgs = (pkgsWithRust system);
         });
       };
 
@@ -73,10 +69,7 @@
       defaultApp = apps.dcompass-maxmind;
 
       # `nix develop`
-      devShell = with import nixpkgs {
-        system = "${system}";
-        overlays = [ rust-overlay.overlay ];
-      };
+      devShell = with (pkgsWithRust system);
         mkShell {
           nativeBuildInputs = [
             # write rustfmt first to ensure we are using nightly rustfmt
