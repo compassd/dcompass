@@ -28,7 +28,7 @@ use reqwest::{StatusCode, Url};
 use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
 
-const MAX_ERROR_TOLERANCE: u8 = 5;
+const MAX_ERROR_TOLERANCE: u8 = 2;
 
 // The connection initiator, like Udp, Https. It is similar to ManageConnection.
 // The primary reason for its existence is that we want to reduce the boilderplate on implementing ManageConnection
@@ -59,6 +59,7 @@ impl<T: ConnInitiator> ManageConnection for ConnInitWrapper<T> {
         conn: &mut bb8::PooledConnection<'_, Self>,
     ) -> std::result::Result<(), Self::Error> {
         if conn.1 > MAX_ERROR_TOLERANCE {
+            log::warn!("the number of error(s) encountered exceeded the threshold");
             Err(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "the number of error(s) encountered exceeded the threshold",
