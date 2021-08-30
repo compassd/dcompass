@@ -50,7 +50,9 @@ fn create_client_config(sni: &bool) -> ClientConfig {
 /// Client instance for UDP connections
 #[derive(Clone)]
 pub struct Https {
-    client: Client,
+    addr: IpAddr,
+    proxy: Option<Proxy>,
+    sni: bool,
     uri: Url,
 }
 
@@ -60,30 +62,18 @@ impl Https {
     /// Create a new HTTPS client creator instance. with the given remote server address.
     pub async fn new(uri: String, addr: IpAddr, proxy: Option<String>, sni: bool) -> Result<Self> {
         let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
-        let domain = uri
+        let _ = uri
             .domain()
             .ok_or_else(|| QHandleError::InvalidDomain(uri.clone()))?;
 
-        let client = Client::builder()
-            // The port in socket addr doesn't take effect here per documentation
-            .resolve(domain, SocketAddr::new(addr, 0))
-            .use_preconfigured_tls(if sni {
-                CLIENT_CFG.clone()
-            } else {
-                NO_SNI_CLIENT_CFG.clone()
-            })
-            .https_only(true)
-            .user_agent(APP_USER_AGENT)
-            .connect_timeout(Duration::from_secs(3))
-            .pool_max_idle_per_host(32);
-
-        let client = if let Some(proxy) = proxy {
-            client.proxy(Proxy::all(proxy)?)
-        } else {
-            client
-        };
         Ok(Self {
-            client: client.build()?,
+            addr,
+            proxy: if let Some(proxy) = proxy {
+                Some(Proxy::all(proxy)?)
+            } else {
+                None
+            },
+            sni,
             uri,
         })
     }
@@ -94,9 +84,39 @@ impl ConnInitiator for Https {
     type Connection = PostClient;
 
     async fn create(&self) -> std::io::Result<Self::Connection> {
-        // Client uses Arc internally, so ultimately we are getting back to the same client pool.
-        // It also follows the advise of reusing the client.
-        Ok(PostClient(self.client.clone(), self.uri.clone()))
+        // We cannot reuse the client because if the network changes, client pool inside each client remains the same, and cloning them inevitably leads to no reconnection but using stale connections.
+        // We cannot store ClientBuilder because it is not Clone.
+
+        // This has already been checked and it is safe to unwrap
+        let domain = self.uri.domain().unwrap();
+        let client = Client::builder()
+            // The port in socket addr doesn't take effect here per documentation
+            .resolve(domain, SocketAddr::new(self.addr, 0))
+            .use_preconfigured_tls(if self.sni {
+                CLIENT_CFG.clone()
+            } else {
+                NO_SNI_CLIENT_CFG.clone()
+            })
+            .https_only(true)
+            .user_agent(APP_USER_AGENT)
+            .connect_timeout(Duration::from_secs(3))
+            .pool_max_idle_per_host(32);
+
+        let client = if let Some(proxy) = self.proxy.clone() {
+            client.proxy(proxy)
+        } else {
+            client
+        };
+
+        Ok(PostClient(
+            client.build().map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "TLS backend failed to initialize",
+                )
+            })?,
+            self.uri.clone(),
+        ))
     }
 
     fn conn_type(&self) -> &'static str {
