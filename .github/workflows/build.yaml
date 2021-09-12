@@ -137,9 +137,17 @@ jobs:
       if: contains(matrix.target, 'mipsel')
       run: sudo apt-get install binutils-mipsel-linux-gnu
 
+    - name: Install mips64el tools
+      if: contains(matrix.target, 'mips64el')
+      run: sudo apt-get install binutils-mips64el-linux-gnuabi64
+
     - name: Install mips tools
       if: contains(matrix.target, 'mips-')
       run: sudo apt-get install binutils-mips-linux-gnu
+
+    - name: Install mips64 tools
+      if: contains(matrix.target, 'mips64-')
+      run: sudo apt-get install binutils-mips64-linux-gnuabi64
 
     - name: Install aarch64 tools
       if: contains(matrix.target, 'aarch64')
@@ -216,12 +224,26 @@ jobs:
         mipsel-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
         mipsel-linux-gnu-strip ./dcompass-${{ matrix.target }}
 
+    - name: Strip mips64el
+      if: contains(matrix.target, 'mips64el')
+      shell: bash
+      run: |
+        mips64el-linux-gnuabi64-strip ./dcompass-${{ matrix.target }}-full
+        mips64el-linux-gnuabi64-strip ./dcompass-${{ matrix.target }}
+
     - name: Strip mips
       if: contains(matrix.target, 'mips-')
       shell: bash
       run: |
         mips-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
         mips-linux-gnu-strip ./dcompass-${{ matrix.target }}
+
+    - name: Strip mips64
+      if: contains(matrix.target, 'mips64-')
+      shell: bash
+      run: |
+        mips64-linux-gnuabi64-strip ./dcompass-${{ matrix.target }}-full
+        mips64-linux-gnuabi64-strip ./dcompass-${{ matrix.target }}
 
     - name: Strip i686
       if: contains(matrix.target, 'i686')
