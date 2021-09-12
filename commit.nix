@@ -30,7 +30,7 @@ pkgs.mkShell {
     find . -path ./target -prune -false -o -type f -name '*.nix' -exec nixfmt {} +
     cargo update
     cargo fmt -- --check
-    cargo build --all-features
+    cargo build
     cargo test
     cargo clippy
     cargo bench --no-run

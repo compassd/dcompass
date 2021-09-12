@@ -10,10 +10,9 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-doh = ["reqwest", "rustls", "webpki-roots"]
+doh-rustls = ["reqwest", "reqwest/rustls-tls", "rustls", "webpki-roots"]
+doh-native-tls = ["reqwest", "reqwest/native-tls-vendored", "native-tls"]
 geoip = ["maxminddb"]
-# enable all transports and geoip options
-full = ["doh", "geoip"]
 
 [dependencies]
 # DNS-implementation related dependencies
@@ -24,7 +23,10 @@ bytes = "^1"
 maxminddb = { version = "^0.17", optional = true }
 
 # doh
-reqwest = { version = "0.11", features = ["rustls-tls", "socks"], default-features = false, optional = true}
+reqwest = { version = "0.11", features = ["socks"], default-features = false, optional = true}
+# doh-native-tls
+native-tls = { version = "0.2", optional = true}
+# doh-rustls
 rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
 webpki-roots = { version = "^0.21", optional = true }
 
@@ -58,3 +60,7 @@ harness = false
 [package.metadata.cargo-all-features]
 # If your crate has a large number of optional dependencies, skip them for speed
 skip_optional_dependencies = true
+
+skip_feature_sets = [
+    ["doh-rustls", "doh-native-tls"],
+]

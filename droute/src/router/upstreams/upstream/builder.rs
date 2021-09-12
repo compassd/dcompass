@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use super::qhandle::https::Https;
 use super::{
     qhandle::{udp::Udp, ConnPool, Result},
@@ -22,7 +22,7 @@ use super::{
 use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
@@ -64,7 +64,7 @@ impl AsyncTryInto<Upstream> for HybridBuilder {
 }
 
 /// A builder for DNS over HTTPS upstream
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct HttpsBuilder {
@@ -82,7 +82,7 @@ pub struct HttpsBuilder {
     pub sni: bool,
 }
 
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 #[async_trait]
 impl AsyncTryInto<Upstream> for HttpsBuilder {
     type Error = QHandleError;
@@ -132,7 +132,7 @@ pub enum UpstreamBuilder {
     Hybrid(HybridBuilder),
     /// UDP connection.
     Udp(UdpBuilder),
-    #[cfg(feature = "doh")]
+    #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     /// HTTPS connection.
     Https(HttpsBuilder),
 }
@@ -147,7 +147,7 @@ impl AsyncTryInto<Upstream> for UpstreamBuilder {
             // UDP Upstream
             Self::Udp(u) => u.try_into().await?,
 
-            #[cfg(feature = "doh")]
+            #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
             Self::Https(h) => h.try_into().await?,
         })
     }

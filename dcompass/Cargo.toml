@@ -15,7 +15,7 @@ geoip-maxmind = []
 async-trait = "^0.1"
 domain = {version = "^0.6", features = ["bytes"]}
 futures = "^0.3"
-tokio = { version = "^1.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal"]}
+tokio = { version = "^1.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync"]}
 simple_logger = "^1.11"
 log = "^0.4"
 anyhow = "^1.0"
@@ -25,14 +25,15 @@ dmatcher = {version = "^0.1", path = "../dmatcher"}
 structopt = "^0.3"
 bytes = "^1"
 
-[target.'cfg(not(target_arch = "mips"))'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["full"]}
+# Use rustls on other platforms
+[target.'cfg(not(any(target_arch = "mips", target_arch = "mips64")))'.dependencies]
+droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-rustls"]}
 
-# Disable DoH on MIPS
-[target.'cfg(target_arch = "mips")'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip"]}
+# Use native tls on MIPS
+[target.'cfg(any(target_arch = "mips", target_arch = "mips64"))'.dependencies]
+droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-native-tls"]}
 
-# Disable ratelimit on 32-bit platform
+# Disable ratelimit on 32-bit platforms
 # Related issue: https://github.com/metrics-rs/quanta/pull/55
 [target.'cfg(target_pointer_width = "64")'.dependencies]
 # governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}

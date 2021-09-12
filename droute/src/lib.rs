@@ -30,6 +30,9 @@ pub mod error;
 pub mod mock;
 mod router;
 
+#[cfg(all(feature = "doh-native-tls", feature = "doh-rustls"))]
+compile_error!("You should only choose one TLS backend for DNS over HTTPS implementation");
+
 use async_trait::async_trait;
 
 /// All the builders

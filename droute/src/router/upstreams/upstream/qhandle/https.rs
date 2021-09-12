@@ -13,39 +13,59 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(feature = "doh-rustls")]
+mod rustls_cfgs {
+    use once_cell::sync::Lazy;
+    use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
+    use std::sync::Arc;
+
+    pub static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
+    pub static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
+
+    const ALPN_H2: &[u8] = b"h2";
+
+    fn create_client_config(sni: &bool) -> ClientConfig {
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+        let versions = vec![ProtocolVersion::TLSv1_3];
+
+        let mut client_config = ClientConfig::new();
+        client_config.root_store = root_store;
+        client_config.versions = versions;
+        client_config.alpn_protocols.push(ALPN_H2.to_vec());
+        client_config.key_log = Arc::new(KeyLogFile::new());
+        client_config.enable_sni = *sni; // Disable SNI on need.
+
+        client_config
+    }
+}
+
+#[cfg(feature = "doh-native-tls")]
+mod native_tls_cfgs {
+    use native_tls::TlsConnector;
+    use once_cell::sync::Lazy;
+
+    pub static NO_SNI_CLIENT_CFG: Lazy<TlsConnector> =
+        Lazy::new(|| TlsConnector::builder().use_sni(false).build().unwrap());
+    pub static CLIENT_CFG: Lazy<TlsConnector> = Lazy::new(|| TlsConnector::new().unwrap());
+}
+
+#[cfg(feature = "doh-rustls")]
+use rustls_cfgs::{CLIENT_CFG, NO_SNI_CLIENT_CFG};
+
+#[cfg(feature = "doh-native-tls")]
+use native_tls_cfgs::{CLIENT_CFG, NO_SNI_CLIENT_CFG};
+
 use super::{ConnInitiator, QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
-use once_cell::sync::Lazy;
 use reqwest::{Client, Proxy, Url};
-use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
 use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
-    sync::Arc,
     time::Duration,
 };
-
-static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
-static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
-
-const ALPN_H2: &[u8] = b"h2";
-
-fn create_client_config(sni: &bool) -> ClientConfig {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-    let versions = vec![ProtocolVersion::TLSv1_3];
-
-    let mut client_config = ClientConfig::new();
-    client_config.root_store = root_store;
-    client_config.versions = versions;
-    client_config.alpn_protocols.push(ALPN_H2.to_vec());
-    client_config.key_log = Arc::new(KeyLogFile::new());
-    client_config.enable_sni = *sni; // Disable SNI on need.
-
-    client_config
-}
 
 /// Client instance for UDP connections
 #[derive(Clone)]

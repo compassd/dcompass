@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 pub mod https;
 pub mod udp;
 
@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use bb8::{ManageConnection, Pool, RunError};
 use bytes::Bytes;
 use domain::base::Message;
-#[cfg(feature = "doh")]
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use reqwest::{StatusCode, Url};
 use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
@@ -97,19 +97,19 @@ pub enum QHandleError {
     #[error(transparent)]
     RunError(#[from] RunError<std::io::Error>),
 
-    #[cfg(feature = "doh")]
+    #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
 
-    #[cfg(feature = "doh")]
+    #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error("the URL '{0}' is invalid")]
     InvalidUri(String),
 
-    #[cfg(feature = "doh")]
+    #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error("the URL '{0}' doesn't contain a valid domain")]
     InvalidDomain(Url),
 
-    #[cfg(feature = "doh")]
+    #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error("unsuccessful HTTP code: {0}")]
     FailedHttp(StatusCode),
 

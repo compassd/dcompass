@@ -11,9 +11,11 @@
     },
     "upstreams": {
         "cloudflare": {
-            "udp": {
+            "https": {
                 "timeout": 4,
-                "addr": "1.0.0.1:53"
+                "uri": "https://cloudflare-dns.com/dns-query",
+                "addr": "1.0.0.1",
+                "sni": false
             }
         }
     }
