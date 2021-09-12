@@ -35,11 +35,11 @@ pub async fn worker(
         )
         .await
         .unwrap_or_else(|e| {
-            warn!("Failed to send back response: {}", e);
+            warn!("failed to send back response: {}", e);
             0
         });
 
-    info!("Response completed. Sent back to {} successfully.", src);
+    info!("response completed. Sent back to {} successfully.", src);
 
     Ok(())
 }

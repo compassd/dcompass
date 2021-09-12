@@ -49,7 +49,7 @@ impl Matcher for GeoIp {
             r.country
                 .and_then(|c| {
                     c.iso_code.map(|n| {
-                        info!("The IP `{}` has ISO country code `{}`", ip, n);
+                        info!("IP `{}` has ISO country code `{}`", ip, n);
                         self.list.contains(n)
                     })
                 })

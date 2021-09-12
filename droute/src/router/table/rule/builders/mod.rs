@@ -19,7 +19,7 @@ pub use self::ifblock::IfBlockBuilder;
 
 use super::{
     actions::{Action, Result as ActionResult},
-    IfBlock, Result,
+    IfBlock, Result, SeqBlock,
 };
 use crate::{
     actions::ActionError,
@@ -174,6 +174,9 @@ where
 {
     /// If syntax rule
     IfBlock(IfBlockBuilder<M, A>),
+
+    /// Sequence of actions
+    SeqBlock(BranchBuilder<A>),
 }
 
 #[async_trait]
@@ -187,6 +190,7 @@ where
     async fn try_into(self) -> Result<Box<dyn Rule>> {
         Ok(match self {
             Self::IfBlock(i) => Box::new(i.try_into().await?),
+            Self::SeqBlock(s) => Box::new(SeqBlock::new(s.try_into().await?)),
         })
     }
 }

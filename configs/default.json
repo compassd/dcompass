@@ -2,23 +2,18 @@
     "verbosity": "info",
     "address": "0.0.0.0:2053",
     "table": {
-        "start": {
-            "if": "any",
-            "then": [
-                {
-                    "query": "cloudflare"
-                },
-                "end"
-            ]
-        }
+        "start": [
+            {
+                "query": "cloudflare"
+            },
+            "end"
+        ]
     },
     "upstreams": {
         "cloudflare": {
-            "https": {
+            "udp": {
                 "timeout": 4,
-                "uri": "https://cloudflare-dns.com/dns-query",
-                "addr": "1.0.0.1",
-		"sni": false
+                "addr": "1.0.0.1:53"
             }
         }
     }

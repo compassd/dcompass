@@ -149,7 +149,7 @@ impl RespCache {
                 CacheRecord::new(msg),
             );
         } else {
-            info!("Response errored, not caching erroneous upstream response.");
+            info!("response errored, not caching erroneous upstream response.");
         };
     }
 
@@ -165,7 +165,7 @@ impl RespCache {
                 // Get record only once.
                 let resp = r.get();
                 if r.validate() {
-                    info!("Cache hit for {}", qname);
+                    info!("cache hit for {}", qname);
                     Some(Alive(resp))
                 } else {
                     info!("TTL passed for {}, returning expired record.", qname);

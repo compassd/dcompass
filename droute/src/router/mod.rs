@@ -65,7 +65,7 @@ impl Router {
                     Ok(m) => m,
                     Err(e) => {
                         // Catch all server failure here and return server fail
-                        warn!("Upstream encountered error: {}, returning SERVFAIL", e);
+                        warn!("upstream encountered error: {}, returning SERVFAIL", e);
                         MessageBuilder::from_target(BytesMut::with_capacity(MAX_LEN))?
                             .start_answer(&msg, Rcode::ServFail)?
                             .into_message()

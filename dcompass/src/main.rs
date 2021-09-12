@@ -33,11 +33,8 @@ use droute::{
     error::DrouteError,
     AsyncTryInto, Router,
 };
-use governor::{
-    clock::DefaultClock,
-    state::{direct::NotKeyed, InMemoryState},
-    Quota, RateLimiter,
-};
+#[cfg(target_pointer_width = "64")]
+use governor::{Quota, RateLimiter};
 use log::*;
 use simple_logger::SimpleLogger;
 use std::{
@@ -86,9 +83,11 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, NonZeroU
 async fn serve(
     socket: Arc<UdpSocket>,
     router: Arc<Router>,
-    ratelimit: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+    _ratelimit: NonZeroU32,
     tx: &Sender<()>,
 ) {
+    #[cfg(target_pointer_width = "64")]
+    let ratelimit = RateLimiter::direct(Quota::per_second(_ratelimit));
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = BytesMut::with_capacity(1024);
@@ -97,7 +96,7 @@ async fn serve(
         let (len, src) = match socket.recv_from(&mut buf).await {
             Ok(r) => r,
             Err(e) => {
-                warn!("Failed to receive query: {}", e);
+                warn!("failed to receive query: {}", e);
                 continue;
             }
         };
@@ -112,17 +111,18 @@ async fn serve(
                 res = worker(router, socket, buf.freeze(), src) => {
                     match res {
                         Ok(_) => (),
-                        Err(e) => warn!("Handling query failed: {}", e),
+                        Err(e) => warn!("handling query failed: {}", e),
                     }
                 }
                 _ = shutdown.recv() => {
                     // If a shutdown signal is received, return from the spawned task.
                     // This will result in the task terminating.
-                    log::warn!("Worker shut down");
+                    log::warn!("worker shut down");
                 }
             }
         });
 
+        #[cfg(target_pointer_width = "64")]
         ratelimit.until_ready().await;
     }
 }
@@ -191,16 +191,14 @@ async fn main() -> Result<()> {
         .with_level(verbosity)
         .init()?;
 
-    let ratelimit = RateLimiter::direct(Quota::per_second(ratelimit));
-
-    info!("Dcompass ready!");
+    info!("dcompass ready!");
 
     let router = Arc::new(router);
     // Bind an UDP socket
     let socket = Arc::new(
         UdpSocket::bind(addr)
             .await
-            .with_context(|| format!("Failed to bind to {}", addr))?,
+            .with_context(|| format!("failed to bind to {}", addr))?,
     );
 
     // Create a shutdown broadcast channel
@@ -216,11 +214,11 @@ async fn main() -> Result<()> {
             // Error implies that there is no receiver/active worker, we are done
             if tx.send(()).is_ok() {
                 while tx.receiver_count() != 0 {
-                    log::warn!("Waiting 5 seconds for workers to exit...");
+                    log::warn!("waiting 5 seconds for workers to exit...");
                     sleep(Duration::from_secs(5)).await
                 }
             }
-            log::warn!("Gracefully shut down!");
+            log::warn!("gracefully shut down!");
         }
     };
     Ok(())

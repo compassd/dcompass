@@ -185,7 +185,7 @@ impl Table {
                 .route(tag, &mut s, upstreams, &name)
                 .await?;
         }
-        info!("Domain \"{}\" has finished routing", name);
+        info!("domain \"{}\" has finished routing", name);
 
         // Reset the header to make sure it is answering the query
         let mut msg = Message::from_octets(BytesMut::from(s.resp.as_slice()))?;

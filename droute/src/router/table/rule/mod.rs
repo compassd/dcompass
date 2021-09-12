@@ -51,6 +51,50 @@ pub trait Rule: Send + Sync {
     fn used_upstreams(&self) -> Vec<Label>;
 }
 
+/// Sequence
+pub struct SeqBlock {
+    // In the form of (Action, Next)
+    acts: (Vec<Box<dyn Action>>, Label),
+}
+
+impl SeqBlock {
+    pub fn new(acts: (Vec<Box<dyn Action>>, Label)) -> Self {
+        Self { acts }
+    }
+}
+
+#[async_trait]
+impl Rule for SeqBlock {
+    async fn route(
+        &self,
+        tag: &str,
+        state: &mut State,
+        upstreams: &Upstreams,
+        name: &Dname<Bytes>,
+    ) -> Result<&Label> {
+        info!("rule `{}` starts with domain \"{}\"", tag, name);
+        for action in &self.acts.0 {
+            action.act(state, upstreams).await?;
+        }
+        info!("rule `{}` ends with domain \"{}\"", tag, name);
+        Ok(&self.acts.1)
+    }
+
+    fn dsts(&self) -> Vec<Label> {
+        vec![self.acts.1.clone()]
+    }
+
+    fn used_upstreams(&self) -> Vec<Label> {
+        let mut h = Vec::new();
+        self.acts.0.iter().for_each(|a| {
+            if let Some(l) = a.used_upstream() {
+                h.push(l);
+            }
+        });
+        h
+    }
+}
+
 /// If-like control flow rule
 pub struct IfBlock {
     matcher: Box<dyn Matcher>,
@@ -100,7 +144,7 @@ impl Rule for IfBlock {
         name: &Dname<Bytes>,
     ) -> Result<&Label> {
         if self.matcher.matches(state) {
-            info!("Domain \"{}\" matches at rule `{}`", name, tag);
+            info!("domain \"{}\" matches at rule `{}`", name, tag);
             for action in &self.on_match.0 {
                 action.act(state, upstreams).await?;
             }
@@ -130,12 +174,41 @@ mod tests {
     use crate::{builders::*, AsyncTryInto};
 
     #[tokio::test]
-    async fn rule_logic() {
+    async fn ifblock() {
         let rule = RuleBuilders::IfBlock(IfBlockBuilder {
             matcher: BuiltinMatcherBuilders::Any,
             on_match: BranchBuilder::<BuiltinActionBuilders>::new("yes"),
             no_match: BranchBuilder::<BuiltinActionBuilders>::new("no"),
         })
+        .try_into()
+        .await
+        .unwrap();
+        assert_eq!(
+            rule.route(
+                "mock", // This doesn't matter
+                &mut State {
+                    resp: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
+                    query: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
+                },
+                &Upstreams::new(
+                    vec![].into_iter().collect(),
+                    std::num::NonZeroUsize::new(1).unwrap()
+                )
+                .unwrap(),
+                &Dname::root_bytes()
+            )
+            .await
+            .unwrap()
+            .as_ref(),
+            "yes"
+        );
+    }
+
+    #[tokio::test]
+    async fn seq() {
+        let rule = RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::<
+            BuiltinActionBuilders,
+        >::new("yes"))
         .try_into()
         .await
         .unwrap();
