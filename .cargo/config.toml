@@ -1,0 +1,4 @@
+# Rustc is now going to NOT statically link musl on default.
+# See also: https://github.com/rust-lang/compiler-team/issues/422#issuecomment-816579989
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-self-contained=yes"]
