@@ -69,11 +69,13 @@ jobs:
       fail-fast: false
       matrix:
         # armv5te-unknown-linux-musleabi being temporarily removed due to https://github.com/antifuchs/governor/issues/89
-        target: [x86_64-unknown-linux-musl, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-gnuabi64, mips64el-unknown-linux-gnuabi64, mipsel-unknown-linux-musl]
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-gnuabi64, mips64el-unknown-linux-gnuabi64, mipsel-unknown-linux-musl]
         include:
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
           - target: i686-unknown-linux-musl
             os: ubuntu-latest
@@ -259,17 +261,17 @@ jobs:
         aarch64-linux-gnu-strip ./dcompass-${{ matrix.target }}-full
         aarch64-linux-gnu-strip ./dcompass-${{ matrix.target }}
 
-    - name: Package
-      shell: bash
-      run: |
-        if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
-        then
-          upx ./dcompass-${{ matrix.target }}-full.exe || true
-          upx ./dcompass-${{ matrix.target }}.exe || true
-        else
-          upx ./dcompass-${{ matrix.target }}-full || true
-          upx ./dcompass-${{ matrix.target }} || true
-        fi
+    # - name: Package
+    #   shell: bash
+    #   run: |
+    #     if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]
+    #     then
+    #       upx ./dcompass-${{ matrix.target }}-full.exe || true
+    #       upx ./dcompass-${{ matrix.target }}.exe || true
+    #     else
+    #       upx ./dcompass-${{ matrix.target }}-full || true
+    #       upx ./dcompass-${{ matrix.target }} || true
+    #     fi
 
     - name: Echo body
       if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
