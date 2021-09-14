@@ -2,15 +2,12 @@
     "verbosity": "off",
     "address": "0.0.0.0:2053",
     "table": {
-        "start": {
-            "if": "any",
-            "then": [
-                {
-                    "query": "secure"
-                },
-                "end"
-            ]
-        }
+        "start": [
+            {
+                "query": "secure"
+            },
+            "end"
+        ]
     },
     "upstreams": {
         "114": {

@@ -176,7 +176,7 @@ mod tests {
     #[tokio::test]
     async fn ifblock() {
         let rule = RuleBuilders::IfBlock(IfBlockBuilder {
-            matcher: BuiltinMatcherBuilders::Any,
+            matcher: BuiltinMatcherBuilders::Always,
             on_match: BranchBuilder::<BuiltinActionBuilders>::new("yes"),
             no_match: BranchBuilder::<BuiltinActionBuilders>::new("no"),
         })

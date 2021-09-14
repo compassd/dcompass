@@ -71,6 +71,17 @@ pub struct State {
     query: Message<Bytes>,
 }
 
+// It is strongly discouraged and meaningless to have such default other than for convenience in test
+#[cfg(test)]
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            resp: Message::from_octets(Bytes::from_static(&[0; 1024])).unwrap(),
+            query: Message::from_octets(Bytes::from_static(&[0; 1024])).unwrap(),
+        }
+    }
+}
+
 // Traverse and validate the routing table.
 fn traverse(
     // A bucket to count the time each tag being used.
@@ -248,7 +259,7 @@ mod tests {
             .add_rule(
                 "start",
                 RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
+                    matcher: BuiltinMatcherBuilders::Always,
                     on_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
                     no_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
                 }),
@@ -256,7 +267,7 @@ mod tests {
             .add_rule(
                 "foo",
                 RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
+                    matcher: BuiltinMatcherBuilders::Always,
                     on_match: BranchBuilder::<BuiltinActionBuilders>::default(),
                     no_match: BranchBuilder::<BuiltinActionBuilders>::default(),
                 }),
@@ -272,11 +283,9 @@ mod tests {
         match TableBuilder::new()
             .add_rule(
                 "start",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
-                    on_match: BranchBuilder::<BuiltinActionBuilders>::default(),
-                    no_match: BranchBuilder::<BuiltinActionBuilders>::new("start"),
-                }),
+                RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::<
+                    BuiltinActionBuilders,
+                >::new("start")),
             )
             .try_into()
             .await
@@ -294,29 +303,19 @@ mod tests {
         match TableBuilder::new()
             .add_rule(
                 "start",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
-                    on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(
+                    BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                         QueryBuilder::new("mock", CacheMode::default()),
                     )),
-                    no_match: BranchBuilder::default(),
-                }),
+                ),
             )
             .add_rule(
                 "mock",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
-                    on_match: BranchBuilder::default(),
-                    no_match: BranchBuilder::default(),
-                }),
+                RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::default()),
             )
             .add_rule(
                 "unused",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Any,
-                    on_match: BranchBuilder::default(),
-                    no_match: BranchBuilder::default(),
-                }),
+                RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::default()),
             )
             .try_into()
             .await

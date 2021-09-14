@@ -3,13 +3,8 @@ verbosity: "off"
 address: 0.0.0.0:2053
 table:
   start:
-    if: any
-    then:
-      - query: domestic
-      - end
-    else:
-      - query: secure
-      - end
+    - query: domestic
+    - end
 upstreams:
   domestic:
     udp:
@@ -19,8 +14,3 @@ upstreams:
     udp:
       addr: 114.114.114.114:53
       timeout: 1
-  secure:
-    https:
-      timeout: 2
-      uri: https://dns.quad9.net/dns-query
-      addr: 9.9.9.9

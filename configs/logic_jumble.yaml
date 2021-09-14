@@ -1,0 +1,31 @@
+---
+verbosity: "info"
+address: 0.0.0.0:2053
+table:
+  start:
+    if:
+      all:
+        - qtype:
+            - AAAA
+        # This goes to true
+        - not:
+            not:
+              always
+        # This goes to true as well
+        - any:
+            - not:
+                always
+            - always
+    then:
+      # A list of actions is allowed here
+      - blackhole
+      # The next tag to go
+      - end
+    else:
+      - query: Ali
+      - end
+
+upstreams:
+  Ali:
+    udp:
+      addr: 223.6.6.6:53

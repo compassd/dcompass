@@ -53,9 +53,8 @@ async fn create_router(c: usize) -> Router {
     RouterBuilder::new(
         TableBuilder::new().add_rule(
             "start",
-            RuleBuilders::IfBlock(IfBlockBuilder {
-                matcher: BuiltinMatcherBuilders::Any,
-                on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+            RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(
+                BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                     QueryBuilder::new(
                         "mock",
                         if c != 1 {
@@ -65,8 +64,7 @@ async fn create_router(c: usize) -> Router {
                         },
                     ),
                 )),
-                no_match: BranchBuilder::default(),
-            }),
+            ),
         ),
         UpstreamsBuilder::new(c).unwrap().add_upstream(
             "mock",

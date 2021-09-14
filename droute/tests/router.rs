@@ -57,13 +57,11 @@ async fn test_resolve() {
     let router = RouterBuilder::new(
         TableBuilder::new().add_rule(
             "start",
-            RuleBuilders::IfBlock(IfBlockBuilder {
-                matcher: BuiltinMatcherBuilders::Any,
-                on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+            RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(
+                BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                     QueryBuilder::new("mock", CacheMode::default()),
                 )),
-                no_match: BranchBuilder::default(),
-            }),
+            ),
         ),
         UpstreamsBuilder::new(1).unwrap().add_upstream(
             "mock",

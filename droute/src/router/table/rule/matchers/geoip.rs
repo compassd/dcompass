@@ -71,6 +71,7 @@ pub struct GeoIpBuilder {
 }
 
 impl GeoIpBuilder {
+    /// Create a GeoIpBuilder from the path given
     pub async fn from_path(path: impl AsRef<str>) -> Result<Self> {
         // Per std documentation, this is infallible
         let buf: Vec<u8> = tokio::fs::read(PathBuf::from_str(path.as_ref()).unwrap()).await?;
@@ -80,6 +81,7 @@ impl GeoIpBuilder {
         })
     }
 
+    /// Create a GeoIpBuilder from the buffer
     pub fn from_buf(buf: Vec<u8>) -> Self {
         Self {
             codes: HashSet::new(),
@@ -87,6 +89,7 @@ impl GeoIpBuilder {
         }
     }
 
+    /// Add a country code for the matcher to match.
     pub fn add_code(mut self, code: impl ToString) -> Self {
         self.codes.insert(code.to_string());
         self

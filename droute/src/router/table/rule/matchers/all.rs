@@ -1,4 +1,4 @@
-// Copyright 2020 LEXUGE
+// Copyright 2021 LEXUGE
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,33 +18,33 @@ use crate::AsyncTryInto;
 use async_trait::async_trait;
 use serde::Deserialize;
 
-/// A matcher that matches if any sub matchers match.
-pub struct Any(Vec<Box<dyn Matcher>>);
+/// A matcher that matches if all sub matchers match.
+pub struct All(Vec<Box<dyn Matcher>>);
 
-impl Any {
-    /// Create a new any matcher
+impl All {
+    /// Create a new All matcher
     pub fn new(v: Vec<Box<dyn Matcher>>) -> Self {
         Self(v)
     }
 }
 
-impl Matcher for Any {
+impl Matcher for All {
     fn matches(&self, s: &State) -> bool {
-        self.0.iter().map(|x| x.matches(s)).any(|x| x)
+        self.0.iter().map(|x| x.matches(s)).all(|x| x)
     }
 }
 
 /// A builder for any matcher
 #[derive(Deserialize, Clone)]
-pub struct AnyBuilder<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>>(Vec<M>);
+pub struct AllBuilder<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>>(Vec<M>);
 
-impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> Default for AnyBuilder<M> {
+impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> Default for AllBuilder<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> AnyBuilder<M> {
+impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> AllBuilder<M> {
     /// Create a new any builder
     pub fn new() -> Self {
         Self(Vec::new())
@@ -58,15 +58,15 @@ impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> AnyBuilder<M> {
 }
 
 #[async_trait]
-impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> AsyncTryInto<Any> for AnyBuilder<M> {
+impl<M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>> AsyncTryInto<All> for AllBuilder<M> {
     type Error = MatchError;
 
-    async fn try_into(self) -> Result<Any, MatchError> {
+    async fn try_into(self) -> Result<All, MatchError> {
         let mut v = Vec::new();
         for builder in self.0 {
             v.push(builder.try_into().await?);
         }
-        Ok(Any(v))
+        Ok(All(v))
     }
 }
 
@@ -75,15 +75,20 @@ mod tests {
     use crate::matchers::Matcher;
 
     use super::{
-        super::{always::Always, not::Not},
-        Any, State,
+        super::{always::Always, any::Any, not::Not},
+        All, State,
     };
 
     #[test]
     fn basic() {
-        assert!(
-            Any(vec![Box::new(Always), Box::new(Not::new(Box::new(Always)))])
-                .matches(&State::default())
-        )
+        assert!(All(vec![
+            Box::new(Always),
+            Box::new(Not::new(Box::new(Not::new(Box::new(Always))))),
+            Box::new(Any::new(vec![
+                Box::new(Always),
+                Box::new(Not::new(Box::new(Always)))
+            ]))
+        ])
+        .matches(&State::default()))
     }
 }

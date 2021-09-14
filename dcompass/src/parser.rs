@@ -40,8 +40,17 @@ enum LevelFilterDef {
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum MatcherBuilders {
-    /// Matches any query
-    Any,
+    /// Matches always
+    Always,
+
+    /// Matches if any sub matchers match
+    Any(AnyBuilder<Self>),
+
+    /// Matches if all sub matchers match
+    All(AllBuilder<Self>),
+
+    /// Matches if sub-matcher doesn't match
+    Not(NotBuilder<Self>),
 
     /// Matches domains in domain list files specified.
     Domain(DomainBuilder),
@@ -61,7 +70,10 @@ pub enum MatcherBuilders {
 impl AsyncTryInto<Box<dyn Matcher>> for MatcherBuilders {
     async fn try_into(self) -> Result<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Any => Box::new(Any),
+            Self::All(a) => Box::new(a.try_into().await?),
+            Self::Always => Box::new(Always),
+            Self::Any(a) => Box::new(a.try_into().await?),
+            Self::Not(n) => Box::new(n.try_into().await?),
             Self::Domain(v) => Box::new(v.try_into().await?),
             Self::QType(q) => Box::new(q.try_into().await?),
             Self::IpCidr(s) => Box::new(s.try_into().await?),

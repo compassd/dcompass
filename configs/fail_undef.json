@@ -2,15 +2,12 @@
     "verbosity": "info",
     "address": "0.0.0.0:2053",
     "table": {
-        "start": {
-            "if": "any",
-            "then": [
-                {
-                    "query": "undefined"
-                },
-                "end"
-            ]
-        }
+        "start": [
+            {
+                "query": "undefined"
+            },
+            "end"
+        ]
     },
     "upstreams": {
         "domestic": {
