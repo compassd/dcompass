@@ -148,6 +148,69 @@ pub enum Node<P> {
     None(P),
 }
 
+impl Node<Primitive> {
+    pub fn trim(self) -> Self {
+        match self {
+            Node::And(v) => {
+                for x in v {
+                    match x.trim() {
+                        // If there is at least one false, it returns false
+                        Node::None(Primitive::Bool(false)) => {
+                            return Node::None(Primitive::Bool(false));
+                        }
+                        // Do nothing on none, if later we encounter impure components, we would again return ourself. However, if we always do nothing, all primitives are false. In that case, we return true.
+                        Node::None(Primitive::Bool(true)) => {}
+                        // If impure, then return irreducible self
+                        Node::None(Primitive::Matcher(m)) => {
+                            return Node::None(Primitive::Matcher(m))
+                        }
+                        Node::And(v) => return Node::And(v),
+                        Node::Or(v) => return Node::Or(v),
+                        Node::Neg(op) => return Node::Neg(op),
+                    }
+                }
+                Node::None(Primitive::Bool(true))
+            }
+            Node::Or(v) => {
+                for x in v {
+                    match x.trim() {
+                        // If there is at least one true, it returns true
+                        Node::None(Primitive::Bool(true)) => {
+                            return Node::None(Primitive::Bool(true));
+                        }
+                        // Do nothing on none, if later we encounter impure components, we would again return ourself. However, if we always do nothing, all primitives are false. In that case, we return false.
+                        Node::None(Primitive::Bool(false)) => {}
+                        // If impure, then return irreducible self
+                        Node::None(Primitive::Matcher(m)) => {
+                            return Node::None(Primitive::Matcher(m))
+                        }
+                        Node::And(v) => return Node::And(v),
+                        Node::Or(v) => return Node::Or(v),
+                        Node::Neg(op) => return Node::Neg(op),
+                    }
+                }
+                Node::None(Primitive::Bool(false))
+            }
+            Node::Neg(op) => match op.trim() {
+                Node::None(Primitive::Bool(bl)) => Node::None(Primitive::Bool(!bl)),
+                Node::None(Primitive::Matcher(m)) => Node::None(Primitive::Matcher(m)),
+                Node::And(v) => Node::And(v),
+                Node::Or(v) => Node::Or(v),
+                Node::Neg(op) => Node::Neg(op),
+            },
+            Node::None(_) => self,
+        }
+    }
+
+    #[cfg(test)]
+    fn pure_unwrap(&self) -> bool {
+        match self {
+            Node::None(Primitive::Bool(bl)) => *bl,
+            _ => panic!("not a primitive pure node"),
+        }
+    }
+}
+
 impl Matcher for Node<Primitive> {
     fn matches(&self, state: &State) -> bool {
         match self {
@@ -249,25 +312,90 @@ mod tests {
             .matches(&State::default()),
             true
         );
+    }
+
+    #[tokio::test]
+    async fn trim() {
+        assert_eq!(
+            ExprParser
+                .build_node::<BuiltinMatcherBuilders>(
+                    r#"(true && false || true && true || true && false)"#
+                )
+                .unwrap()
+                .try_into()
+                .await
+                .unwrap()
+                .trim()
+                .matches(&State::default()),
+            ExprParser
+                .build_node::<BuiltinMatcherBuilders>(
+                    r#"(true && false || true && true || true && false)"#
+                )
+                .unwrap()
+                .try_into()
+                .await
+                .unwrap()
+                .matches(&State::default()),
+        );
 
         assert_eq!(
             ExprParser
-                .build_node::<DummyMatcher>(r#"(true && false || true && (true || true) && false)"#)
-                .unwrap(),
-            Node::Or(vec![
-                Node::And(vec![
-                    Node::None(BuilderPrimitive::Bool(true)),
-                    Node::None(BuilderPrimitive::Bool(false))
-                ]),
-                Node::And(vec![
-                    Node::None(BuilderPrimitive::Bool(true)),
-                    Node::Or(vec![
-                        Node::None(BuilderPrimitive::Bool(true)),
-                        Node::None(BuilderPrimitive::Bool(true))
-                    ]),
-                    Node::None(BuilderPrimitive::Bool(false)),
-                ]),
+                .build_node::<BuiltinMatcherBuilders>(
+                    r#"(true && (false || true) && (true || true) && false)"#
+                )
+                .unwrap()
+                .try_into()
+                .await
+                .unwrap()
+                .trim()
+                .matches(&State::default()),
+            ExprParser
+                .build_node::<BuiltinMatcherBuilders>(
+                    r#"(true && (false || true) && (true || true) && false)"#
+                )
+                .unwrap()
+                .try_into()
+                .await
+                .unwrap()
+                .matches(&State::default()),
+        );
+
+        // All true and
+        assert_eq!(
+            Node::And(vec![
+                Node::None(Primitive::Bool(true)),
+                Node::None(Primitive::Bool(true)),
+                Node::None(Primitive::Bool(true)),
             ])
+            .trim()
+            .pure_unwrap(),
+            true
+        );
+
+        assert_eq!(
+            Node::And(vec![
+                Node::None(Primitive::Bool(true)),
+                Node::None(Primitive::Bool(false)),
+                Node::None(Primitive::Bool(true)),
+            ])
+            .trim()
+            .pure_unwrap(),
+            false
+        );
+
+        assert_eq!(
+            Node::And(vec![
+                Node::None(Primitive::Bool(true)),
+                // false
+                Node::Neg(Box::new(Node::Or(vec![
+                    Node::None(Primitive::Bool(true)),
+                    Node::None(Primitive::Bool(false))
+                ]))),
+                Node::None(Primitive::Bool(true)),
+            ])
+            .trim()
+            .pure_unwrap(),
+            false,
         );
     }
 
@@ -304,6 +432,26 @@ mod tests {
                 .unwrap()
                 .matches(&State::default()),
             true
+        );
+
+        assert_eq!(
+            ExprParser
+                .build_node::<DummyMatcher>(r#"(true && false || true && (true || true) && false)"#)
+                .unwrap(),
+            Node::Or(vec![
+                Node::And(vec![
+                    Node::None(BuilderPrimitive::Bool(true)),
+                    Node::None(BuilderPrimitive::Bool(false))
+                ]),
+                Node::And(vec![
+                    Node::None(BuilderPrimitive::Bool(true)),
+                    Node::Or(vec![
+                        Node::None(BuilderPrimitive::Bool(true)),
+                        Node::None(BuilderPrimitive::Bool(true))
+                    ]),
+                    Node::None(BuilderPrimitive::Bool(false)),
+                ]),
+            ])
         );
     }
 }

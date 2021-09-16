@@ -13,15 +13,11 @@ table:
     else:
       - dispatch
   dispatch:
-    if: any
-    then:
-      - query: domestic
-      - check_secure
+    - query: domestic
+    - check_secure
   check_secure:
-    if:
-      geoip:
-        codes:
-          - CN
+    if: |
+      {"geoip": {"codes": ["CN"]}}
     else:
       - query: secure
       - end

@@ -21,6 +21,8 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 - Written in pure Rust
 
 # Notice
+**[2021-9-16] Expression Engine and breaking changes**  
+dcompass is now equipped with an expression engine which let you easily and freely compose logical expressions with existing matchers. This enables us to greatly improve config readablity and versatility. However, all existing config files involving if rule block are no longer working. Please see examples to migrate.
 
 **[2021-07-28] 2x faster and breaking changes**  
 We adopted a brand new bare metal DNS library `domain` which allows us to manipulate DNS messages without much allocation. This adoption, together with the adoption of `jemalloc`, significantly improves the memory footprint and throughput of dcompass. Due to this major refactorization, DoT/TCP/zone protocol are temporarily unavailable, however, UDP and DoH connections are now blazing fast. We will gradually put back those protocols.
