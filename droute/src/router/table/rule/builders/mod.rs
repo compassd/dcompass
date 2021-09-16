@@ -182,7 +182,7 @@ where
 #[async_trait]
 impl<M, A> AsyncTryInto<Box<dyn Rule>> for RuleBuilders<M, A>
 where
-    M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
+    for<'a> M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError> + Deserialize<'a>,
     A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
 {
     type Error = TableError;

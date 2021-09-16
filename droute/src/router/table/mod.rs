@@ -64,6 +64,10 @@ pub enum TableError {
     /// Buf is too short
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
+
+    /// Failed to parse Expr
+    #[error(transparent)]
+    ExprError(#[from] crate::matchers::expr::ExprError),
 }
 
 pub struct State {
@@ -258,19 +262,19 @@ mod tests {
         TableBuilder::new()
             .add_rule(
                 "start",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Always,
-                    on_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
-                    no_match: BranchBuilder::<BuiltinActionBuilders>::new("foo"),
-                }),
+                RuleBuilders::IfBlock(IfBlockBuilder::<BuiltinMatcherBuilders, _>::new(
+                    "true",
+                    BranchBuilder::<BuiltinActionBuilders>::new("foo"),
+                    BranchBuilder::<BuiltinActionBuilders>::new("foo"),
+                )),
             )
             .add_rule(
                 "foo",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Always,
-                    on_match: BranchBuilder::<BuiltinActionBuilders>::default(),
-                    no_match: BranchBuilder::<BuiltinActionBuilders>::default(),
-                }),
+                RuleBuilders::IfBlock(IfBlockBuilder::<BuiltinMatcherBuilders, _>::new(
+                    "true",
+                    BranchBuilder::<BuiltinActionBuilders>::default(),
+                    BranchBuilder::<BuiltinActionBuilders>::default(),
+                )),
             )
             .try_into()
             .await
@@ -338,17 +342,15 @@ mod tests {
         TableBuilder::new()
             .add_rule(
                 "start",
-                RuleBuilders::IfBlock(IfBlockBuilder {
-                    matcher: BuiltinMatcherBuilders::Domain(
-                        DomainBuilder::new().add_file("../data/china.txt.gz"),
-                    ),
-                    on_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                RuleBuilders::IfBlock(IfBlockBuilder::<BuiltinMatcherBuilders, _>::new(
+                    r#"{"domain":[{"file": "../data/china.txt.gz"}]}"#,
+                    BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                         QueryBuilder::new("mock", CacheMode::default()),
                     )),
-                    no_match: BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
+                    BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                         QueryBuilder::new("another_mock", CacheMode::default()),
                     )),
-                }),
+                )),
             )
             .try_into()
             .await

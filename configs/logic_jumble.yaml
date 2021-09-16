@@ -3,19 +3,8 @@ verbosity: "info"
 address: 0.0.0.0:2053
 table:
   start:
-    if:
-      all:
-        - qtype:
-            - AAAA
-        # This goes to true
-        - not:
-            not:
-              always
-        # This goes to true as well
-        - any:
-            - not:
-                always
-            - always
+    if: |
+      ({"qtype": ["AAAA"]} && (!(!true)) && (true || (!true)))
     then:
       # A list of actions is allowed here
       - blackhole

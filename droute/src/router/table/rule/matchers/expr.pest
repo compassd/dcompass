@@ -1,0 +1,39 @@
+Program = _{ SOI ~ Term ~ EOI }
+
+Expr = { NegExpr | OrExpr }
+
+Term = _{Primitive | "(" ~ Expr ~ ")" }
+
+NegExpr = { "!" ~ Term }
+AndExpr = { Term ~ ("&&" ~ Term)* }
+OrExpr = { AndExpr ~ ("||" ~ AndExpr)* }
+
+Primitive = _{ Bool | Json }
+
+Bool =  _{ True | False }
+True = { "true" }
+False = { "false" }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+Json = { (object | array) }
+
+object = { "{" ~ pair ~ ("," ~ pair)* ~ "}" | "{" ~ "}" }
+pair   = { string ~ ":" ~ value }
+
+array = { "[" ~ value ~ ("," ~ value)* ~ "]" | "[" ~ "]" }
+
+value = { string | number | object | array | bool | null }
+
+string  = @{ "\"" ~ inner ~ "\"" }
+inner   = @{ (!("\"" | "\\") ~ ANY)* ~ (escape ~ inner)? }
+escape  = @{ "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) }
+unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} }
+
+number = @{ "-"? ~ int ~ ("." ~ ASCII_DIGIT+ ~ exp? | exp)? }
+int    = @{ "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+exp    = @{ ("E" | "e") ~ ("+" | "-")? ~ ASCII_DIGIT+ }
+
+bool = { "true" | "false" }
+
+null = { "null" }

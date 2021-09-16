@@ -3,9 +3,7 @@ verbosity: "off"
 address: 0.0.0.0:2053
 table:
   start:
-    if:
-      domain:
-        - file: "../data/china.txt"
+    if: "{\"domain\": [{\"file\": \"../data/china.txt\"}]}"
     then:
       - query: domestic
       - end

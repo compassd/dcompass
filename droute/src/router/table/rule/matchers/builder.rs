@@ -17,11 +17,8 @@ use crate::AsyncTryInto;
 
 #[cfg(feature = "geoip")]
 pub use super::geoip::GeoIpBuilder;
-pub use super::{
-    all::AllBuilder, any::AnyBuilder, domain::DomainBuilder, ipcidr::IpCidrBuilder,
-    not::NotBuilder, qtype::QTypeBuilder,
-};
-use super::{always::Always, MatchError, Matcher, Result as MatcherResult};
+pub use super::{domain::DomainBuilder, ipcidr::IpCidrBuilder, qtype::QTypeBuilder};
+use super::{MatchError, Matcher, Result as MatcherResult};
 use async_trait::async_trait;
 use serde::Deserialize;
 
@@ -29,18 +26,6 @@ use serde::Deserialize;
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum BuiltinMatcherBuilders {
-    /// Matches always
-    Always,
-
-    /// Matches if any sub matchers match
-    Any(AnyBuilder<Self>),
-
-    /// Matches if all sub matchers match
-    All(AllBuilder<Self>),
-
-    /// Matches if sub-matcher doesn't match
-    Not(NotBuilder<Self>),
-
     /// Matches domains in domain list files specified.
     Domain(DomainBuilder),
 
@@ -60,10 +45,6 @@ pub enum BuiltinMatcherBuilders {
 impl AsyncTryInto<Box<dyn Matcher>> for BuiltinMatcherBuilders {
     async fn try_into(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
-            Self::All(a) => Box::new(a.try_into().await?),
-            Self::Always => Box::new(Always),
-            Self::Any(a) => Box::new(a.try_into().await?),
-            Self::Not(n) => Box::new(n.try_into().await?),
             Self::Domain(v) => Box::new(v.try_into().await?),
             Self::QType(q) => Box::new(q.try_into().await?),
             Self::IpCidr(s) => Box::new(s.try_into().await?),

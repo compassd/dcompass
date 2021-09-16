@@ -3,9 +3,8 @@ verbosity: "info"
 address: 0.0.0.0:2053
 table:
   start:
-    if:
-      qtype:
-        - AAAA
+    if: |
+      {"qtype": ["AAAA"]}
     then:
       # A list of actions is allowed here
       - blackhole

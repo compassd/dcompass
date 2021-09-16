@@ -16,12 +16,13 @@
 use super::{super::actions::Action, BranchBuilder, IfBlock, Result};
 use crate::{
     actions::ActionError,
-    matchers::{MatchError, Matcher},
+    matchers::{expr::ExprParser, MatchError, Matcher},
     router::table::TableError,
     AsyncTryInto,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 
 /// A rule composed of tag name, matcher, and branches.
 #[derive(Deserialize, Serialize, Clone)]
@@ -32,9 +33,9 @@ where
     M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
     A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
 {
-    /// The matcher rule uses.
+    /// The matching expression.
     #[serde(rename = "if")]
-    pub matcher: M,
+    pub expr: String,
 
     /// If matcher matches, this branch specifies action and next rule name to route. Defaut to `(Vec::new(), "end".into())`
     #[serde(default = "BranchBuilder::default")]
@@ -45,18 +46,41 @@ where
     #[serde(default = "BranchBuilder::default")]
     #[serde(rename = "else")]
     pub no_match: BranchBuilder<A>,
+
+    #[serde(default)]
+    _guard: PhantomData<M>,
+}
+
+impl<M, A> IfBlockBuilder<M, A>
+where
+    M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
+    A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
+{
+    /// Create a new IfBlockBuilder
+    pub fn new(
+        expr: impl ToString,
+        on_match: BranchBuilder<A>,
+        no_match: BranchBuilder<A>,
+    ) -> Self {
+        Self {
+            expr: expr.to_string(),
+            on_match,
+            no_match,
+            _guard: PhantomData,
+        }
+    }
 }
 
 #[async_trait]
 impl<M, A> AsyncTryInto<IfBlock> for IfBlockBuilder<M, A>
 where
-    M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
+    for<'a> M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError> + Deserialize<'a>,
     A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
 {
     type Error = TableError;
 
     async fn try_into(self) -> Result<IfBlock> {
-        let matcher = self.matcher.try_into().await?;
+        let matcher = Box::new(ExprParser.build_node::<M>(&self.expr)?.try_into().await?);
         let on_match = self.on_match.try_into().await?;
         let no_match = self.no_match.try_into().await?;
         Ok(IfBlock::new(matcher, on_match, no_match))

@@ -13,27 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-mod all;
-mod always;
-mod any;
 /// Builders for built-in matchers and more.
 pub mod builder;
 mod domain;
+pub(crate) mod expr;
 #[cfg(feature = "geoip")]
 mod geoip;
 mod ipcidr;
-mod not;
 mod qtype;
 
 #[cfg(feature = "geoip")]
 pub use self::geoip::GeoIp;
 pub use self::{
-    all::All,
-    always::Always,
-    any::Any,
     domain::{Domain, ResourceType},
     ipcidr::IpCidr,
-    not::Not,
     qtype::QType,
 };
 use super::super::State;

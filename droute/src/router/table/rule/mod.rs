@@ -175,11 +175,11 @@ mod tests {
 
     #[tokio::test]
     async fn ifblock() {
-        let rule = RuleBuilders::IfBlock(IfBlockBuilder {
-            matcher: BuiltinMatcherBuilders::Always,
-            on_match: BranchBuilder::<BuiltinActionBuilders>::new("yes"),
-            no_match: BranchBuilder::<BuiltinActionBuilders>::new("no"),
-        })
+        let rule = RuleBuilders::IfBlock(IfBlockBuilder::<BuiltinMatcherBuilders, _>::new(
+            "true",
+            BranchBuilder::<BuiltinActionBuilders>::new("yes"),
+            BranchBuilder::<BuiltinActionBuilders>::new("no"),
+        ))
         .try_into()
         .await
         .unwrap();
