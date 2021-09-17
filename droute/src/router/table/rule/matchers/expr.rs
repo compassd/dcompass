@@ -424,7 +424,7 @@ mod tests {
         assert_eq!(
             ExprParser
                 .build_node::<BuiltinMatcherBuilders>(
-                    r#"(true && false || true && true || true && false)"#
+                    "(true && false || true && true || true && false)"
                 )
                 .unwrap()
                 .try_into()
@@ -436,7 +436,7 @@ mod tests {
 
         assert_eq!(
             ExprParser
-                .build_node::<DummyMatcher>(r#"(true && false || true && (true || true) && false)"#)
+                .build_node::<DummyMatcher>("true && false || true && (true || true) && false")
                 .unwrap(),
             Node::Or(vec![
                 Node::And(vec![
@@ -452,6 +452,18 @@ mod tests {
                     Node::None(BuilderPrimitive::Bool(false)),
                 ]),
             ])
+        );
+
+        // Redundant brackets should not alter the syntax tree
+        assert_eq!(
+            ExprParser
+                .build_node::<DummyMatcher>("true && false || true && (true || true) && false")
+                .unwrap(),
+            ExprParser
+                .build_node::<DummyMatcher>(
+                    "(((true && false) || true && (true || true) && ((false))))"
+                )
+                .unwrap(),
         );
     }
 }

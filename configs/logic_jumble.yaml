@@ -4,7 +4,7 @@ address: 0.0.0.0:2053
 table:
   start:
     if: |
-      ({"qtype": ["AAAA"]} && (!(!true)) && (true || (!true)))
+      {"qtype": ["AAAA"]} && (!(!true)) && (true || (!true))
     then:
       # A list of actions is allowed here
       - blackhole

@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         # armv5te-unknown-linux-musleabi being temporarily removed due to https://github.com/antifuchs/governor/issues/89
-        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-gnuabi64, mips64el-unknown-linux-gnuabi64, mipsel-unknown-linux-musl]
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-muslabi64, mips64el-unknown-linux-muslabi64, mipsel-unknown-linux-musl]
         include:
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
@@ -93,9 +93,9 @@ jobs:
             os: ubuntu-latest
           - target: mips-unknown-linux-musl
             os: ubuntu-latest
-          - target: mips64-unknown-linux-gnuabi64
+          - target: mips64-unknown-linux-muslabi64
             os: ubuntu-latest
-          - target: mips64el-unknown-linux-gnuabi64
+          - target: mips64el-unknown-linux-muslabi64
             os: ubuntu-latest
           - target: mipsel-unknown-linux-musl
             os: ubuntu-latest
@@ -141,7 +141,9 @@ jobs:
 
     - name: Install mips64el tools
       if: contains(matrix.target, 'mips64el')
-      run: sudo apt-get install binutils-mips64el-linux-gnuabi64
+      run: |
+        sudo apt-get install binutils-mips64el-linux-gnuabi64
+        docker -t cross:mips64el-unknown-linux-muslabi64 ./docker/Dockerfile.mips64el-unknown-linux-muslabi64
 
     - name: Install mips tools
       if: contains(matrix.target, 'mips-')
@@ -149,7 +151,9 @@ jobs:
 
     - name: Install mips64 tools
       if: contains(matrix.target, 'mips64-')
-      run: sudo apt-get install binutils-mips64-linux-gnuabi64
+      run: |
+        sudo apt-get install binutils-mips64-linux-gnuabi64
+        docker -t cross:mips64-unknown-linux-muslabi64 ./docker/Dockerfile.mips64-unknown-linux-muslabi64
 
     - name: Install aarch64 tools
       if: contains(matrix.target, 'aarch64')
