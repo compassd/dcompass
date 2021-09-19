@@ -3,8 +3,7 @@ verbosity: "info"
 address: 0.0.0.0:2053
 table:
   start:
-    if: |
-      {"qtype": ["AAAA"]}
+    if: "qtype([AAAA])"
     then:
       # A list of actions is allowed here
       - blackhole
@@ -17,7 +16,7 @@ table:
     - check_secure
   check_secure:
     if: |
-      {"geoip": {"codes": ["CN"]}}
+      geoip(codes: ["CN"])
     else:
       - query: secure
       - end

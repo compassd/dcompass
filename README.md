@@ -2,22 +2,30 @@
 
 ![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)
 [![Join telegram channel](https://badges.aleen42.com/src/telegram.svg)](https://t.me/dcompass_channel)  
-Your DNS supercharged! A high-performance DNS server with freestyle routing scheme support, DoT/DoH functionalities built-in.  
+A high-performance DNS server with flexible routing scheme and customized plugins.  
 [中文版](README-CN.md)
 
-# Why?
+Below is an example of using GeoIP to mitigate DNS pollution
 
-`dcompass` enables you to write your own logic of how your DNS server should behave, as simple as possible. It is "programmable".
+```yaml
+table:
+  start:
+    - query: domestic
+    - check_secure
+  check_secure:
+    if: "!geoip(codes: [\"CN\"])"
+    then:
+      - query: secure
+      - end
+```
 
 # Features
 
-- Fast (~2500 qps in wild where upstream perf is about the same)
+- Fast (~50000 qps in wild where upstream perf is about the same)
+- Flexible routing rules that are easy to compose and maintain
+- Built-in plugins to manipulate your DNS queries and responses (you can also add or tailor them to your need)
 - Fearless hot switch between network environments
-- Customized routing rules that are easy to compose and maintain
-- DoH/UDP supports
-- "Always-on" cache mechanism to ensure DNS quality under severe network environments.
-- Option to send no SNI indication to better counter censorship
-- Option to disable AAAA query for those having network with incomplete IPv6 supports
+- DNS over HTTPS support
 - Written in pure Rust
 
 # Notice
@@ -25,13 +33,7 @@ Your DNS supercharged! A high-performance DNS server with freestyle routing sche
 dcompass is now equipped with an expression engine which let you easily and freely compose logical expressions with existing matchers. This enables us to greatly improve config readablity and versatility. However, all existing config files involving if rule block are no longer working. Please see examples to migrate.
 
 **[2021-07-28] 2x faster and breaking changes**  
-We adopted a brand new bare metal DNS library `domain` which allows us to manipulate DNS messages without much allocation. This adoption, together with the adoption of `jemalloc`, significantly improves the memory footprint and throughput of dcompass. Due to this major refactorization, DoT/TCP/zone protocol are temporarily unavailable, however, UDP and DoH connections are now blazing fast. We will gradually put back those protocols.
-
-**[2021-07-26] Performance improvement and change on timeout syntax**  
-We refactored most part of the code to improve the memory usage and response performance by up to 50%. Due to internal code changes, timeout configuration in DoT and DoH upstreams will not take affect anymore.
-
-**[2021-03-22] New syntax on writing rule blocks and upstream definitions.**  
-Breaking changes happened as new routing scheme has been adopted, see configuration section below to adapt.
+We adopted a brand new bare metal DNS library `domain` which allows us to manipulate DNS messages without much allocation. This adoption significantly improves the memory footprint and throughput of dcompass. Due to this major refactorization, DoT/TCP/zone protocol are temporarily unavailable, however, UDP and DoH connections are now blazing fast. We will gradually put back those protocols.
 
 # Usages
 
@@ -45,31 +47,6 @@ You can also validate your configuration
 ```
 dcompass -c path/to/config.json -v
 ```
-
-# Packages
-
-You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases).
-
-1. GitHub Action build is set up for targets `x86_64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `x86_64-pc-windows-gnu`, `x86_64-apple-darwin`, `aarch64-unknown-linux-musl` and more. Typically, arm users should use binaries corresponding to their architecture. In particular, Raspberry Pi users can try all three (`armv7-unknown-linux-musleabihf`, `armv5te-unknown-linux-musleabi`, `aarch64-unknown-linux-musl`). Each of the targets has two different versions. `full` version includes the full maxmind GeoIP2 database, while the normal version includes [GeoIP2-CN](https://github.com/Hackl0us/GeoIP2-CN/) database only.
-2. NixOS package is available at this repo as a flake. Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
-
-```
-└───packages
-    ├───aarch64-linux
-    │   ├───dcompass-cn: package 'dcompass-cn-git'
-    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
-    ├───i686-linux
-    │   ├───dcompass-cn: package 'dcompass-cn-git'
-    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
-    ├───x86_64-darwin
-    │   ├───dcompass-cn: package 'dcompass-cn-git'
-    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
-    └───x86_64-linux
-        ├───dcompass-cn: package 'dcompass-cn-git'
-        └───dcompass-maxmind: package 'dcompass-maxmind-git'
-```
-
-cache is available at [cachix](https://dcompass.cachix.org), with public key `dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=` (`outputs.publicKey`).
 
 # Quickstart
 
@@ -107,33 +84,34 @@ Different querying methods:
 
 See [example.yaml](configs/example.yaml) for a pre-configured out-of-box anti-pollution configuration (Only works with `full` or `cn` version, to use with `min`, please provide your own database).
 
-Table example of using GeoIP to mitigate pollution
+# Packages
 
-```yaml
-table:
-  start:
-    if: any
-    then:
-      - query: domestic
-      - check_secure
-  check_secure:
-    if:
-      geoip:
-        codes:
-          - CN
-    else:
-      - query: secure
-      - end
+You can download binaries at [release page](https://github.com/LEXUGE/dcompass/releases).
+
+1. GitHub Action build is set up `x86_64`, `i686`, `arm`, and `mips`. Check them out on release page!
+2. NixOS package is available at this repo as a flake. Also, for NixOS users, a NixOS modules is provided with systemd services and easy-to-setup interfaces in the same repository where package is provided.
+
+```
+└───packages
+    ├───aarch64-linux
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    ├───i686-linux
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    ├───x86_64-darwin
+    │   ├───dcompass-cn: package 'dcompass-cn-git'
+    │   └───dcompass-maxmind: package 'dcompass-maxmind-git'
+    └───x86_64-linux
+        ├───dcompass-cn: package 'dcompass-cn-git'
+        └───dcompass-maxmind: package 'dcompass-maxmind-git'
 ```
 
-# Behind the scene details
-
-- if one incoming DNS message contains more than one DNS query (which is impossible in wild), matchers only care about the first one.
-- If a cache record is expired, we return back the expired cache and start a background query to update the cache, if which failed, the expired cache would be still returned back and background query would start again for next query on the same domain. The cache only gets purged if the internal LRU cache system purges it. This ensures cache is always available while dcompass complies TTL.
+cache is available at [cachix](https://dcompass.cachix.org), with public key `dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=` (`outputs.publicKey`).
 
 # Benchmark
 
-Mocked benchmark:
+Mocked benchmark (server served on local loopback):
 
 ```
 Gnuplot not found, using plotters backend
@@ -152,14 +130,11 @@ Found 2 outliers among 100 measurements (2.00%)
   1 (1.00%) high severe
 ```
 
-Following benchmarks are not mocked, but they are rather based on multiple perfs in wild. Not meant to be accurate for statical purposes.
-
-- On `i7-10710U`, dnsperf gets out `~760 qps` with `0.12s avg latency` and `0.27% ServFail` rate for a test of `15004` queries.
-- As a reference SmartDNS gets `~640 qps` for the same test on the same hardware.
-
 # TODO-list
 
 - [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
+- [ ] RESTful API and web dashboard
+- [x] Expression engine and function style matcher syntax
 - [x] IP-CIDR matcher for both source address and response address
 - [x] GeoIP matcher for source address
 - [x] Custom response action
