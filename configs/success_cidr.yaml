@@ -4,7 +4,7 @@ address: 0.0.0.0:2053
 table:
   start:
     if: |
-      {"ipcidr": ["../data/ipcn.txt"]}
+      ipcidr(["../data/ipcn.txt"])
     then:
       - query: domestic
       - end

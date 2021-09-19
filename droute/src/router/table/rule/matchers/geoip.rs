@@ -60,7 +60,7 @@ impl Matcher for GeoIp {
     }
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
 /// Arguments of the GeoIp.
 pub struct GeoIpBuilder {

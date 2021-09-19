@@ -26,7 +26,7 @@ use std::{path::PathBuf, str::FromStr};
 /// A matcher that matches if first query's domain is within the domain list provided
 pub struct Domain(DomainAlg);
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
 /// Type of the domain resources to add to the matcher.
 pub enum ResourceType {
@@ -85,7 +85,8 @@ impl Matcher for Domain {
 }
 
 /// A builder for domain matcher
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(transparent)]
 pub struct DomainBuilder(Vec<ResourceType>);
 
 impl Default for DomainBuilder {

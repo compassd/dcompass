@@ -83,9 +83,9 @@ where
         let matcher = Box::new(
             ExprParser
                 .build_node::<M>(&self.expr)?
+                .trim()
                 .try_into()
-                .await?
-                .trim(),
+                .await?,
         );
         let on_match = self.on_match.try_into().await?;
         let no_match = self.no_match.try_into().await?;

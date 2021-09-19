@@ -60,7 +60,8 @@ impl Matcher for IpCidr {
 }
 
 /// A builder for IpCidr matcher plugin
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(transparent)]
 pub struct IpCidrBuilder(Vec<String>);
 
 impl Default for IpCidrBuilder {

@@ -4,7 +4,7 @@ address: 0.0.0.0:2053
 table:
   start:
     if: |
-      {"geoip": {"path": "../data/full.mmdb", "codes": ["CN"]}}
+      geoip(path: Some("../data/full.mmdb"), codes: ["CN"])
     then:
       - query: domestic
       - end

@@ -343,7 +343,7 @@ mod tests {
             .add_rule(
                 "start",
                 RuleBuilders::IfBlock(IfBlockBuilder::<BuiltinMatcherBuilders, _>::new(
-                    r#"{"domain":[{"file": "../data/china.txt.gz"}]}"#,
+                    r#"domain([file("../data/china.txt.gz")])"#,
                     BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
                         QueryBuilder::new("mock", CacheMode::default()),
                     )),

@@ -8,7 +8,7 @@ NegExpr = { "!" ~ Term }
 AndExpr = { Term ~ ("&&" ~ Term)* }
 OrExpr = { AndExpr ~ ("||" ~ AndExpr)* }
 
-Primitive = _{ Bool | Json }
+Primitive = _{ Bool | Ron }
 
 Bool =  _{ True | False }
 True = { "true" }
@@ -16,24 +16,49 @@ False = { "false" }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
-Json = { (object | array) }
+// Basic values in RON
+Ron = { enm }
+value = { number | string | bool | option | list | map | tuple | strct | enm }
 
-object = { "{" ~ pair ~ ("," ~ pair)* ~ "}" | "{" ~ "}" }
-pair   = { string ~ ":" ~ value }
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 
-array = { "[" ~ value ~ ("," ~ value)* ~ "]" | "[" ~ "]" }
+// Enum
+enm = { enum_variant_named | enum_variant_tuple | enum_variant_unit }
+enum_variant_unit = { ident }
+enum_variant_tuple = { ident ~ tuple }
+enum_variant_named = { ident ~ ("(" ~ named_field ~ ("," ~ named_field )* ~ ","? ~ ")" | "(" ~ ")") }
 
-value = { string | number | object | array | bool | null }
+// Struct
+// There is no definition of ident, we used inner here
+strct = { named_struct | tuple_struct | unit_struct}
+unit_struct = { ident | "()" }
+tuple_struct = { ident? ~ tuple }
+named_struct = { ident? ~ ("(" ~ named_field ~ ("," ~ named_field )* ~  ","? ~ ")" | "(" ~ ")") }
+named_field = { ident ~ ":" ~ value }
 
+// Tuple
+tuple = { "(" ~ value ~ ("," ~ value)* ~ ","? ~ ")" | "(" ~ ")" }
+
+// Map
+map = { "{" ~ pair ~ ("," ~ pair)* ~ ","? ~ "}" | "{" ~ "}" }
+pair   = { value ~ ":" ~ value }
+
+// List
+list = { "[" ~ value ~ ("," ~ value)* ~ ","? ~ "]" | "[" ~ "]" }
+
+// Option
+option = @{ "Some" ~ "(" ~ value ~ ")" }
+
+// String
 string  = @{ "\"" ~ inner ~ "\"" }
 inner   = @{ (!("\"" | "\\") ~ ANY)* ~ (escape ~ inner)? }
 escape  = @{ "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) }
 unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} }
 
+// Number
 number = @{ "-"? ~ int ~ ("." ~ ASCII_DIGIT+ ~ exp? | exp)? }
 int    = @{ "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 exp    = @{ ("E" | "e") ~ ("+" | "-")? ~ ASCII_DIGIT+ }
 
+// Bool
 bool = { "true" | "false" }
-
-null = { "null" }

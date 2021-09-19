@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 /// The builder for Builtin Matchers
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum BuiltinMatcherBuilders {
     /// Matches domains in domain list files specified.

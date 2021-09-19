@@ -37,7 +37,7 @@ enum LevelFilterDef {
 }
 
 // Customized matchers
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum MatcherBuilders {
     /// Matches domains in domain list files specified.
@@ -47,7 +47,11 @@ pub enum MatcherBuilders {
     QType(QTypeBuilder),
 
     /// Matches if IP address in the record of the first response is in the list of countries.
-    GeoIp(MyGeoIp),
+    GeoIp {
+        codes: HashSet<String>,
+        #[serde(default)]
+        path: Option<PathBuf>,
+    },
 
     /// Matches if IP address in the record of the first response is in the list of IP CIDR.
     IpCidr(IpCidrBuilder),
@@ -61,37 +65,18 @@ impl AsyncTryInto<Box<dyn Matcher>> for MatcherBuilders {
             Self::Domain(v) => Box::new(v.try_into().await?),
             Self::QType(q) => Box::new(q.try_into().await?),
             Self::IpCidr(s) => Box::new(s.try_into().await?),
-            Self::GeoIp(g) => Box::new(g.try_into().await?),
+            Self::GeoIp { path, codes } => Box::new(GeoIp::new(
+                codes,
+                if let Some(p) = path {
+                    tokio::fs::read(p).await?
+                } else {
+                    get_builtin_db()?
+                },
+            )?),
         })
     }
 
     type Error = MatchError;
-}
-
-#[derive(Deserialize, Clone, Eq, PartialEq)]
-#[serde(rename_all = "lowercase")]
-#[serde(rename = "geoip")]
-#[serde(deny_unknown_fields)]
-pub struct MyGeoIp {
-    codes: HashSet<String>,
-    #[serde(default)]
-    path: Option<PathBuf>,
-}
-
-#[async_trait]
-impl AsyncTryInto<GeoIp> for MyGeoIp {
-    type Error = MatchError;
-
-    async fn try_into(self) -> Result<GeoIp> {
-        Ok(GeoIp::new(
-            self.codes,
-            if let Some(p) = self.path {
-                tokio::fs::read(p).await?
-            } else {
-                get_builtin_db()?
-            },
-        )?)
-    }
 }
 
 // If both geoip-maxmind and geoip-cn are enabled, geoip-maxmind will be used

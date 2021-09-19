@@ -131,11 +131,13 @@ pub enum RtypeDef {
 }
 
 // TODO: remove it once domain supports deserializing rtype
-#[derive(Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
+#[serde(transparent)]
 struct Adaptor(#[serde(with = "RtypeDef")] Rtype);
 
 /// A builder for qtype matcher plugin
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(transparent)]
 pub struct QTypeBuilder(HashSet<Adaptor>);
 
 impl Default for QTypeBuilder {
