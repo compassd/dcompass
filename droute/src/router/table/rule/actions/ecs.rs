@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{net::IpAddr, num::NonZeroUsize, str::FromStr, sync::Arc};
+use std::{net::IpAddr, str::FromStr};
 
 use super::{Action, ActionError, Result};
 use crate::{
@@ -29,28 +29,29 @@ use serde::{Deserialize, Serialize};
 /// An action that add ECS record into OPT section
 #[derive(Clone)]
 pub struct Ecs {
-    cache: Arc<EcsCache>,
+    // inner arc
+    cache: EcsCache,
     api: String,
 }
 
 impl Ecs {
-    /// Create a `Query` action with its associated upstream tag.
+    /// Attatch valid ECS record to the OPT section
     pub fn new(api: String) -> Result<Self> {
         Ok(Self {
-            cache: Arc::new(EcsCache::new(NonZeroUsize::new(512).unwrap())?),
+            cache: EcsCache::new(),
             api,
         })
     }
 }
 
 impl Ecs {
-    async fn get_external_ip(&self, ip: IpAddr) -> Result<IpAddr> {
+    async fn update_external_ip(&self) -> Result<IpAddr> {
         // If we reuse the client, internal client pool will not be updated if network condition changes.
         let external_ip = reqwest::get(&self.api).await?.text().await?;
         log::info!("got external IP: {}", external_ip.trim());
         // The answer should be a valid IP address
         let external_ip = IpAddr::from_str(external_ip.trim()).unwrap();
-        self.cache.put(ip, external_ip).await;
+        self.cache.put(external_ip).await;
         Ok(external_ip)
     }
 }
@@ -107,13 +108,13 @@ impl Action for Ecs {
                             // We have to update the cache though
                             // We don't care about failures here.
                             // Get external_ip will update cache automatically.
-                            let _ = ecs.get_external_ip(ip).await;
+                            let _ = ecs.update_external_ip().await;
                         });
                     }
                     None => {
                         // No cache
                         state.query =
-                            add_ecs_record(&state.query, self.get_external_ip(ip).await?)?;
+                            add_ecs_record(&state.query, self.update_external_ip().await?)?;
                     }
                 }
             };
@@ -130,6 +131,7 @@ impl Action for Ecs {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+/// Build ECS with API string
 pub struct EcsBuilder {
     api: String,
 }

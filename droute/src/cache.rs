@@ -16,20 +16,20 @@
 use self::RecordStatus::*;
 use crate::{Label, MAX_TTL};
 use bytes::Bytes;
+use clru::CLruCache;
 use domain::base::{name::ToDname, question::Question, Dname, Message};
 use log::*;
-use moka::sync::{Cache as MokaCache, CacheBuilder};
-use reqwest::Error;
 use std::{
     borrow::Borrow,
     hash::{Hash, Hasher},
     net::IpAddr,
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
-const ECS_CACHE_TTL: Duration = Duration::from_secs(30 * 60);
+// Expire every hour
+const ECS_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 
 // Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
 trait KeyPair<A: ?Sized, B: ?Sized> {
@@ -39,7 +39,7 @@ trait KeyPair<A: ?Sized, B: ?Sized> {
     fn b(&self) -> &B;
 }
 
-impl<'a, A: ?Sized, B: ?Sized, C, D> Borrow<dyn KeyPair<A, B> + 'a> for Arc<(C, D)>
+impl<'a, A: ?Sized, B: ?Sized, C, D> Borrow<dyn KeyPair<A, B> + 'a> for (C, D)
 where
     A: Eq + Hash + 'a,
     B: Eq + Hash + 'a,
@@ -66,19 +66,6 @@ impl<A: Eq + ?Sized, B: Eq + ?Sized> PartialEq for (dyn KeyPair<A, B> + '_) {
 
 impl<A: Eq + ?Sized, B: Eq + ?Sized> Eq for (dyn KeyPair<A, B> + '_) {}
 
-impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for Arc<(C, D)>
-where
-    C: Borrow<A>,
-    D: Borrow<B>,
-{
-    fn a(&self) -> &A {
-        self.0.borrow()
-    }
-    fn b(&self) -> &B {
-        self.1.borrow()
-    }
-}
-
 impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for (C, D)
 where
     C: Borrow<A>,
@@ -93,13 +80,13 @@ where
 }
 
 #[derive(Clone)]
-struct CacheRecord<T> {
+pub struct CacheRecord<T> {
     created_instant: Instant,
     content: T,
     ttl: Duration,
 }
 
-impl<T> CacheRecord<T> {
+impl<T: Clone> CacheRecord<T> {
     pub fn new(content: T, ttl: Duration) -> Self {
         Self {
             created_instant: Instant::now(),
@@ -108,8 +95,8 @@ impl<T> CacheRecord<T> {
         }
     }
 
-    pub fn get(self) -> T {
-        self.content
+    pub fn get(&self) -> T {
+        self.content.clone()
     }
 
     pub fn validate(&self) -> bool {
@@ -126,13 +113,13 @@ pub enum RecordStatus<T> {
 #[derive(Clone)]
 pub struct RespCache {
     #[allow(clippy::type_complexity)]
-    cache: MokaCache<(Label, Question<Dname<Bytes>>), CacheRecord<Message<Bytes>>>,
+    cache: Arc<Mutex<CLruCache<(Label, Question<Dname<Bytes>>), CacheRecord<Message<Bytes>>>>>,
 }
 
 impl RespCache {
     pub fn new(size: NonZeroUsize) -> Self {
         Self {
-            cache: CacheBuilder::new(size.get()).build(),
+            cache: Arc::new(Mutex::new(CLruCache::new(size))),
         }
     }
 
@@ -152,7 +139,7 @@ impl RespCache {
                     .flatten()
                     .unwrap_or(MAX_TTL),
             ));
-            self.cache.insert(
+            self.cache.lock().unwrap().put(
                 (
                     tag,
                     (
@@ -178,6 +165,8 @@ impl RespCache {
 
         match self
             .cache
+            .lock()
+            .unwrap()
             .get(&(tag, question) as &dyn KeyPair<Label, Question<Dname<Bytes>>>)
         {
             Some(r) => {
@@ -198,23 +187,22 @@ impl RespCache {
 // A LRU cache mapping local address to EDNS Client Subnet external IP addr
 #[derive(Clone)]
 pub struct EcsCache {
-    cache: MokaCache<IpAddr, CacheRecord<IpAddr>>,
+    cache: Arc<Mutex<Option<CacheRecord<IpAddr>>>>,
 }
 
 impl EcsCache {
-    pub fn new(size: NonZeroUsize) -> Result<Self, Error> {
-        Ok(Self {
-            cache: CacheBuilder::new(size.get()).build(),
-        })
+    pub fn new() -> Self {
+        Self {
+            cache: Arc::new(Mutex::new(None)),
+        }
     }
 
-    pub async fn put(&self, ip: IpAddr, external_ip: IpAddr) {
-        self.cache
-            .insert(ip, CacheRecord::new(external_ip, ECS_CACHE_TTL));
+    pub async fn put(&self, external_ip: IpAddr) {
+        *self.cache.lock().unwrap() = Some(CacheRecord::new(external_ip, ECS_CACHE_TTL));
     }
 
     pub fn get(&self, ip: &IpAddr) -> Option<RecordStatus<IpAddr>> {
-        match self.cache.get(ip) {
+        match &mut *self.cache.lock().unwrap() {
             Some(r) => {
                 // Get record only once.
                 if r.validate() {

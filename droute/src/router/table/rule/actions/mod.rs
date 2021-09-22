@@ -52,6 +52,7 @@ pub enum ActionError {
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
 
+    /// Reqwest Error
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
 }

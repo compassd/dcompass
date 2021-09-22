@@ -21,7 +21,7 @@
 //    Error - Any error which is fatal to the operation, but not the service or application (can't open a required file, missing data, etc.). These errors will force user (administrator, or direct user) intervention. These are usually reserved (in my apps) for incorrect connection strings, missing services, etc.
 //    Fatal - Any error that is forcing a shutdown of the service or application to prevent data loss (or further data loss). I reserve these only for the most heinous errors and situations where there is guaranteed to have been data corruption or loss.
 
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 // Documentation
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.

@@ -10,8 +10,8 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-doh-rustls = ["reqwest", "reqwest/rustls-tls", "rustls", "webpki-roots"]
-doh-native-tls = ["reqwest", "reqwest/native-tls-vendored", "native-tls"]
+doh-rustls = ["reqwest/rustls-tls", "rustls", "webpki-roots"]
+doh-native-tls = ["reqwest/native-tls-vendored", "native-tls"]
 geoip = ["maxminddb"]
 
 [dependencies]
@@ -23,7 +23,7 @@ bytes = "^1"
 maxminddb = { version = "^0.17", optional = true }
 
 # doh
-reqwest = { version = "0.11", features = ["socks"], default-features = false, optional = true}
+reqwest = { version = "0.11", features = ["socks"], default-features = false}
 # doh-native-tls
 native-tls = { version = "0.2", optional = true}
 # doh-rustls
@@ -44,8 +44,7 @@ dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
 serde = { version = "^1.0", features = ["derive", "rc"] }
 # CLru supports async, but it is not published yet.
-# clru = "^0.5"
-moka = { version = "0.6", features = ["future"] }
+clru = "^0.5"
 thiserror = "^1.0"
 async-trait = "^0.1"
 bb8 = "^0.7"
