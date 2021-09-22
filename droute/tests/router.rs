@@ -76,7 +76,11 @@ async fn test_resolve() {
     .unwrap();
 
     assert_eq!(
-        router.resolve(QUERY.clone()).await.unwrap().into_octets(),
+        router
+            .resolve(QUERY.clone(), None)
+            .await
+            .unwrap()
+            .into_octets(),
         DUMMY_MSG.clone().into_octets()
     );
 }

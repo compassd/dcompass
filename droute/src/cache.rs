@@ -16,16 +16,20 @@
 use self::RecordStatus::*;
 use crate::{Label, MAX_TTL};
 use bytes::Bytes;
-use clru::CLruCache;
 use domain::base::{name::ToDname, question::Question, Dname, Message};
 use log::*;
+use moka::sync::{Cache as MokaCache, CacheBuilder};
+use reqwest::Error;
 use std::{
     borrow::Borrow,
     hash::{Hash, Hasher},
+    net::IpAddr,
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
 };
+
+const ECS_CACHE_TTL: Duration = Duration::from_secs(30 * 60);
 
 // Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
 trait KeyPair<A: ?Sized, B: ?Sized> {
@@ -35,7 +39,7 @@ trait KeyPair<A: ?Sized, B: ?Sized> {
     fn b(&self) -> &B;
 }
 
-impl<'a, A: ?Sized, B: ?Sized, C, D> Borrow<dyn KeyPair<A, B> + 'a> for (C, D)
+impl<'a, A: ?Sized, B: ?Sized, C, D> Borrow<dyn KeyPair<A, B> + 'a> for Arc<(C, D)>
 where
     A: Eq + Hash + 'a,
     B: Eq + Hash + 'a,
@@ -62,6 +66,19 @@ impl<A: Eq + ?Sized, B: Eq + ?Sized> PartialEq for (dyn KeyPair<A, B> + '_) {
 
 impl<A: Eq + ?Sized, B: Eq + ?Sized> Eq for (dyn KeyPair<A, B> + '_) {}
 
+impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for Arc<(C, D)>
+where
+    C: Borrow<A>,
+    D: Borrow<B>,
+{
+    fn a(&self) -> &A {
+        self.0.borrow()
+    }
+    fn b(&self) -> &B {
+        self.1.borrow()
+    }
+}
+
 impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for (C, D)
 where
     C: Borrow<A>,
@@ -75,36 +92,24 @@ where
     }
 }
 
-struct CacheRecord {
+#[derive(Clone)]
+struct CacheRecord<T> {
     created_instant: Instant,
-    msg: Message<Bytes>,
+    content: T,
     ttl: Duration,
 }
 
-impl CacheRecord {
-    pub fn new(msg: Message<Bytes>) -> Self {
-        let ttl = Duration::from_secs(u64::from(
-            msg.answer()
-                .ok()
-                .map(|records| {
-                    records
-                        .filter(|r| r.is_ok())
-                        .map(|r| r.unwrap().ttl())
-                        .min()
-                })
-                .flatten()
-                .unwrap_or(MAX_TTL),
-        ));
-
+impl<T> CacheRecord<T> {
+    pub fn new(content: T, ttl: Duration) -> Self {
         Self {
             created_instant: Instant::now(),
-            msg,
+            content,
             ttl,
         }
     }
 
-    pub fn get(&self) -> Message<Bytes> {
-        self.msg.clone()
+    pub fn get(self) -> T {
+        self.content
     }
 
     pub fn validate(&self) -> bool {
@@ -112,22 +117,22 @@ impl CacheRecord {
     }
 }
 
-pub enum RecordStatus {
-    Alive(Message<Bytes>),
-    Expired(Message<Bytes>),
+pub enum RecordStatus<T> {
+    Alive(T),
+    Expired(T),
 }
 
 // A LRU cache for responses
 #[derive(Clone)]
 pub struct RespCache {
     #[allow(clippy::type_complexity)]
-    cache: Arc<Mutex<CLruCache<(Label, Question<Dname<Bytes>>), CacheRecord>>>,
+    cache: MokaCache<(Label, Question<Dname<Bytes>>), CacheRecord<Message<Bytes>>>,
 }
 
 impl RespCache {
     pub fn new(size: NonZeroUsize) -> Self {
         Self {
-            cache: Arc::new(Mutex::new(CLruCache::new(size))),
+            cache: CacheBuilder::new(size.get()).build(),
         }
     }
 
@@ -135,7 +140,19 @@ impl RespCache {
         if msg.no_error() {
             // We are assured that it should parse and exist
             let question = msg.first_question().unwrap();
-            self.cache.lock().unwrap().put(
+            let ttl = Duration::from_secs(u64::from(
+                msg.answer()
+                    .ok()
+                    .map(|records| {
+                        records
+                            .filter(|r| r.is_ok())
+                            .map(|r| r.unwrap().ttl())
+                            .min()
+                    })
+                    .flatten()
+                    .unwrap_or(MAX_TTL),
+            ));
+            self.cache.insert(
                 (
                     tag,
                     (
@@ -146,30 +163,69 @@ impl RespCache {
                         .into(),
                 ),
                 // Clone should be cheap here
-                CacheRecord::new(msg),
+                CacheRecord::new(msg, ttl),
             );
         } else {
             info!("response errored, not caching erroneous upstream response.");
         };
     }
 
-    pub fn get(&self, tag: &Label, msg: &Message<Bytes>) -> Option<RecordStatus> {
-        let mut cache = self.cache.lock().unwrap();
+    pub fn get(&self, tag: &Label, msg: &Message<Bytes>) -> Option<RecordStatus<Message<Bytes>>> {
         let question = msg.first_question().unwrap();
         let qname = question.qname().to_bytes();
         let question: Question<Dname<Bytes>> =
             (qname.clone(), question.qtype(), question.qclass()).into();
 
-        match cache.get(&(tag, question) as &dyn KeyPair<Label, Question<Dname<Bytes>>>) {
+        match self
+            .cache
+            .get(&(tag, question) as &dyn KeyPair<Label, Question<Dname<Bytes>>>)
+        {
             Some(r) => {
                 // Get record only once.
-                let resp = r.get();
                 if r.validate() {
                     info!("cache hit for {}", qname);
-                    Some(Alive(resp))
+                    Some(Alive(r.get()))
                 } else {
                     info!("TTL passed for {}, returning expired record.", qname);
-                    Some(Expired(resp))
+                    Some(Expired(r.get()))
+                }
+            }
+            Option::None => Option::None,
+        }
+    }
+}
+
+// A LRU cache mapping local address to EDNS Client Subnet external IP addr
+#[derive(Clone)]
+pub struct EcsCache {
+    cache: MokaCache<IpAddr, CacheRecord<IpAddr>>,
+}
+
+impl EcsCache {
+    pub fn new(size: NonZeroUsize) -> Result<Self, Error> {
+        Ok(Self {
+            cache: CacheBuilder::new(size.get()).build(),
+        })
+    }
+
+    pub async fn put(&self, ip: IpAddr, external_ip: IpAddr) {
+        self.cache
+            .insert(ip, CacheRecord::new(external_ip, ECS_CACHE_TTL));
+    }
+
+    pub fn get(&self, ip: &IpAddr) -> Option<RecordStatus<IpAddr>> {
+        match self.cache.get(ip) {
+            Some(r) => {
+                // Get record only once.
+                if r.validate() {
+                    info!("ECS external IP cache hit for private IP {}", ip);
+                    Some(Alive(r.get()))
+                } else {
+                    info!(
+                        "TTL passed for private IP {}, returning expired record.",
+                        ip
+                    );
+                    Some(Expired(r.get()))
                 }
             }
             Option::None => Option::None,

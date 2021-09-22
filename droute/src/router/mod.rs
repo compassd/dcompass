@@ -19,7 +19,7 @@ pub mod table;
 pub mod upstreams;
 
 use self::{
-    table::{Table, TableError},
+    table::{QueryContext, Table, TableError},
     upstreams::{error::UpstreamError, Upstreams},
 };
 use crate::{
@@ -55,13 +55,17 @@ impl Router {
     }
 
     /// Resolve the DNS query with routing rules defined.
-    pub async fn resolve(&self, msg: Message<Bytes>) -> Result<Message<Bytes>> {
+    pub async fn resolve(
+        &self,
+        msg: Message<Bytes>,
+        qctx: Option<QueryContext>,
+    ) -> Result<Message<Bytes>> {
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.
         Ok(match msg.sole_question() {
             Ok(_) => {
                 // Clone should be cheap here guaranteed by Bytes
-                match self.table.route(msg.clone(), &self.upstreams).await {
+                match self.table.route(msg.clone(), qctx, &self.upstreams).await {
                     Ok(m) => m,
                     Err(e) => {
                         // Catch all server failure here and return server fail

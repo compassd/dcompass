@@ -133,6 +133,7 @@ mod tests {
         State {
             resp: m.clone(),
             query: m,
+            qctx: None,
         }
     }
 

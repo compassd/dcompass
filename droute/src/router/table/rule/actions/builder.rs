@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 pub use super::query::QueryBuilder;
-use super::{Action, ActionError, Blackhole, CacheMode, Result as ActionResult};
+use super::{Action, ActionError, Blackhole, CacheMode, EcsBuilder, Result as ActionResult};
 use crate::{AsyncTryInto, Label};
 use async_trait::async_trait;
 use serde::{Deserialize, Deserializer};
@@ -31,6 +31,9 @@ pub enum BuiltinActionBuilders {
     /// Send query through an upstream with the specified tag name.
     #[serde(deserialize_with = "de_query")]
     Query(QueryBuilder),
+
+    /// Automatically append ECS information to the OPT section.
+    Ecs(EcsBuilder),
 }
 
 // Deserialize either a tag with default policy or a tag with a policy for query.
@@ -67,6 +70,7 @@ impl AsyncTryInto<Box<dyn Action>> for BuiltinActionBuilders {
         Ok(match self {
             Self::Blackhole => Box::new(Blackhole),
             Self::Query(q) => Box::new(q.try_into().await?),
+            Self::Ecs(e) => Box::new(e.try_into().await?),
         })
     }
 

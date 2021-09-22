@@ -44,7 +44,8 @@ dmatcher = {version = "^0.1", path = "../dmatcher"}
 log = "^0.4"
 serde = { version = "^1.0", features = ["derive", "rc"] }
 # CLru supports async, but it is not published yet.
-clru = "^0.5"
+# clru = "^0.5"
+moka = { version = "0.6", features = ["future"] }
 thiserror = "^1.0"
 async-trait = "^0.1"
 bb8 = "^0.7"

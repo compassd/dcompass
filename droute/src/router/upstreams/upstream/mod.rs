@@ -15,16 +15,17 @@
 
 pub mod builder;
 mod qhandle;
-pub(crate) mod resp_cache;
 
 use std::sync::Arc;
 
 use bytes::Bytes;
 pub use qhandle::{QHandle, QHandleError};
 
-use self::resp_cache::{RecordStatus::*, RespCache};
 use super::{super::table::rule::actions::CacheMode, error::Result};
-use crate::Label;
+use crate::{
+    cache::{RecordStatus::*, RespCache},
+    Label,
+};
 use domain::base::Message;
 
 /// A single upstream. Opposite to the `Upstreams`.

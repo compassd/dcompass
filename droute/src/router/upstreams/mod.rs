@@ -25,11 +25,8 @@ mod upstream;
 use bytes::Bytes;
 pub use upstream::*;
 
-use self::{
-    error::{Result, UpstreamError},
-    upstream::resp_cache::RespCache,
-};
-use crate::{actions::CacheMode, Label, Validatable, ValidateCell};
+use self::error::{Result, UpstreamError};
+use crate::{actions::CacheMode, cache::RespCache, Label, Validatable, ValidateCell};
 use domain::base::Message;
 use futures::future::{select_ok, BoxFuture, FutureExt};
 use std::{

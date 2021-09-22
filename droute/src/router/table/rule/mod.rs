@@ -189,6 +189,7 @@ mod tests {
                 &mut State {
                     resp: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
                     query: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
+                    qctx: None,
                 },
                 &Upstreams::new(
                     vec![].into_iter().collect(),
@@ -218,6 +219,7 @@ mod tests {
                 &mut State {
                     resp: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
                     query: Message::from_octets(Bytes::from_static(&[0_u8; 55])).unwrap(),
+                    qctx: None,
                 },
                 &Upstreams::new(
                     vec![].into_iter().collect(),

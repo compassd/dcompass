@@ -16,10 +16,12 @@
 mod blackhole;
 /// Builders for built-in actions and more.
 pub mod builder;
+mod ecs;
 mod query;
 
 pub use self::{
     blackhole::Blackhole,
+    ecs::{Ecs, EcsBuilder},
     query::{CacheMode, Query},
 };
 
@@ -49,6 +51,9 @@ pub enum ActionError {
     /// Short Buf
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
+
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 #[async_trait]

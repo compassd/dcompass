@@ -23,7 +23,10 @@ use bytes::{Bytes, BytesMut};
 use domain::base::{name::PushError, octets::ParseError, Message, ToDname};
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    net::IpAddr,
+};
 use thiserror::Error;
 
 type Result<T> = std::result::Result<T, TableError>;
@@ -70,7 +73,14 @@ pub enum TableError {
     ExprError(#[from] crate::matchers::expr::ExprError),
 }
 
+/// Query Context
+pub struct QueryContext {
+    /// Query sender's IP address
+    pub ip: IpAddr,
+}
+
 pub struct State {
+    qctx: Option<QueryContext>,
     resp: Message<Bytes>,
     query: Message<Bytes>,
 }
@@ -82,6 +92,7 @@ impl Default for State {
         Self {
             resp: Message::from_octets(Bytes::from_static(&[0; 1024])).unwrap(),
             query: Message::from_octets(Bytes::from_static(&[0; 1024])).unwrap(),
+            qctx: None,
         }
     }
 }
@@ -182,10 +193,12 @@ impl Table {
     pub(super) async fn route(
         &self,
         query: Message<Bytes>,
+        qctx: Option<QueryContext>,
         upstreams: &Upstreams,
     ) -> Result<Message<Bytes>> {
         let name = query.first_question().unwrap().qname().to_dname()?;
         let mut s = State {
+            qctx,
             // Clone is cheap, just a ref count increment
             query: query.clone(),
             resp: query,
