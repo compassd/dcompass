@@ -24,7 +24,10 @@ use crate::{
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use domain::{
-    base::{opt::ClientSubnet, Message, MessageBuilder},
+    base::{
+        opt::{AllOptData, ClientSubnet},
+        Message, MessageBuilder, ShortBuf,
+    },
     rdata::AllRecordData,
 };
 use serde::{Deserialize, Serialize};
@@ -46,7 +49,7 @@ pub enum Ecs {
 
 impl Ecs {
     // Update the external IP and cache; return the IP address
-    async fn update_external_ip(&self) -> Result<IpAddr> {
+    async fn get_and_update_external_ip(&self) -> Result<IpAddr> {
         match self {
             Self::Dynamic { cache, api } => {
                 // If we reuse the client, internal client pool will not be updated if network condition changes.
@@ -67,6 +70,7 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
         IpAddr::V4(_) => 24,
         IpAddr::V6(_) => 56,
     };
+    // Copy all the questions and headers here.
     let mut builder = MessageBuilder::from_target(BytesMut::from(msg.as_slice()))?;
     *builder.header_mut() = msg.header();
     let mut builder = builder.question();
@@ -74,12 +78,38 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
         builder.push(item)?;
     }
     let mut builder = builder.additional();
+    // Per RFC 6891
+    // The OPT RR MAY be placed anywhere within the additional data section.
+    // When an OPT RR is included within any DNS message, it MUST be the
+    // only OPT RR in that message.
+
+    // Whether we have NOT already added an ECS option in the OPT record.
+    let mut flag = true;
     for item in msg.additional()? {
         if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
-            builder.push(record)?;
+            // NOTE: We don't rectify the incoming DNS request. Therefore, if there are multiple OPT records, with which the message is then malformatted, we simply forward it to the upstream.
+            // If this is an OPT record
+            if let AllRecordData::Opt(opt) = record.data() {
+                builder.opt(|builder| {
+                    // Iterate on all the options
+                    // Collect what we are about to append
+                    for option in opt.iter() {
+                        let option = option.map_err(|_| ShortBuf)?;
+                        // If this is an ECS option, we should overwrite it and never care about later ECS options
+                        if matches!(option, AllOptData::ClientSubnet(_)) && flag {
+                            ClientSubnet::push(builder, source_prefix_len, 0, ip)?;
+                            flag = false;
+                        } else {
+                            builder.push(&option)?;
+                        }
+                    }
+                    Ok(())
+                })?;
+            } else {
+                builder.push(record)?;
+            }
         }
     }
-    builder.opt(|opt| ClientSubnet::push(opt, source_prefix_len, 0, ip))?;
     Ok(builder.into_message())
 }
 
@@ -121,16 +151,19 @@ impl Action for Ecs {
                                 // We have to update the cache though
                                 // We don't care about failures here.
                                 // Get external_ip will update cache automatically.
-                                let _ = ecs.update_external_ip().await;
+                                let _ = ecs.get_and_update_external_ip().await;
                             });
                             r
                         }
                         None => {
                             // No cache
-                            self.update_external_ip().await?
+                            self.get_and_update_external_ip().await?
                         }
                     },
-                    Self::Static(ip) => *ip,
+                    Self::Static(ip) => {
+                        log::debug!("got manually defined IP address: {}", ip);
+                        *ip
+                    }
                 }
             };
 
