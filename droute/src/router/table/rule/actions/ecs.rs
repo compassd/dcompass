@@ -13,7 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{net::IpAddr, str::FromStr};
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+    time::Duration,
+};
 
 use super::{Action, ActionError, Result};
 use crate::{
@@ -30,6 +34,7 @@ use domain::{
     },
     rdata::AllRecordData,
 };
+use reqwest::{Client, Proxy};
 use serde::{Deserialize, Serialize};
 
 /// An action that add ECS record into additional section
@@ -40,6 +45,10 @@ pub enum Ecs {
     Dynamic {
         /// The EcsCache
         cache: EcsCache,
+        /// Optional IP address of the API
+        addr: Option<IpAddr>,
+        /// Optional Socks5 Proxy
+        proxy: Option<String>,
         /// API URL
         api: String,
     },
@@ -51,9 +60,32 @@ impl Ecs {
     // Update the external IP and cache; return the IP address
     async fn get_and_update_external_ip(&self) -> Result<IpAddr> {
         match self {
-            Self::Dynamic { cache, api } => {
+            Self::Dynamic {
+                cache,
+                api,
+                addr,
+                proxy,
+            } => {
                 // If we reuse the client, internal client pool will not be updated if network condition changes.
-                let external_ip = reqwest::get(api).await?.text().await?;
+                let client = Client::builder()
+                    .https_only(true)
+                    .connect_timeout(Duration::from_secs(3));
+
+                let client = if let Some(addr) = addr {
+                    // The port in socket addr doesn't take effect here per documentation
+                    client.resolve(api, SocketAddr::new(*addr, 0))
+                } else {
+                    client
+                };
+
+                let client = if let Some(proxy) = proxy.clone() {
+                    client.proxy(Proxy::all(proxy)?)
+                } else {
+                    client
+                }
+                .build()?;
+
+                let external_ip = client.get(api).send().await?.text().await?;
                 log::info!("got external IP: {}", external_ip.trim());
                 // The answer should be a valid IP address
                 let external_ip = IpAddr::from_str(external_ip.trim()).unwrap();
@@ -65,6 +97,7 @@ impl Ecs {
     }
 }
 
+// TODO: We should test this function thoroughly
 fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
     let source_prefix_len = match ip {
         IpAddr::V4(_) => 24,
@@ -83,32 +116,35 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
     // When an OPT RR is included within any DNS message, it MUST be the
     // only OPT RR in that message.
 
-    // Whether we have NOT already added an ECS option in the OPT record.
-    let mut flag = true;
+    // Whether we have already seen an OPT record.
+    let mut flag = false;
     for item in msg.additional()? {
         if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
             // NOTE: We don't rectify the incoming DNS request. Therefore, if there are multiple OPT records, with which the message is then malformatted, we simply forward it to the upstream.
             // If this is an OPT record
-            if let AllRecordData::Opt(opt) = record.data() {
-                builder.opt(|builder| {
-                    // Iterate on all the options
-                    // Collect what we are about to append
-                    for option in opt.iter() {
-                        let option = option.map_err(|_| ShortBuf)?;
-                        // If this is an ECS option, we should overwrite it and never care about later ECS options
-                        match (&option, flag) {
-                            (AllOptData::ClientSubnet(_), true) => {
-                                ClientSubnet::push(builder, source_prefix_len, 0, ip)?;
-                                flag = false;
+            match (record.data(), flag) {
+                (AllRecordData::Opt(opt), false) => {
+                    builder.opt(|builder| {
+                        // Iterate on all the options
+                        for option in opt.iter() {
+                            let option = option.map_err(|_| ShortBuf)?;
+                            if let AllOptData::ClientSubnet(_) = option {
+                                // If this is an ECS option, we should not add it
+                            } else {
+                                // Otherwise we copy the option
+                                builder.push(&option)?
                             }
-                            (AllOptData::ClientSubnet(_), false) => {}
-                            (_, _) => builder.push(&option)?,
                         }
-                    }
-                    Ok(())
-                })?;
-            } else {
-                builder.push(record)?;
+                        // Finally we add our own ECS option
+                        ClientSubnet::push(builder, source_prefix_len, 0, ip)?;
+                        Ok(())
+                    })?;
+                    flag = true
+                }
+                (AllRecordData::Opt(_), true) => {} // We have already encountered an OPT record, DON'T copy it
+                (_, _) => {
+                    builder.push(record)?;
+                }
             }
         }
     }
@@ -140,7 +176,7 @@ impl Action for Ecs {
             } else {
                 log::debug!("trying to obtain external IP address for local query IP");
                 match self {
-                    Self::Dynamic { cache, api: _ } => match cache.get(&ip) {
+                    Self::Dynamic { cache, .. } => match cache.get(&ip) {
                         Some(RecordStatus::Alive(r)) => {
                             // Alive external IP cache
                             // Immediately return back
@@ -188,7 +224,14 @@ impl Action for Ecs {
 /// Build ECS with two modes
 pub enum EcsBuilder {
     /// Automatically obtain and manage the external IP using an API
-    Auto(String),
+    Auto {
+        /// The API address to obtain your external IP. e.g. https://ifconfig.me
+        api: String,
+        /// An optional IP addr to use if you want to bootstrap this plugin
+        addr: Option<IpAddr>,
+        /// An optional SOCKS5 proxy
+        proxy: Option<String>,
+    },
     /// Manually assign an external IP
     Manual(IpAddr),
 }
@@ -199,9 +242,11 @@ impl AsyncTryInto<Ecs> for EcsBuilder {
 
     async fn try_into(self) -> Result<Ecs> {
         Ok(match self {
-            EcsBuilder::Auto(api) => Ecs::Dynamic {
+            EcsBuilder::Auto { api, addr, proxy } => Ecs::Dynamic {
                 cache: EcsCache::new(),
                 api,
+                addr,
+                proxy,
             },
             EcsBuilder::Manual(ip) => Ecs::Static(ip),
         })
