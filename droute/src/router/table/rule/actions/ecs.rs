@@ -96,11 +96,13 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
                     for option in opt.iter() {
                         let option = option.map_err(|_| ShortBuf)?;
                         // If this is an ECS option, we should overwrite it and never care about later ECS options
-                        if matches!(option, AllOptData::ClientSubnet(_)) && flag {
-                            ClientSubnet::push(builder, source_prefix_len, 0, ip)?;
-                            flag = false;
-                        } else {
-                            builder.push(&option)?;
+                        match (&option, flag) {
+                            (AllOptData::ClientSubnet(_), true) => {
+                                ClientSubnet::push(builder, source_prefix_len, 0, ip)?;
+                                flag = false;
+                            }
+                            (AllOptData::ClientSubnet(_), false) => {}
+                            (_, _) => builder.push(&option)?,
                         }
                     }
                     Ok(())
