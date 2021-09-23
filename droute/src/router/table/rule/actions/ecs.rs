@@ -23,36 +23,42 @@ use crate::{
 };
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use domain::base::{opt::ClientSubnet, Message, MessageBuilder};
+use domain::{
+    base::{opt::ClientSubnet, Message, MessageBuilder},
+    rdata::AllRecordData,
+};
 use serde::{Deserialize, Serialize};
 
-/// An action that add ECS record into OPT section
+/// An action that add ECS record into additional section
 #[derive(Clone)]
-pub struct Ecs {
+pub enum Ecs {
     // inner arc
-    cache: EcsCache,
-    api: String,
+    /// Dynamically update and fetch external IP
+    Dynamic {
+        /// The EcsCache
+        cache: EcsCache,
+        /// API URL
+        api: String,
+    },
+    /// Statically assign an external IP to use
+    Static(IpAddr),
 }
 
 impl Ecs {
-    /// Attatch valid ECS record to the OPT section
-    pub fn new(api: String) -> Result<Self> {
-        Ok(Self {
-            cache: EcsCache::new(),
-            api,
-        })
-    }
-}
-
-impl Ecs {
+    // Update the external IP and cache; return the IP address
     async fn update_external_ip(&self) -> Result<IpAddr> {
-        // If we reuse the client, internal client pool will not be updated if network condition changes.
-        let external_ip = reqwest::get(&self.api).await?.text().await?;
-        log::info!("got external IP: {}", external_ip.trim());
-        // The answer should be a valid IP address
-        let external_ip = IpAddr::from_str(external_ip.trim()).unwrap();
-        self.cache.put(external_ip).await;
-        Ok(external_ip)
+        match self {
+            Self::Dynamic { cache, api } => {
+                // If we reuse the client, internal client pool will not be updated if network condition changes.
+                let external_ip = reqwest::get(api).await?.text().await?;
+                log::info!("got external IP: {}", external_ip.trim());
+                // The answer should be a valid IP address
+                let external_ip = IpAddr::from_str(external_ip.trim()).unwrap();
+                cache.put(external_ip).await;
+                Ok(external_ip)
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -68,6 +74,11 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
         builder.push(item)?;
     }
     let mut builder = builder.additional();
+    for item in msg.additional()? {
+        if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+            builder.push(record)?;
+        }
+    }
     builder.opt(|opt| ClientSubnet::push(opt, source_prefix_len, 0, ip))?;
     Ok(builder.into_message())
 }
@@ -88,39 +99,46 @@ impl Action for Ecs {
                 }
                 IpAddr::V6(ref ip) => ip.is_multicast() && (ip.segments()[0] & 0x000f == 14),
             };
-            if global {
-                log::debug!("appending global origin IP address ECS info to the OPT section");
+
+            // Obtain the external IP
+            let external_ip = if global {
+                log::debug!("appending global IP {} to the ECS info", ip);
                 // If the query sender has external IP
-                state.query = add_ecs_record(&state.query, ip)?;
+                ip
             } else {
                 log::debug!("trying to obtain external IP address for local query IP");
-                match self.cache.get(&ip) {
-                    Some(RecordStatus::Alive(r)) => {
-                        // Alive external IP cache
-                        // Immediately return back
-                        state.query = add_ecs_record(&state.query, r)?;
-                    }
-                    Some(RecordStatus::Expired(r)) => {
-                        // Expired record
-                        let ecs = self.clone();
-                        state.query = add_ecs_record(&state.query, r)?;
-                        tokio::spawn(async move {
-                            // We have to update the cache though
-                            // We don't care about failures here.
-                            // Get external_ip will update cache automatically.
-                            let _ = ecs.update_external_ip().await;
-                        });
-                    }
-                    None => {
-                        // No cache
-                        state.query =
-                            add_ecs_record(&state.query, self.update_external_ip().await?)?;
-                    }
+                match self {
+                    Self::Dynamic { cache, api: _ } => match cache.get(&ip) {
+                        Some(RecordStatus::Alive(r)) => {
+                            // Alive external IP cache
+                            // Immediately return back
+                            r
+                        }
+                        Some(RecordStatus::Expired(r)) => {
+                            // Expired record
+                            let ecs = self.clone();
+                            tokio::spawn(async move {
+                                // We have to update the cache though
+                                // We don't care about failures here.
+                                // Get external_ip will update cache automatically.
+                                let _ = ecs.update_external_ip().await;
+                            });
+                            r
+                        }
+                        None => {
+                            // No cache
+                            self.update_external_ip().await?
+                        }
+                    },
+                    Self::Static(ip) => *ip,
                 }
             };
+
+            // Append the record
+            state.query = add_ecs_record(&state.query, external_ip)?;
         } else {
             // Do nothing if there is no origin IP.
-            log::warn!("no origin IP address found to append ECS record");
+            log::warn!("no origin IP address found to generate ECS record");
         }
         Ok(())
     }
@@ -131,9 +149,13 @@ impl Action for Ecs {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-/// Build ECS with API string
-pub struct EcsBuilder {
-    api: String,
+#[serde(rename_all = "lowercase")]
+/// Build ECS with two modes
+pub enum EcsBuilder {
+    /// Automatically obtain and manage the external IP using an API
+    Auto(String),
+    /// Manually assign an external IP
+    Manual(IpAddr),
 }
 
 #[async_trait]
@@ -141,6 +163,12 @@ impl AsyncTryInto<Ecs> for EcsBuilder {
     type Error = ActionError;
 
     async fn try_into(self) -> Result<Ecs> {
-        Ecs::new(self.api)
+        Ok(match self {
+            EcsBuilder::Auto(api) => Ecs::Dynamic {
+                cache: EcsCache::new(),
+                api,
+            },
+            EcsBuilder::Manual(ip) => Ecs::Static(ip),
+        })
     }
 }

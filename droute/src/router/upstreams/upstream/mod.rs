@@ -80,7 +80,7 @@ impl Upstream {
                             // We have to update the cache though
                             // We don't care about failures here.
                             if let Ok(r) = inner.query(&msg).await {
-                                cache.put(tag, r)
+                                cache.put(tag, &msg, r)
                             }
                         });
                         r
@@ -89,7 +89,7 @@ impl Upstream {
                 },
             };
             if cache_mode != &CacheMode::Disabled {
-                cache.put(tag.clone(), r.clone());
+                cache.put(tag.clone(), msg, r.clone());
             }
             log::info!("query successfully completed.");
             Ok(r)

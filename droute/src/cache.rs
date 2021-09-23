@@ -17,7 +17,7 @@ use self::RecordStatus::*;
 use crate::{Label, MAX_TTL};
 use bytes::Bytes;
 use clru::CLruCache;
-use domain::base::{name::ToDname, question::Question, Dname, Message};
+use domain::base::{name::ToDname, Message};
 use log::*;
 use std::{
     borrow::Borrow,
@@ -113,7 +113,7 @@ pub enum RecordStatus<T> {
 #[derive(Clone)]
 pub struct RespCache {
     #[allow(clippy::type_complexity)]
-    cache: Arc<Mutex<CLruCache<(Label, Question<Dname<Bytes>>), CacheRecord<Message<Bytes>>>>>,
+    cache: Arc<Mutex<CLruCache<(Label, Bytes), CacheRecord<Message<Bytes>>>>>,
 }
 
 impl RespCache {
@@ -123,12 +123,12 @@ impl RespCache {
         }
     }
 
-    pub fn put(&self, tag: Label, msg: Message<Bytes>) {
+    pub fn put(&self, tag: Label, query: &Message<Bytes>, msg: Message<Bytes>) {
         if msg.no_error() {
             // We are assured that it should parse and exist
-            let question = msg.first_question().unwrap();
             let ttl = Duration::from_secs(u64::from(
-                msg.answer()
+                query
+                    .answer()
                     .ok()
                     .map(|records| {
                         records
@@ -140,15 +140,8 @@ impl RespCache {
                     .unwrap_or(MAX_TTL),
             ));
             self.cache.lock().unwrap().put(
-                (
-                    tag,
-                    (
-                        question.qname().to_bytes(),
-                        question.qtype(),
-                        question.qclass(),
-                    )
-                        .into(),
-                ),
+                // We discard the first two bytes which are the places for ID
+                (tag, query.as_octets().slice(2..)),
                 // Clone should be cheap here
                 CacheRecord::new(msg, ttl),
             );
@@ -160,14 +153,12 @@ impl RespCache {
     pub fn get(&self, tag: &Label, msg: &Message<Bytes>) -> Option<RecordStatus<Message<Bytes>>> {
         let question = msg.first_question().unwrap();
         let qname = question.qname().to_bytes();
-        let question: Question<Dname<Bytes>> =
-            (qname.clone(), question.qtype(), question.qclass()).into();
 
         match self
             .cache
             .lock()
             .unwrap()
-            .get(&(tag, question) as &dyn KeyPair<Label, Question<Dname<Bytes>>>)
+            .get(&(tag, msg.as_octets().slice(2..)) as &dyn KeyPair<Label, Bytes>)
         {
             Some(r) => {
                 // Get record only once.
@@ -218,5 +209,11 @@ impl EcsCache {
             }
             Option::None => Option::None,
         }
+    }
+}
+
+impl Default for EcsCache {
+    fn default() -> Self {
+        Self::new()
     }
 }

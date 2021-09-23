@@ -55,6 +55,10 @@ pub enum ActionError {
     /// Reqwest Error
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    /// ParseError
+    #[error(transparent)]
+    ParseError(#[from] domain::base::octets::ParseError),
 }
 
 #[async_trait]
