@@ -59,6 +59,10 @@ pub enum ActionError {
     /// ParseError
     #[error(transparent)]
     ParseError(#[from] domain::base::octets::ParseError),
+
+    /// invalid domain
+    #[error("the URL '{0}' doesn't contain a valid domain")]
+    InvalidUrl(String),
 }
 
 #[async_trait]

@@ -34,7 +34,7 @@ use domain::{
     },
     rdata::AllRecordData,
 };
-use reqwest::{Client, Proxy};
+use reqwest::{Client, Proxy, Url};
 use serde::{Deserialize, Serialize};
 
 /// An action that add ECS record into additional section
@@ -45,11 +45,9 @@ pub enum Ecs {
     Dynamic {
         /// The EcsCache
         cache: EcsCache,
-        /// Optional IP address of the API
-        addr: Option<IpAddr>,
-        /// Optional Socks5 Proxy
-        proxy: Option<String>,
-        /// API URL
+        /// Inner Client
+        client: Client,
+        /// Internal API
         api: String,
     },
     /// Statically assign an external IP to use
@@ -57,34 +55,43 @@ pub enum Ecs {
 }
 
 impl Ecs {
+    /// Create a new dynamic API
+    pub fn new_dynamic(api: String, addr: Option<IpAddr>, proxy: Option<String>) -> Result<Self> {
+        let client = Client::builder()
+            .https_only(true)
+            .connect_timeout(Duration::from_secs(3));
+
+        let client = if let Some(addr) = addr {
+            // The port in socket addr doesn't take effect here per documentation
+            client.resolve(
+                Url::from_str(&api)
+                    .map_err(|_| ActionError::InvalidUrl(api.clone()))?
+                    .domain()
+                    .ok_or_else(|| ActionError::InvalidUrl(api.clone()))?,
+                SocketAddr::new(addr, 0),
+            )
+        } else {
+            client
+        };
+
+        let client = if let Some(proxy) = proxy {
+            client.proxy(Proxy::all(proxy)?)
+        } else {
+            client
+        }
+        .build()?;
+
+        Ok(Self::Dynamic {
+            api,
+            client,
+            cache: EcsCache::new(),
+        })
+    }
+
     // Update the external IP and cache; return the IP address
     async fn get_and_update_external_ip(&self) -> Result<IpAddr> {
         match self {
-            Self::Dynamic {
-                cache,
-                api,
-                addr,
-                proxy,
-            } => {
-                // If we reuse the client, internal client pool will not be updated if network condition changes.
-                let client = Client::builder()
-                    .https_only(true)
-                    .connect_timeout(Duration::from_secs(3));
-
-                let client = if let Some(addr) = addr {
-                    // The port in socket addr doesn't take effect here per documentation
-                    client.resolve(api, SocketAddr::new(*addr, 0))
-                } else {
-                    client
-                };
-
-                let client = if let Some(proxy) = proxy.clone() {
-                    client.proxy(Proxy::all(proxy)?)
-                } else {
-                    client
-                }
-                .build()?;
-
+            Self::Dynamic { cache, client, api } => {
                 let external_ip = client.get(api).send().await?.text().await?;
                 log::info!("got external IP: {}", external_ip.trim());
                 // The answer should be a valid IP address
@@ -120,7 +127,6 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
     let mut flag = false;
     for item in msg.additional()? {
         if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
-            // NOTE: We don't rectify the incoming DNS request. Therefore, if there are multiple OPT records, with which the message is then malformatted, we simply forward it to the upstream.
             // If this is an OPT record
             match (record.data(), flag) {
                 (AllRecordData::Opt(opt), false) => {
@@ -242,13 +248,104 @@ impl AsyncTryInto<Ecs> for EcsBuilder {
 
     async fn try_into(self) -> Result<Ecs> {
         Ok(match self {
-            EcsBuilder::Auto { api, addr, proxy } => Ecs::Dynamic {
-                cache: EcsCache::new(),
-                api,
-                addr,
-                proxy,
-            },
+            EcsBuilder::Auto { api, addr, proxy } => Ecs::new_dynamic(api, addr, proxy)?,
             EcsBuilder::Manual(ip) => Ecs::Static(ip),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Bytes, BytesMut};
+    use domain::base::{
+        octets::ParseError,
+        opt::{AllOptData, ClientSubnet, Cookie},
+        MessageBuilder,
+    };
+
+    use super::add_ecs_record;
+
+    #[test]
+    fn overwrite_ecs() {
+        // First of all, we should overwrite all ECS option. i.e. Remove all ECS options and add our own.
+        // Second of all, we should only push back one OPT record.
+        let mut builder = MessageBuilder::<BytesMut>::new_bytes().additional();
+        builder
+            .opt(|opt| {
+                ClientSubnet::push(opt, 32, 0, "1.1.1.1".parse().unwrap())?;
+                opt.push(&AllOptData::<Bytes>::Cookie(Cookie::new([7; 8])))?;
+                Ok(())
+            })
+            .unwrap();
+        builder
+            .opt(|opt| ClientSubnet::push(opt, 24, 0, "1.1.1.1".parse().unwrap()))
+            .unwrap();
+        let msg = builder.into_message();
+
+        let v = add_ecs_record(&msg, "9.9.9.9".parse().unwrap())
+            .unwrap()
+            .opt()
+            .unwrap()
+            .as_opt()
+            .iter::<AllOptData<Bytes>>()
+            .collect::<Result<Vec<AllOptData<Bytes>>, ParseError>>()
+            .unwrap();
+        assert_eq!(v.len(), 2);
+        // AllOptData doesn't implement debug
+        // Cookie
+        match v[0] {
+            AllOptData::Cookie(cookie) => {
+                assert_eq!(cookie.cookie(), [7; 8]);
+            }
+            _ => unreachable!(),
+        };
+
+        match v[1] {
+            AllOptData::ClientSubnet(cs) => {
+                assert_eq!(cs.source_prefix_len(), 24);
+                assert_eq!(cs.scope_prefix_len(), 0);
+                assert_eq!(cs.addr(), "9.9.9.0".parse::<std::net::IpAddr>().unwrap());
+            }
+            _ => unreachable!(),
+        };
+    }
+
+    #[test]
+    fn add_ecs_opt() {
+        // First of all, we should overwrite all ECS option. i.e. Remove all ECS options and add our own.
+        // Second of all, we should only push back one OPT record.
+        // Third of all, even if there is no ECS option already, we should add one.
+        let mut builder = MessageBuilder::<BytesMut>::new_bytes().additional();
+        builder
+            .opt(|opt| opt.push(&AllOptData::<Bytes>::Cookie(Cookie::new([7; 8]))))
+            .unwrap();
+        let msg = builder.into_message();
+
+        let v = add_ecs_record(&msg, "9.9.9.9".parse().unwrap())
+            .unwrap()
+            .opt()
+            .unwrap()
+            .as_opt()
+            .iter::<AllOptData<Bytes>>()
+            .collect::<Result<Vec<AllOptData<Bytes>>, ParseError>>()
+            .unwrap();
+        assert_eq!(v.len(), 2);
+        // AllOptData doesn't implement debug
+        // Cookie
+        match v[0] {
+            AllOptData::Cookie(cookie) => {
+                assert_eq!(cookie.cookie(), [7; 8]);
+            }
+            _ => unreachable!(),
+        };
+
+        match v[1] {
+            AllOptData::ClientSubnet(cs) => {
+                assert_eq!(cs.source_prefix_len(), 24);
+                assert_eq!(cs.scope_prefix_len(), 0);
+                assert_eq!(cs.addr(), "9.9.9.0".parse::<std::net::IpAddr>().unwrap());
+            }
+            _ => unreachable!(),
+        };
     }
 }
