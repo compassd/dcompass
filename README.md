@@ -73,6 +73,7 @@ Different matchers: (More matchers to come)
 - `qtype(list of record types)`: Matches record type specified.
 - `geoip(codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
 - `ipcidr(list of files that contain CIDR entries)`: Same as `geoip`, but it instead matches on CIDR. Supports gzip, lzma, and bzip2.
+- `header(cond: opcode|rcode|bits, query: bool)`: Matches the condition on query message header or response message header depending on the second option
 
 Different querying methods:
 
@@ -138,6 +139,9 @@ Found 2 outliers among 100 measurements (2.00%)
 - [x] IP-CIDR matcher for both source address and response address
 - [x] GeoIP matcher for source address
 - [x] Custom response action
+
+# RFC compliance and what it is not intended to be
+dcompass should be somewhere between a DNS resolver and DNS forwarder. Currently we don't fully comply RFC on some corner cases. And it is also not clear whether we should correct the incoming malformatted DNS requests. **If you feel a particular compliance to RFC is necessary, please file an issue and we are willing to help!**
 
 # License
 
