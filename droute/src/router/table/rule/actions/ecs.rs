@@ -23,7 +23,7 @@ use super::{Action, ActionError, Result};
 use crate::{
     cache::{EcsCache, RecordStatus},
     router::table::State,
-    AsyncTryInto, Label, QueryContext, Upstreams,
+    AsyncTryInto, Label, Upstreams,
 };
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
@@ -160,7 +160,7 @@ fn add_ecs_record(msg: &Message<Bytes>, ip: IpAddr) -> Result<Message<Bytes>> {
 #[async_trait]
 impl Action for Ecs {
     async fn act(&self, state: &mut State, _: &Upstreams) -> Result<()> {
-        if let Some(QueryContext { ip }) = state.qctx {
+        if let Some(ip) = state.origin_ip() {
             // Test if the origin has a global IP address
             // TODO: We should use ip.is_global() instead once stabalized
             let global = match ip {

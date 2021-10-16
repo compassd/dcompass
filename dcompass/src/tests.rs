@@ -106,6 +106,16 @@ async fn check_success_rule_yaml() {
 }
 
 #[tokio::test]
+async fn check_success_header_yaml() {
+    assert_eq!(
+        init(serde_yaml::from_str(include_str!("../../configs/success_header.yaml")).unwrap())
+            .await
+            .is_ok(),
+        true
+    );
+}
+
+#[tokio::test]
 async fn check_fail_undef() {
     assert_eq!(
         match init(serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap())

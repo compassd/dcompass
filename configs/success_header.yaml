@@ -1,0 +1,15 @@
+---
+verbosity: "off"
+address: 0.0.0.0:2053
+table:
+  start:
+    if: "header(cond: opcode(QUERY), query: true)"
+    then:
+      - query: secure
+      - end
+upstreams:
+  secure:
+    https:
+      timeout: 2
+      uri: https://dns.quad9.net/dns-query
+      addr: 9.9.9.9

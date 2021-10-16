@@ -18,7 +18,7 @@ use crate::AsyncTryInto;
 #[cfg(feature = "geoip")]
 pub use super::geoip::GeoIpBuilder;
 pub use super::{domain::DomainBuilder, ipcidr::IpCidrBuilder, qtype::QTypeBuilder};
-use super::{MatchError, Matcher, Result as MatcherResult};
+use super::{header::Header, MatchError, Matcher, Result as MatcherResult};
 use async_trait::async_trait;
 use serde::Deserialize;
 
@@ -38,6 +38,9 @@ pub enum BuiltinMatcherBuilders {
 
     /// Matches if IP address in the record of the first response is in the list of IP CIDR.
     IpCidr(IpCidrBuilder),
+
+    /// Matches if header fulfills given condition
+    Header(Header),
 }
 
 // TODO: This should be derived
@@ -46,6 +49,7 @@ impl AsyncTryInto<Box<dyn Matcher>> for BuiltinMatcherBuilders {
     async fn try_into(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
             Self::Domain(v) => Box::new(v.try_into().await?),
+            Self::Header(h) => Box::new(h),
             Self::QType(q) => Box::new(q.try_into().await?),
             Self::IpCidr(s) => Box::new(s.try_into().await?),
             #[cfg(feature = "geoip")]

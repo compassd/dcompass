@@ -20,7 +20,10 @@ use super::upstreams::Upstreams;
 use crate::{AsyncTryInto, Label, Validatable, ValidateCell};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use domain::base::{name::PushError, octets::ParseError, Message, ToDname};
+use domain::{
+    base::{name::PushError, octets::ParseError, Message, ParsedDname, Rtype, ToDname},
+    rdata::AllRecordData,
+};
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -83,6 +86,39 @@ pub struct State {
     qctx: Option<QueryContext>,
     resp: Message<Bytes>,
     query: Message<Bytes>,
+}
+
+// Some helper functions on response and query DNS messages
+impl State {
+    fn origin_ip(&self) -> Option<IpAddr> {
+        self.qctx.as_ref().map(|x| x.ip)
+    }
+
+    fn resp_ip(&self) -> Result<Option<IpAddr>> {
+        let record = self
+            .resp
+            .answer()?
+            .filter(|r| r.is_ok())
+            .find(|r| matches!(r.as_ref().unwrap().rtype(), Rtype::A | Rtype::Aaaa));
+
+        let record = record
+            .map(|r| {
+                r.unwrap()
+                    .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
+                    .ok()
+            })
+            .flatten()
+            .flatten();
+        if let Some(record) = record {
+            Ok(Some(match record.data() {
+                AllRecordData::A(x) => IpAddr::V4(x.addr()),
+                AllRecordData::Aaaa(x) => IpAddr::V6(x.addr()),
+                _ => unreachable!(),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 // It is strongly discouraged and meaningless to have such default other than for convenience in test

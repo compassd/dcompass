@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{super::super::State, get_ip_addr, MatchError, Matcher, Result};
+use super::{super::super::State, MatchError, Matcher, Result};
 use crate::AsyncTryInto;
 use async_trait::async_trait;
 use log::info;
@@ -39,7 +39,7 @@ impl GeoIp {
 
 impl Matcher for GeoIp {
     fn matches(&self, state: &State) -> bool {
-        if let Ok(Some(ip)) = get_ip_addr(&state.resp) {
+        if let Ok(Some(ip)) = state.resp_ip() {
             let r = if let Ok(r) = self.db.lookup::<Country>(ip) {
                 r
             } else {

@@ -55,6 +55,15 @@ pub enum MatcherBuilders {
 
     /// Matches if IP address in the record of the first response is in the list of IP CIDR.
     IpCidr(IpCidrBuilder),
+
+    /// Matches if header fulfills given condition
+    Header {
+        /// Matching condition
+        cond: HeaderCond,
+        /// Should we match on query msg?
+        #[serde(default)]
+        query: bool,
+    },
 }
 
 // TODO: This should be derived
@@ -64,6 +73,7 @@ impl AsyncTryInto<Box<dyn Matcher>> for MatcherBuilders {
         Ok(match self {
             Self::Domain(v) => Box::new(v.try_into().await?),
             Self::QType(q) => Box::new(q.try_into().await?),
+            Self::Header { cond, query } => Box::new(Header { cond, query }),
             Self::IpCidr(s) => Box::new(s.try_into().await?),
             Self::GeoIp { path, codes } => Box::new(GeoIp::new(
                 codes,

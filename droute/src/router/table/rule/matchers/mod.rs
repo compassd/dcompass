@@ -19,6 +19,7 @@ mod domain;
 pub(crate) mod expr;
 #[cfg(feature = "geoip")]
 mod geoip;
+mod header;
 mod ipcidr;
 mod qtype;
 
@@ -26,18 +27,15 @@ mod qtype;
 pub use self::geoip::GeoIp;
 pub use self::{
     domain::{Domain, ResourceType},
+    header::{Header, HeaderCond},
     ipcidr::IpCidr,
     qtype::QType,
 };
 use super::super::State;
-use ::domain::{
-    base::{name::FromStrError, octets::ParseError, Message, ParsedDname, Rtype},
-    rdata::AllRecordData,
-};
-use bytes::Bytes;
+use ::domain::base::{name::FromStrError, octets::ParseError};
 #[cfg(feature = "geoip")]
 use maxminddb::MaxMindDBError;
-use std::{fmt::Debug, net::IpAddr};
+use std::fmt::Debug;
 use thiserror::Error;
 
 /// A shorthand for returning action error.
@@ -89,29 +87,4 @@ pub enum MatchError {
 pub trait Matcher: Sync + Send {
     /// Determine if match.
     fn matches(&self, state: &State) -> bool;
-}
-
-fn get_ip_addr(msg: &Message<Bytes>) -> Result<Option<IpAddr>> {
-    let record = msg
-        .answer()?
-        .filter(|r| r.is_ok())
-        .find(|r| matches!(r.as_ref().unwrap().rtype(), Rtype::A | Rtype::Aaaa));
-
-    let record = record
-        .map(|r| {
-            r.unwrap()
-                .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
-                .ok()
-        })
-        .flatten()
-        .flatten();
-    if let Some(record) = record {
-        Ok(Some(match record.data() {
-            AllRecordData::A(x) => IpAddr::V4(x.addr()),
-            AllRecordData::Aaaa(x) => IpAddr::V6(x.addr()),
-            _ => unreachable!(),
-        }))
-    } else {
-        Ok(None)
-    }
 }
