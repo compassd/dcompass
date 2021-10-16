@@ -117,6 +117,7 @@ pub enum QHandleError {
     ShortBuf(#[from] domain::base::ShortBuf),
 }
 
+// For HTTPS connections, ConnPool enables parallelism
 pub struct ConnPool<T: ConnInitiator> {
     pool: Pool<ConnInitWrapper<T>>,
     timeout: Duration,

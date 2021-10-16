@@ -140,7 +140,7 @@ Found 2 outliers among 100 measurements (2.00%)
 - [x] GeoIP matcher for source address
 - [x] Custom response action
 
-# RFC compliance and what it is not intended to be
+# RFC compliance
 dcompass should be somewhere between a DNS resolver and DNS forwarder. Currently we don't fully comply RFC on some corner cases. And it is also not clear whether we should correct the incoming malformatted DNS requests. **If you feel a particular compliance to RFC is necessary, please file an issue and we are willing to help!**
 
 # License
