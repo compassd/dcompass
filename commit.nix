@@ -15,7 +15,7 @@ pkgs.mkShell {
     gcc
     # write rustfmt first to ensure we are using nightly rustfmt
     rust-bin.nightly."2021-01-01".rustfmt
-    rust-bin.stable.latest.default
+    rust-bin.beta.latest.default
     binutils-unwrapped
 
     # perl

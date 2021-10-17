@@ -12,6 +12,7 @@ geoip-cn = []
 geoip-maxmind = []
 
 [dependencies]
+compact_str = { version = "0.1.1", features = ["serde"]}
 async-trait = "^0.1"
 domain = {version = "^0.6", features = ["bytes"]}
 futures = "^0.3"

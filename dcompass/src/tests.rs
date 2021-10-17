@@ -126,7 +126,7 @@ async fn check_fail_undef() {
             DrouteError::UpstreamError(UpstreamError::MissingTag(tag)) => tag,
             e => panic!("Not the right error type: {}", e),
         },
-        "undefined".into()
+        compact_str::CompactStr::new("undefined")
     );
 }
 

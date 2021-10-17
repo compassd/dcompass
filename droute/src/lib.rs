@@ -35,6 +35,7 @@ mod router;
 compile_error!("You should only choose one TLS backend for DNS over HTTPS implementation");
 
 use async_trait::async_trait;
+use compact_str::CompactStr;
 
 /// All the builders
 // API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
@@ -60,8 +61,6 @@ pub use self::router::{
     Router,
 };
 
-use std::sync::Arc;
-
 // Maximum TTL as defined in https://tools.ietf.org/html/rfc2181, 2147483647
 //   Setting this to a value of 1 day, in seconds
 const MAX_TTL: u32 = 86400_u32;
@@ -71,7 +70,7 @@ const MAX_TTL: u32 = 86400_u32;
 const MAX_LEN: usize = 1024_usize;
 
 /// The type used for tag names in upstreams and routing tables.
-pub type Label = Arc<str>;
+pub type Label = CompactStr;
 
 /// Async TryInto
 #[async_trait]
