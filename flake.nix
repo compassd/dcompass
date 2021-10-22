@@ -24,8 +24,8 @@
         forEachFeature (v:
           with (pkgsWithRust system);
           (makeRustPlatform {
-            cargo = rust-bin.beta.latest.default;
-            rustc = rust-bin.beta.latest.default;
+            cargo = rust-bin.stable.latest.default;
+            rustc = rust-bin.stable.latest.default;
           }).buildRustPackage {
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
@@ -33,7 +33,12 @@
             cargoLock = { lockFile = ./Cargo.lock; };
             cargoBuildFlags = [ "--features ${v}" ];
           });
-    in utils.lib.eachSystem (utils.lib.defaultSystems) (system: rec {
+    in utils.lib.eachSystem ([
+      "aarch64-linux"
+      "i686-linux"
+      "x86_64-darwin"
+      "x86_64-linux"
+    ]) (system: rec {
       # `nix build`
       packages = (pkgSet system) // {
         # We have to do it like `nix develop .#commit` because libraries don't play well with `makeBinPath` or `makeLibraryPath`.
@@ -74,8 +79,8 @@
           nativeBuildInputs = [
             # write rustfmt first to ensure we are using nightly rustfmt
             rust-bin.nightly."2021-01-01".rustfmt
-            rust-bin.beta.latest.default
-            rust-bin.beta.latest.rust-src
+            rust-bin.stable.latest.default
+            rust-bin.stable.latest.rust-src
             rust-analyzer
 
             binutils-unwrapped
