@@ -27,7 +27,7 @@ mod rustls_cfgs {
     fn create_client_config(sni: &bool) -> ClientConfig {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-        let versions = vec![ProtocolVersion::TLSv1_3];
+        let versions = vec![ProtocolVersion::TLSv1_3, ProtocolVersion::TLSv1_2];
 
         let mut client_config = ClientConfig::new();
         client_config.root_store = root_store;
