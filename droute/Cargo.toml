@@ -20,24 +20,24 @@ domain = {version = "^0.6", features = ["bytes"]}
 bytes = "^1"
 
 # geoip
-maxminddb = { version = "^0.17", optional = true }
+maxminddb = { version = "^0.21", optional = true }
 
 # doh
 reqwest = { version = "0.11", features = ["socks"], default-features = false}
 # doh-native-tls
 native-tls = { version = "0.2", optional = true}
 # doh-rustls
-rustls = {version = "^0.19", features = ["dangerous_configuration"], optional = true }
-webpki-roots = { version = "^0.21", optional = true }
+rustls = {version = "^0.20", features = ["dangerous_configuration"], optional = true }
+webpki-roots = { version = "^0.22", optional = true }
 
 # Async-aware dependencies
 futures = "^0.3"
 tokio = { version = "^1.3", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
-# Logic-needed dependencies
-compact_str = { version = "0.1.1", features = ["serde"]}
+# Logic-related dependencies
+compact_str = { version = "^0.3", features = ["serde"]}
 pest = "^2"
-ron = "^0.6"
+ron = "^0.7"
 pest_derive = "^2"
 cidr-utils = "^0.5"
 once_cell = "^1.7"

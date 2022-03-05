@@ -16,24 +16,26 @@
 #[cfg(feature = "doh-rustls")]
 mod rustls_cfgs {
     use once_cell::sync::Lazy;
-    use rustls::{ClientConfig, KeyLogFile, ProtocolVersion, RootCertStore};
-    use std::sync::Arc;
+    use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
 
     pub static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
     pub static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
 
-    const ALPN_H2: &[u8] = b"h2";
-
     fn create_client_config(sni: &bool) -> ClientConfig {
         let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-        let versions = vec![ProtocolVersion::TLSv1_3, ProtocolVersion::TLSv1_2];
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
 
-        let mut client_config = ClientConfig::new();
-        client_config.root_store = root_store;
-        client_config.versions = versions;
-        client_config.alpn_protocols.push(ALPN_H2.to_vec());
-        client_config.key_log = Arc::new(KeyLogFile::new());
+        let mut client_config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
         client_config.enable_sni = *sni; // Disable SNI on need.
 
         client_config

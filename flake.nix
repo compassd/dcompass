@@ -88,6 +88,7 @@
 
             binutils-unwrapped
             cargo-cache
+            cargo-outdated
 
             # perl
             # gnumake
