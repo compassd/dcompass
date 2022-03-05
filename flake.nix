@@ -56,15 +56,18 @@
       # `nix run`
       apps = {
         update = utils.lib.mkApp {
-          drv = with import nixpkgs { system = "${system}"; };
-            pkgs.writeShellScriptBin "dcompass-update-data" ''
-              set -e
-              export PATH=${pkgs.lib.strings.makeBinPath [ wget gzip ]}
-              wget -O ./data/full.mmdb --show-progress https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
-              wget -O ./data/cn.mmdb --show-progress https://github.com/Hackl0us/GeoIP2-CN/raw/release/Country.mmdb
-              wget -O ./data/ipcn.txt --show-progress https://github.com/17mon/china_ip_list/raw/master/china_ip_list.txt
-              gzip -f -k ./data/ipcn.txt
-            '';
+          drv = with (pkgsWithRust system);
+            (writeShellApplication {
+              name = "dcompass-update-data";
+              runtimeInputs = [ wget gzip ];
+              text = ''
+                set -e
+                wget -O ./data/full.mmdb --show-progress https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
+                wget -O ./data/cn.mmdb --show-progress https://github.com/Hackl0us/GeoIP2-CN/raw/release/Country.mmdb
+                wget -O ./data/ipcn.txt --show-progress https://github.com/17mon/china_ip_list/raw/master/china_ip_list.txt
+                gzip -f -k ./data/ipcn.txt
+              '';
+            });
         };
       } // (forEachFeature (v:
         utils.lib.mkApp {
