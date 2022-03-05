@@ -92,18 +92,10 @@ pub trait Validatable {
 }
 
 // A cell used for bucket for validations
+#[derive(Default)]
 struct ValidateCell {
     pub used: bool,
     pub value: i32,
-}
-
-impl Default for ValidateCell {
-    fn default() -> Self {
-        Self {
-            used: false,
-            value: 0,
-        }
-    }
 }
 
 impl ValidateCell {

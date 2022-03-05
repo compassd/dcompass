@@ -130,13 +130,12 @@ impl RespCache {
                 query
                     .answer()
                     .ok()
-                    .map(|records| {
+                    .and_then(|records| {
                         records
                             .filter(|r| r.is_ok())
                             .map(|r| r.unwrap().ttl())
                             .min()
                     })
-                    .flatten()
                     .unwrap_or(MAX_TTL),
             ));
             self.cache.lock().unwrap().put(

@@ -48,7 +48,7 @@ fn into_dnames(list: &str) -> std::result::Result<Vec<Dname<Bytes>>, FromStrErro
                         | (c == '.')
                 }))
         })
-        .map(|x| Dname::from_str(x))
+        .map(Dname::from_str)
         .collect()
 }
 

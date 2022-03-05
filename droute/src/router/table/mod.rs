@@ -103,12 +103,11 @@ impl State {
             .find(|r| matches!(r.as_ref().unwrap().rtype(), Rtype::A | Rtype::Aaaa));
 
         let record = record
-            .map(|r| {
+            .and_then(|r| {
                 r.unwrap()
                     .into_record::<AllRecordData<Bytes, ParsedDname<&Bytes>>>()
                     .ok()
             })
-            .flatten()
             .flatten();
         if let Some(record) = record {
             Ok(Some(match record.data() {
