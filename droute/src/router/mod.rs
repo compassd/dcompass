@@ -116,9 +116,9 @@ where
     type Error = DrouteError;
 
     /// Build a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
-    async fn try_into(self) -> Result<Router> {
-        let table = self.table.try_into().await?;
-        let upstreams = self.upstreams.try_into().await?;
+    async fn async_try_into(self) -> Result<Router> {
+        let table = self.table.async_try_into().await?;
+        let upstreams = self.upstreams.async_try_into().await?;
         Router::new(table, upstreams)
     }
 }

@@ -69,12 +69,12 @@ pub enum MatcherBuilders {
 // TODO: This should be derived
 #[async_trait]
 impl AsyncTryInto<Box<dyn Matcher>> for MatcherBuilders {
-    async fn try_into(self) -> Result<Box<dyn Matcher>> {
+    async fn async_try_into(self) -> Result<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Domain(v) => Box::new(v.try_into().await?),
-            Self::QType(q) => Box::new(q.try_into().await?),
+            Self::Domain(v) => Box::new(v.async_try_into().await?),
+            Self::QType(q) => Box::new(q.async_try_into().await?),
             Self::Header { cond, query } => Box::new(Header { cond, query }),
-            Self::IpCidr(s) => Box::new(s.try_into().await?),
+            Self::IpCidr(s) => Box::new(s.async_try_into().await?),
             Self::GeoIp { path, codes } => Box::new(GeoIp::new(
                 codes,
                 if let Some(p) = path {

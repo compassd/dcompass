@@ -72,7 +72,7 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, NonZeroU
             p.table,
             UpstreamsBuilder::from_map(p.upstreams, p.cache_size),
         )
-        .try_into()
+        .async_try_into()
         .await?,
         p.address,
         p.verbosity,

@@ -119,7 +119,7 @@ impl DomainBuilder {
 impl AsyncTryInto<Domain> for DomainBuilder {
     type Error = MatchError;
 
-    async fn try_into(self) -> Result<Domain> {
+    async fn async_try_into(self) -> Result<Domain> {
         Domain::new(self.0).await
     }
 }

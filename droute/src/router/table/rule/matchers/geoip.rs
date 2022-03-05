@@ -98,7 +98,7 @@ impl GeoIpBuilder {
 
 #[async_trait]
 impl AsyncTryInto<GeoIp> for GeoIpBuilder {
-    async fn try_into(self) -> Result<GeoIp> {
+    async fn async_try_into(self) -> Result<GeoIp> {
         // By default, we don't provide any builtin database.
         Ok(GeoIp::new(self.codes, self.buf)?)
     }
@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&create_state(MESSAGE_NOT_CHINA.clone())),
@@ -173,7 +173,7 @@ mod tests {
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&create_state(MESSAGE_NOT_CHINA.clone())),
@@ -186,7 +186,7 @@ mod tests {
         let geoip = GeoIpBuilder::from_buf(PATH.clone())
             .add_code("CN")
             .add_code("AU")
-            .try_into()
+            .async_try_into()
             .await
             .unwrap();
         assert_eq!(geoip.matches(&create_state(MESSAGE_CHINA.clone())), true);
@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&create_state(
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(
             GeoIpBuilder::from_buf(PATH.clone())
                 .add_code("CN")
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&create_state(MESSAGE_CHINA.clone())),

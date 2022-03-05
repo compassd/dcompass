@@ -246,7 +246,7 @@ pub enum EcsBuilder {
 impl AsyncTryInto<Ecs> for EcsBuilder {
     type Error = ActionError;
 
-    async fn try_into(self) -> Result<Ecs> {
+    async fn async_try_into(self) -> Result<Ecs> {
         Ok(match self {
             EcsBuilder::Auto { api, addr, proxy } => Ecs::new_dynamic(api, addr, proxy)?,
             EcsBuilder::Manual(ip) => Ecs::Static(ip),

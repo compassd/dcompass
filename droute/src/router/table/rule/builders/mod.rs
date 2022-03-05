@@ -143,11 +143,11 @@ impl<A: AsyncTryInto<Box<dyn Action>, Error = ActionError>>
     AsyncTryInto<(Vec<Box<dyn Action>>, Label)> for BranchBuilder<A>
 {
     /// Build the ParMatchArm into the internal-used tuple by `Rule`.
-    async fn try_into(self) -> ActionResult<(Vec<Box<dyn Action>>, Label)> {
+    async fn async_try_into(self) -> ActionResult<(Vec<Box<dyn Action>>, Label)> {
         let mut built: Vec<Box<dyn Action>> = Vec::new();
         for a in self.seq {
             // TODO: Can we make this into a map?
-            built.push(a.try_into().await?);
+            built.push(a.async_try_into().await?);
         }
         Ok((built, self.next))
     }
@@ -187,10 +187,10 @@ where
 {
     type Error = TableError;
 
-    async fn try_into(self) -> Result<Box<dyn Rule>> {
+    async fn async_try_into(self) -> Result<Box<dyn Rule>> {
         Ok(match self {
-            Self::IfBlock(i) => Box::new(i.try_into().await?),
-            Self::SeqBlock(s) => Box::new(SeqBlock::new(s.try_into().await?)),
+            Self::IfBlock(i) => Box::new(i.async_try_into().await?),
+            Self::SeqBlock(s) => Box::new(SeqBlock::new(s.async_try_into().await?)),
         })
     }
 }

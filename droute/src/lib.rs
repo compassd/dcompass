@@ -79,7 +79,7 @@ pub trait AsyncTryInto<T>: Send {
     type Error;
 
     /// Convert `self` into `T`
-    async fn try_into(self) -> Result<T, Self::Error>;
+    async fn async_try_into(self) -> Result<T, Self::Error>;
 }
 
 /// A object that can be validated

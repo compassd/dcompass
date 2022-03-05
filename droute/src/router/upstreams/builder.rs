@@ -68,10 +68,10 @@ impl<U: AsyncTryInto<Upstream, Error = QHandleError>> AsyncTryInto<Upstreams>
     type Error = UpstreamError;
 
     /// Build the Upstreams from an UpstreamsBuilder
-    async fn try_into(self) -> Result<Upstreams> {
+    async fn async_try_into(self) -> Result<Upstreams> {
         let mut v = HashMap::new();
         for (tag, u) in self.upstreams {
-            v.insert(tag, u.try_into().await?);
+            v.insert(tag, u.async_try_into().await?);
         }
         Upstreams::new(v, self.cache_size)
     }

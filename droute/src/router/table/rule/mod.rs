@@ -180,7 +180,7 @@ mod tests {
             BranchBuilder::<BuiltinActionBuilders>::new("yes"),
             BranchBuilder::<BuiltinActionBuilders>::new("no"),
         ))
-        .try_into()
+        .async_try_into()
         .await
         .unwrap();
         assert_eq!(
@@ -210,7 +210,7 @@ mod tests {
         let rule = RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::<
             BuiltinActionBuilders,
         >::new("yes"))
-        .try_into()
+        .async_try_into()
         .await
         .unwrap();
         assert_eq!(

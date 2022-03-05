@@ -74,7 +74,7 @@ async fn create_router(c: usize) -> Router {
             }),
         ),
     )
-    .try_into()
+    .async_try_into()
     .await
     .unwrap()
 }

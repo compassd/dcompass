@@ -2,7 +2,7 @@
 name = "dmatcher"
 version = "0.1.11"
 authors = ["Harry Ying <lexugeyky@outlook.com>"]
-edition = "2018"
+edition = "2021"
 description = "A simple domain matching algorithm, intended to be fast."
 repository = "https://github.com/LEXUGE/dmatcher"
 license = "GPL-3.0"

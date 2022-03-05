@@ -163,7 +163,7 @@ impl QTypeBuilder {
 impl AsyncTryInto<QType> for QTypeBuilder {
     type Error = MatchError;
 
-    async fn try_into(self) -> Result<QType> {
+    async fn async_try_into(self) -> Result<QType> {
         QType::new(self.0.iter().map(|x| x.0).collect())
     }
 }

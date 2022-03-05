@@ -169,7 +169,7 @@ mod tests {
                 "hybrid2",
                 UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("udp")),
             )
-            .try_into()
+            .async_try_into()
             .await
             .ok()
             .unwrap();
@@ -194,7 +194,7 @@ mod tests {
                 "hybrid2",
                 UpstreamBuilder::Hybrid(HybridBuilder::new().add_tag("hybrid1")),
             )
-            .try_into()
+            .async_try_into()
             .await
             .err()
             .unwrap()

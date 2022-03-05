@@ -81,7 +81,7 @@ impl QueryBuilder {
 impl AsyncTryInto<Query> for QueryBuilder {
     type Error = ActionError;
 
-    async fn try_into(self) -> Result<Query> {
+    async fn async_try_into(self) -> Result<Query> {
         Ok(Query::new(self.0, self.1))
     }
 }

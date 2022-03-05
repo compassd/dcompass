@@ -79,16 +79,16 @@ where
 {
     type Error = TableError;
 
-    async fn try_into(self) -> Result<IfBlock> {
+    async fn async_try_into(self) -> Result<IfBlock> {
         let matcher = Box::new(
             ExprParser
                 .build_node::<M>(&self.expr)?
                 .trim()
-                .try_into()
+                .async_try_into()
                 .await?,
         );
-        let on_match = self.on_match.try_into().await?;
-        let no_match = self.no_match.try_into().await?;
+        let on_match = self.on_match.async_try_into().await?;
+        let no_match = self.no_match.async_try_into().await?;
         Ok(IfBlock::new(matcher, on_match, no_match))
     }
 }

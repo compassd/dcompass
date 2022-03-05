@@ -87,7 +87,7 @@ impl IpCidrBuilder {
 impl AsyncTryInto<IpCidr> for IpCidrBuilder {
     type Error = MatchError;
 
-    async fn try_into(self) -> Result<IpCidr> {
+    async fn async_try_into(self) -> Result<IpCidr> {
         IpCidr::new(self.0).await
     }
 }
@@ -142,7 +142,7 @@ mod tests {
         // https://github.com/LEXUGE/dcompass/issues/33
         IpCidrBuilder::new()
             .add_file("../data/ipcidr-test.txt")
-            .try_into()
+            .async_try_into()
             .await
             .unwrap();
     }
@@ -151,7 +151,7 @@ mod tests {
     async fn test() {
         let matcher = IpCidrBuilder::new()
             .add_file("../data/ipcn.txt")
-            .try_into()
+            .async_try_into()
             .await
             .unwrap();
         assert_eq!(

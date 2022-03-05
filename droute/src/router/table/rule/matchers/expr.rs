@@ -236,26 +236,26 @@ where
 {
     type Error = MatchError;
 
-    async fn try_into(self) -> Result<Node<Primitive>, Self::Error> {
+    async fn async_try_into(self) -> Result<Node<Primitive>, Self::Error> {
         Ok(match self {
             Node::And(v) => {
                 let mut v_prime = Vec::new();
                 for x in v {
-                    v_prime.push(x.try_into().await?)
+                    v_prime.push(x.async_try_into().await?)
                 }
                 Node::And(v_prime)
             }
             Node::Or(v) => {
                 let mut v_prime = Vec::new();
                 for x in v {
-                    v_prime.push(x.try_into().await?)
+                    v_prime.push(x.async_try_into().await?)
                 }
                 Node::Or(v_prime)
             }
-            Node::Neg(op) => Node::Neg(Box::new(op.try_into().await?)),
+            Node::Neg(op) => Node::Neg(Box::new(op.async_try_into().await?)),
             Node::None(BuilderPrimitive::Bool(bl)) => Node::None(Primitive::Bool(bl)),
             Node::None(BuilderPrimitive::MatcherBuilder(m)) => {
-                Node::None(Primitive::Matcher(m.try_into().await?))
+                Node::None(Primitive::Matcher(m.async_try_into().await?))
             }
         })
     }
@@ -288,7 +288,7 @@ mod tests {
     #[async_trait]
     impl AsyncTryInto<Box<dyn Matcher>> for DummyMatcher {
         type Error = MatchError;
-        async fn try_into(self) -> Result<Box<dyn Matcher>, Self::Error> {
+        async fn async_try_into(self) -> Result<Box<dyn Matcher>, Self::Error> {
             Err(MatchError::Other("foo".to_string()))
         }
     }
@@ -330,7 +330,7 @@ mod tests {
                 )
                 .unwrap()
                 .trim()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -339,7 +339,7 @@ mod tests {
                     r#"(true && false || true && true || true && false)"#
                 )
                 .unwrap()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -352,7 +352,7 @@ mod tests {
                 )
                 .unwrap()
                 .trim()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -361,7 +361,7 @@ mod tests {
                     r#"(true && (false || true) && (true || true) && false)"#
                 )
                 .unwrap()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -444,7 +444,7 @@ mod tests {
             ExprParser
                 .build_node::<BuiltinMatcherBuilders>("true")
                 .unwrap()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -454,7 +454,7 @@ mod tests {
             ExprParser
                 .build_node::<BuiltinMatcherBuilders>("((true || (!false)) && false)")
                 .unwrap()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),
@@ -466,7 +466,7 @@ mod tests {
                     "(true && false || true && true || true && false)"
                 )
                 .unwrap()
-                .try_into()
+                .async_try_into()
                 .await
                 .unwrap()
                 .matches(&State::default()),

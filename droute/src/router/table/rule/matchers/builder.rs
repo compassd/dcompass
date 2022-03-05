@@ -46,14 +46,14 @@ pub enum BuiltinMatcherBuilders {
 // TODO: This should be derived
 #[async_trait]
 impl AsyncTryInto<Box<dyn Matcher>> for BuiltinMatcherBuilders {
-    async fn try_into(self) -> MatcherResult<Box<dyn Matcher>> {
+    async fn async_try_into(self) -> MatcherResult<Box<dyn Matcher>> {
         Ok(match self {
-            Self::Domain(v) => Box::new(v.try_into().await?),
+            Self::Domain(v) => Box::new(v.async_try_into().await?),
             Self::Header(h) => Box::new(h),
-            Self::QType(q) => Box::new(q.try_into().await?),
-            Self::IpCidr(s) => Box::new(s.try_into().await?),
+            Self::QType(q) => Box::new(q.async_try_into().await?),
+            Self::IpCidr(s) => Box::new(s.async_try_into().await?),
             #[cfg(feature = "geoip")]
-            Self::GeoIp(g) => Box::new(g.try_into().await?),
+            Self::GeoIp(g) => Box::new(g.async_try_into().await?),
         })
     }
 

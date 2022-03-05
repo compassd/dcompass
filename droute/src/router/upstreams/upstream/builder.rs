@@ -58,7 +58,7 @@ impl HybridBuilder {
 impl AsyncTryInto<Upstream> for HybridBuilder {
     type Error = QHandleError;
 
-    async fn try_into(self) -> Result<Upstream> {
+    async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Hybrid(self.0))
     }
 }
@@ -87,7 +87,7 @@ pub struct HttpsBuilder {
 impl AsyncTryInto<Upstream> for HttpsBuilder {
     type Error = QHandleError;
 
-    async fn try_into(self) -> Result<Upstream> {
+    async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
             ConnPool::new(
                 Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
@@ -113,7 +113,7 @@ pub struct UdpBuilder {
 impl AsyncTryInto<Upstream> for UdpBuilder {
     type Error = QHandleError;
 
-    async fn try_into(self) -> Result<Upstream> {
+    async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(
             ConnPool::new(
                 Udp::new(self.addr).await?,
@@ -140,15 +140,15 @@ pub enum UpstreamBuilder {
 #[async_trait]
 impl AsyncTryInto<Upstream> for UpstreamBuilder {
     /// Build the Upstream from an UpstreamBuilder
-    async fn try_into(self) -> std::result::Result<Upstream, QHandleError> {
+    async fn async_try_into(self) -> std::result::Result<Upstream, QHandleError> {
         Ok(match self {
-            Self::Hybrid(v) => v.try_into().await?,
+            Self::Hybrid(v) => v.async_try_into().await?,
 
             // UDP Upstream
-            Self::Udp(u) => u.try_into().await?,
+            Self::Udp(u) => u.async_try_into().await?,
 
             #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
-            Self::Https(h) => h.try_into().await?,
+            Self::Https(h) => h.async_try_into().await?,
         })
     }
 

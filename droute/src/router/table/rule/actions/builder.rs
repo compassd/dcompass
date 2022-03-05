@@ -66,11 +66,11 @@ where
 #[async_trait]
 impl AsyncTryInto<Box<dyn Action>> for BuiltinActionBuilders {
     // Should only be accessible from `Rule`.
-    async fn try_into(self) -> ActionResult<Box<dyn Action>> {
+    async fn async_try_into(self) -> ActionResult<Box<dyn Action>> {
         Ok(match self {
             Self::Blackhole => Box::new(Blackhole),
-            Self::Query(q) => Box::new(q.try_into().await?),
-            Self::Ecs(e) => Box::new(e.try_into().await?),
+            Self::Query(q) => Box::new(q.async_try_into().await?),
+            Self::Ecs(e) => Box::new(e.async_try_into().await?),
         })
     }
 

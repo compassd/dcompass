@@ -292,10 +292,10 @@ impl<R: AsyncTryInto<Box<dyn Rule>, Error = TableError>> AsyncTryInto<Table> for
     type Error = TableError;
 
     /// Build the rounting table from a `TableBuilder`
-    async fn try_into(self) -> Result<Table> {
+    async fn async_try_into(self) -> Result<Table> {
         let mut rules = HashMap::new();
         for (tag, r) in self.0 {
-            rules.insert(tag, r.try_into().await?);
+            rules.insert(tag, r.async_try_into().await?);
         }
         Table::new(rules)
     }
@@ -325,7 +325,7 @@ mod tests {
                     BranchBuilder::<BuiltinActionBuilders>::default(),
                 )),
             )
-            .try_into()
+            .async_try_into()
             .await
             .ok()
             .unwrap();
@@ -340,7 +340,7 @@ mod tests {
                     BuiltinActionBuilders,
                 >::new("start")),
             )
-            .try_into()
+            .async_try_into()
             .await
             .err()
             .unwrap()
@@ -370,7 +370,7 @@ mod tests {
                 "unused",
                 RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(BranchBuilder::default()),
             )
-            .try_into()
+            .async_try_into()
             .await
             .err()
             .unwrap()
@@ -401,7 +401,7 @@ mod tests {
                     )),
                 )),
             )
-            .try_into()
+            .async_try_into()
             .await
             .ok()
             .unwrap();

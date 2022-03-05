@@ -71,7 +71,7 @@ async fn test_resolve() {
             },
         ),
     )
-    .try_into()
+    .async_try_into()
     .await
     .unwrap();
 

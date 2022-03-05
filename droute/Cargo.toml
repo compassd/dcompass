@@ -2,7 +2,7 @@
 name = "droute"
 version = "0.1.0-alpha.1"
 authors = ["Harry Ying <lexugeyky@outlook.com>"]
-edition = "2018"
+edition = "2021"
 description = "Routing mechanism lib for dcompass the DNS server."
 repository = "https://github.com/LEXUGE/dcompass"
 license = "GPL-3.0"
