@@ -64,7 +64,8 @@ jobs:
       fail-fast: false
       matrix:
         # armv5te-unknown-linux-musleabi being temporarily removed due to https://github.com/antifuchs/governor/issues/89
-        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, x86_64-unknown-freebsd, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-gnuabi64, mips64el-unknown-linux-gnuabi64, mipsel-unknown-linux-musl]
+        # x86_64-unknown-freebsd removed for unknown issue on link. Potentially due to missing third party library in cross environment.
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, armv7-unknown-linux-musleabihf, x86_64-pc-windows-gnu, x86_64-apple-darwin, aarch64-unknown-linux-musl, x86_64-unknown-netbsd, i686-unknown-linux-musl, armv5te-unknown-linux-musleabi, mips-unknown-linux-musl, mips64-unknown-linux-gnuabi64, mips64el-unknown-linux-gnuabi64, mipsel-unknown-linux-musl]
         include:
           - target: x86_64-unknown-netbsd
             os: ubuntu-latest
@@ -84,8 +85,8 @@ jobs:
             os: ubuntu-latest
           - target: x86_64-apple-darwin
             os: macos-latest
-          - target: x86_64-unknown-freebsd
-            os: ubuntu-latest
+          # - target: x86_64-unknown-freebsd
+          #   os: ubuntu-latest
           - target: mips-unknown-linux-musl
             os: ubuntu-latest
           - target: mips64-unknown-linux-gnuabi64
