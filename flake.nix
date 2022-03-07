@@ -32,6 +32,8 @@
             src = lib.cleanSource ./.;
             cargoLock = { lockFile = ./Cargo.lock; };
             cargoBuildFlags = [ "--features ${v}" ];
+            # Used by tokio-console
+            # nativeBuildInputs = [ protobuf ];
           });
     in utils.lib.eachSystem ([
       "aarch64-linux"
@@ -85,6 +87,8 @@
             rust-bin.stable.latest.default
             rust-bin.stable.latest.rust-src
             rust-analyzer
+
+            # protobuf
 
             binutils-unwrapped
             cargo-cache

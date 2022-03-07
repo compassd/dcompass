@@ -187,7 +187,7 @@ impl EcsCache {
         }
     }
 
-    pub async fn put(&self, external_ip: IpAddr) {
+    pub fn put(&self, external_ip: IpAddr) {
         *self.cache.lock().unwrap() = Some(CacheRecord::new(external_ip, ECS_CACHE_TTL));
     }
 

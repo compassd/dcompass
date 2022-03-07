@@ -96,7 +96,7 @@ impl Ecs {
                 log::info!("got external IP: {}", external_ip.trim());
                 // The answer should be a valid IP address
                 let external_ip = IpAddr::from_str(external_ip.trim()).unwrap();
-                cache.put(external_ip).await;
+                cache.put(external_ip);
                 Ok(external_ip)
             }
             _ => unreachable!(),

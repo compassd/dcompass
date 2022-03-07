@@ -72,31 +72,56 @@ use std::{
 /// Client instance for UDP connections
 #[derive(Clone)]
 pub struct Https {
-    addr: IpAddr,
-    proxy: Option<Proxy>,
-    sni: bool,
-    uri: Url,
+    client: PostClient,
 }
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 impl Https {
     /// Create a new HTTPS client creator instance. with the given remote server address.
+    // We *CANNOT* reuse the client *WITH* connection pool because if the network changes, *connection* inside client pool of each client remains the same, and cloning them inevitably leads to no reconnection but using stale connections.
+    // However, we are able to disable the connection pool and use the client.
+    // We cannot store ClientBuilder because it is not Clone.
     pub async fn new(uri: String, addr: IpAddr, proxy: Option<String>, sni: bool) -> Result<Self> {
         let uri = Url::from_str(&uri).map_err(|_| QHandleError::InvalidUri(uri))?;
+        // Check domain validness
         let _ = uri
             .domain()
             .ok_or_else(|| QHandleError::InvalidDomain(uri.clone()))?;
 
-        Ok(Self {
-            addr,
-            proxy: if let Some(proxy) = proxy {
-                Some(Proxy::all(proxy)?)
+        // This has already been checked and it is safe to unwrap
+        let domain = uri.domain().unwrap();
+        let client = Client::builder()
+            // The port in socket addr doesn't take effect here per documentation
+            .resolve(domain, SocketAddr::new(addr, 0))
+            .use_preconfigured_tls(if sni {
+                CLIENT_CFG.clone()
             } else {
-                None
-            },
-            sni,
-            uri,
+                NO_SNI_CLIENT_CFG.clone()
+            })
+            .https_only(true)
+            .user_agent(APP_USER_AGENT)
+            .connect_timeout(Duration::from_secs(3))
+            // Disable the inner connection pool
+            .pool_max_idle_per_host(0);
+
+        // Add proxy
+        let client = if let Some(proxy) = proxy {
+            client.proxy(Proxy::all(proxy)?)
+        } else {
+            client
+        };
+
+        Ok(Self {
+            client: PostClient(
+                client.build().map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "TLS backend failed to initialize",
+                    )
+                })?,
+                uri.clone(),
+            ),
         })
     }
 }
@@ -106,39 +131,7 @@ impl ConnInitiator for Https {
     type Connection = PostClient;
 
     async fn create(&self) -> std::io::Result<Self::Connection> {
-        // We cannot reuse the client because if the network changes, client pool inside each client remains the same, and cloning them inevitably leads to no reconnection but using stale connections.
-        // We cannot store ClientBuilder because it is not Clone.
-
-        // This has already been checked and it is safe to unwrap
-        let domain = self.uri.domain().unwrap();
-        let client = Client::builder()
-            // The port in socket addr doesn't take effect here per documentation
-            .resolve(domain, SocketAddr::new(self.addr, 0))
-            .use_preconfigured_tls(if self.sni {
-                CLIENT_CFG.clone()
-            } else {
-                NO_SNI_CLIENT_CFG.clone()
-            })
-            .https_only(true)
-            .user_agent(APP_USER_AGENT)
-            .connect_timeout(Duration::from_secs(3))
-            .pool_max_idle_per_host(32);
-
-        let client = if let Some(proxy) = self.proxy.clone() {
-            client.proxy(proxy)
-        } else {
-            client
-        };
-
-        Ok(PostClient(
-            client.build().map_err(|_| {
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "TLS backend failed to initialize",
-                )
-            })?,
-            self.uri.clone(),
-        ))
+        Ok(self.client.clone())
     }
 
     fn conn_type(&self) -> &'static str {
@@ -146,6 +139,7 @@ impl ConnInitiator for Https {
     }
 }
 
+#[derive(Clone)]
 pub struct PostClient(Client, Url);
 
 #[async_trait]

@@ -108,7 +108,7 @@ async fn serve(
         #[rustfmt::skip]
         tokio::spawn(async move {
             tokio::select! {
-                res = worker(router, socket, buf.freeze(), src) => {
+                biased; res = worker(router, socket, buf.freeze(), src) => {
                     match res {
                         Ok(_) => (),
                         Err(e) => warn!("handling query failed: {}", e),
