@@ -27,8 +27,13 @@ use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 // Default value for timeout
-fn default_timeout() -> u64 {
+const fn default_timeout() -> u64 {
     5
+}
+
+// TODO: Is this a good default?
+const fn default_max_pool_size() -> usize {
+    256
 }
 
 /// A builder for hybrid upstream
@@ -77,6 +82,9 @@ pub struct HttpsBuilder {
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
+    /// Max connection pool size
+    #[serde(default = "default_max_pool_size")]
+    pub max_pool_size: usize,
     /// SNI
     #[serde(default)]
     pub sni: bool,
@@ -90,6 +98,7 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
     async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(ConnPool::new(
             Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
+            self.max_pool_size,
             Duration::from_secs(self.timeout),
         )?)))
     }
@@ -101,6 +110,9 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
 pub struct UdpBuilder {
     /// Address of the remote server
     pub addr: SocketAddr,
+    /// Max connection pool size
+    #[serde(default = "default_max_pool_size")]
+    pub max_pool_size: usize,
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -113,6 +125,7 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
     async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(ConnPool::new(
             Udp::new(self.addr).await?,
+            self.max_pool_size,
             Duration::from_secs(self.timeout),
         )?)))
     }

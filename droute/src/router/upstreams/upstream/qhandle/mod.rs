@@ -19,7 +19,10 @@ pub mod udp;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use deadpool::managed::{self, BuildError, Manager, Pool, RecycleError};
+use deadpool::{
+    managed::{self, BuildError, Manager, Pool, RecycleError},
+    Runtime,
+};
 use domain::base::Message;
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use reqwest::{StatusCode, Url};
@@ -28,7 +31,7 @@ use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
 
 const MAX_ERROR_TOLERANCE: u8 = 2;
-const MAX_POOL_SIZE: usize = 64;
+const WAIT_TIMEOUT: Option<Duration> = Some(Duration::from_secs(1));
 
 // The connection initiator, like Udp, Https. It is similar to ManageConnection.
 // The primary reason for its existence is that we want to reduce the boilderplate on implementing ManageConnection
@@ -121,11 +124,14 @@ pub struct ConnPool<T: ConnInitiator> {
 impl<T: ConnInitiator> ConnPool<T> {
     pub fn new(
         initiator: T,
+        max_pool_size: usize,
         timeout: Duration,
     ) -> std::result::Result<Self, BuildError<<ConnInitWrapper<T> as Manager>::Error>> {
         Ok(Self {
             pool: Pool::builder(ConnInitWrapper(initiator))
-                .max_size(MAX_POOL_SIZE)
+                .max_size(max_pool_size)
+                .wait_timeout(WAIT_TIMEOUT)
+                .runtime(Runtime::Tokio1)
                 .build()?,
             timeout,
         })

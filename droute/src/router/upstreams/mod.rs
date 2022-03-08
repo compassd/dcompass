@@ -158,6 +158,7 @@ mod tests {
                 "udp",
                 UpstreamBuilder::Udp(UdpBuilder {
                     addr: "127.0.0.1:53533".parse().unwrap(),
+                    max_pool_size: 32,
                     timeout: 1,
                 }),
             )
@@ -183,6 +184,7 @@ mod tests {
                 "udp",
                 UpstreamBuilder::Udp(UdpBuilder {
                     addr: "127.0.0.1:53533".parse().unwrap(),
+                    max_pool_size: 256,
                     timeout: 1,
                 }),
             )

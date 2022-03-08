@@ -48,7 +48,7 @@ serde = { version = "^1.0", features = ["derive", "rc"] }
 clru = "^0.5"
 thiserror = "^1.0"
 async-trait = "^0.1"
-deadpool = { version = "^0.9", features = ["managed"] }
+deadpool = { version = "^0.9", features = ["managed", "rt_tokio_1"] }
 
 # (de)compression libs (TODO: can we rewrite it to make it async?)
 niffler = "^2"
