@@ -129,6 +129,8 @@ async fn serve(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // console_subscriber::init();
+
     let args: DcompassOpts = DcompassOpts::from_args();
 
     // If the config path is manually specified with `-c` flag, we use it and any error should fail early.

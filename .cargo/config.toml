@@ -1,7 +1,9 @@
-# Rustc is now going to NOT statically link musl on default.
-# See also: https://github.com/rust-lang/compiler-team/issues/422#issuecomment-816579989
-[target.'cfg(target_env = "musl")']
-rustflags = ["-C", "target-feature=+crt-static", "-C", "link-self-contained=yes"]
-
 # [build]
 # rustflags = ["--cfg", "tokio_unstable"]
+
+# Rustc is now going to NOT statically link musl on default.
+# See also: https://github.com/rust-lang/compiler-team/issues/422#issuecomment-816579989
+# Moreover, cargo rustflags is NOT cumulative, so we have to add the above rustflags again here.
+# See also: https://github.com/rust-lang/cargo/issues/5376
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-self-contained=yes"]

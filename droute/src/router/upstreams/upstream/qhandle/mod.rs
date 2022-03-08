@@ -17,18 +17,18 @@
 pub mod https;
 pub mod udp;
 
-use std::time::Duration;
-
 use async_trait::async_trait;
-use bb8::{ManageConnection, Pool, RunError};
 use bytes::Bytes;
+use deadpool::managed::{self, BuildError, Manager, Pool, RecycleError};
 use domain::base::Message;
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use reqwest::{StatusCode, Url};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
 
 const MAX_ERROR_TOLERANCE: u8 = 2;
+const MAX_POOL_SIZE: usize = 64;
 
 // The connection initiator, like Udp, Https. It is similar to ManageConnection.
 // The primary reason for its existence is that we want to reduce the boilderplate on implementing ManageConnection
@@ -45,32 +45,24 @@ pub trait ConnInitiator: Send + Sync + 'static {
 pub struct ConnInitWrapper<T: ConnInitiator>(T);
 
 #[async_trait]
-impl<T: ConnInitiator> ManageConnection for ConnInitWrapper<T> {
-    type Connection = (T::Connection, u8);
+impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
+    type Type = (T::Connection, u8);
 
     type Error = std::io::Error;
 
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+    async fn create(&self) -> std::result::Result<Self::Type, Self::Error> {
         Ok((self.0.create().await?, 0))
     }
 
-    async fn is_valid(
-        &self,
-        conn: &mut bb8::PooledConnection<'_, Self>,
-    ) -> std::result::Result<(), Self::Error> {
-        if conn.1 > MAX_ERROR_TOLERANCE {
+    async fn recycle(&self, obj: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
+        if obj.1 > MAX_ERROR_TOLERANCE {
             log::warn!("the number of error(s) encountered exceeded the threshold");
-            Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
+            Err(RecycleError::StaticMessage(
                 "the number of error(s) encountered exceeded the threshold",
             ))
         } else {
             Ok(())
         }
-    }
-
-    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
-        conn.1 > MAX_ERROR_TOLERANCE
     }
 }
 
@@ -93,9 +85,12 @@ pub enum QHandleError {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
-    /// Run error from bb8
+    /// Run error from deadpool
     #[error(transparent)]
-    RunError(#[from] RunError<std::io::Error>),
+    PoolRunError(#[from] managed::PoolError<std::io::Error>),
+
+    #[error(transparent)]
+    PoolBuildError(#[from] managed::BuildError<std::io::Error>),
 
     #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error(transparent)]
@@ -124,14 +119,14 @@ pub struct ConnPool<T: ConnInitiator> {
 }
 
 impl<T: ConnInitiator> ConnPool<T> {
-    pub async fn new(initiator: T, timeout: Duration) -> std::io::Result<Self> {
+    pub fn new(
+        initiator: T,
+        timeout: Duration,
+    ) -> std::result::Result<Self, BuildError<<ConnInitWrapper<T> as Manager>::Error>> {
         Ok(Self {
-            pool: bb8::Pool::builder()
-                .max_size(32)
-                .idle_timeout(Some(Duration::from_secs(2 * 60)))
-                .max_lifetime(Some(Duration::from_secs(10 * 60)))
-                .build(ConnInitWrapper(initiator))
-                .await?,
+            pool: Pool::builder(ConnInitWrapper(initiator))
+                .max_size(MAX_POOL_SIZE)
+                .build()?,
             timeout,
         })
     }

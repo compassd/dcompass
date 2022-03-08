@@ -90,6 +90,9 @@
 
             # protobuf
 
+            # use by rust-gdb
+            gdb
+
             binutils-unwrapped
             cargo-cache
             cargo-outdated

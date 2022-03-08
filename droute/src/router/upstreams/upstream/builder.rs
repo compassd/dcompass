@@ -88,13 +88,10 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
     type Error = QHandleError;
 
     async fn async_try_into(self) -> Result<Upstream> {
-        Ok(Upstream::Others(Arc::new(
-            ConnPool::new(
-                Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
-                Duration::from_secs(self.timeout),
-            )
-            .await?,
-        )))
+        Ok(Upstream::Others(Arc::new(ConnPool::new(
+            Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
+            Duration::from_secs(self.timeout),
+        )?)))
     }
 }
 
@@ -114,13 +111,10 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
     type Error = QHandleError;
 
     async fn async_try_into(self) -> Result<Upstream> {
-        Ok(Upstream::Others(Arc::new(
-            ConnPool::new(
-                Udp::new(self.addr).await?,
-                Duration::from_secs(self.timeout),
-            )
-            .await?,
-        )))
+        Ok(Upstream::Others(Arc::new(ConnPool::new(
+            Udp::new(self.addr).await?,
+            Duration::from_secs(self.timeout),
+        )?)))
     }
 }
 
