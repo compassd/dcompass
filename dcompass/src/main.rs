@@ -33,14 +33,10 @@ use droute::{
     error::DrouteError,
     AsyncTryInto, Router,
 };
-#[cfg(target_pointer_width = "64")]
-use governor::{Quota, RateLimiter};
 use log::*;
+use parser::QosPolicy;
 use simple_logger::SimpleLogger;
-use std::{
-    net::SocketAddr, num::NonZeroU32, path::PathBuf, result::Result as StdResult, sync::Arc,
-    time::Duration,
-};
+use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
 use structopt::StructOpt;
 use tokio::{
     fs::File,
@@ -66,7 +62,7 @@ struct DcompassOpts {
     validate: bool,
 }
 
-async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, NonZeroU32), DrouteError> {
+async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, QosPolicy), DrouteError> {
     Ok((
         RouterBuilder::new(
             p.table,
@@ -80,14 +76,7 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, NonZeroU
     ))
 }
 
-async fn serve(
-    socket: Arc<UdpSocket>,
-    router: Arc<Router>,
-    _ratelimit: NonZeroU32,
-    tx: &Sender<()>,
-) {
-    #[cfg(target_pointer_width = "64")]
-    let ratelimit = RateLimiter::direct(Quota::per_second(_ratelimit));
+async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, ratelimit: QosPolicy, tx: &Sender<()>) {
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = BytesMut::with_capacity(1024);
@@ -103,14 +92,14 @@ async fn serve(
 
         buf.resize(len, 0);
 
-        // We check the throttling;
-        // Governor's inner implementation would test_and_update the ratelimit
-        #[cfg(target_pointer_width = "64")]
+        // We check the throttling
         match ratelimit.check() {
             // If it within the ratelimit, we may continue
             Ok(_) => (),
             // If it is throttled, we would not process the request and continue to the next one.
             // In that way, we deplete the queue to avoid congestion on further burst.
+            //
+            // If governor is not available on this platform, we will NEVER end up in this branch. i.e. we are never throttled.
             Err(err) => {
                 warn!("ratelimiter throttled: {:?}", err);
                 continue;

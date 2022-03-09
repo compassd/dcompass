@@ -1,5 +1,6 @@
 ---
 verbosity: "info"
+ratelimit: 3000
 address: 0.0.0.0:2053
 table:
   start:
