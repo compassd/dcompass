@@ -100,7 +100,22 @@ async fn serve(
                 continue;
             }
         };
+
         buf.resize(len, 0);
+
+        // We check the throttling;
+        // Governor's inner implementation would test_and_update the ratelimit
+        #[cfg(target_pointer_width = "64")]
+        match ratelimit.check() {
+            // If it within the ratelimit, we may continue
+            Ok(_) => (),
+            // If it is throttled, we would not process the request and continue to the next one.
+            // In that way, we deplete the queue to avoid congestion on further burst.
+            Err(err) => {
+                warn!("ratelimiter throttled: {:?}", err);
+                continue;
+            }
+        };
 
         let router = router.clone();
         let socket = socket.clone();
@@ -121,9 +136,6 @@ async fn serve(
                 }
             }
         });
-
-        #[cfg(target_pointer_width = "64")]
-        ratelimit.until_ready().await;
     }
 }
 
