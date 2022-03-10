@@ -13,24 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use governor::{
-    clock::{Clock, QuantaClock, QuantaInstant},
-    middleware::{NoOpMiddleware, RateLimitingMiddleware},
-    state::{InMemoryState, NotKeyed},
-};
-#[cfg(target_pointer_width = "64")]
-use governor::{Quota, RateLimiter};
-
 use async_trait::async_trait;
-use droute::{builders::*, matchers::*, AsyncTryInto, Label};
+use droute::{builders::*, matchers::*, AsyncTryInto};
 use log::LevelFilter;
-use serde::{Deserialize, Deserializer};
-use std::{
-    collections::{HashMap, HashSet},
-    net::SocketAddr,
-    num::{NonZeroU32, NonZeroUsize},
-    path::PathBuf,
-};
+use serde::Deserialize;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -107,58 +94,14 @@ fn get_builtin_db() -> Result<Vec<u8>> {
     Err(MatchError::NoBuiltInDb)
 }
 
-fn default_cache_size() -> NonZeroUsize {
-    NonZeroUsize::new(2048).unwrap()
-}
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
     pub table: TableBuilder<RuleBuilders<MatcherBuilders, BuiltinActionBuilders>>,
     // We are not using UpstreamsBuilder because flatten ruins error location.
-    pub upstreams: HashMap<Label, UpstreamBuilder>,
-    #[serde(default = "default_cache_size")]
-    pub cache_size: NonZeroUsize,
+    #[serde(flatten)]
+    pub upstreams: UpstreamsBuilder<UpstreamBuilder>,
     pub address: SocketAddr,
     #[serde(with = "LevelFilterDef")]
     pub verbosity: LevelFilter,
-    // Set default ratelimit to maximum, resulting in non-blocking (non-throttling) mode forever as the burst time is infinity.
-    #[serde(default)]
-    pub ratelimit: QosPolicy,
-}
-
-type QosPolicyInner =
-    Option<RateLimiter<NotKeyed, InMemoryState, QuantaClock, NoOpMiddleware<QuantaInstant>>>;
-
-#[derive(Default, Deserialize)]
-pub struct QosPolicy(#[serde(deserialize_with = "deserialize_ratelimiter")] QosPolicyInner);
-
-fn deserialize_ratelimiter<'de, D>(deserializer: D) -> std::result::Result<QosPolicyInner, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let qps = NonZeroU32::deserialize(deserializer)?;
-
-    #[cfg(target_pointer_width = "64")]
-    let ratelimiter = Ok(Some(RateLimiter::direct(Quota::per_second(qps))));
-    #[cfg(not(target_pointer_width = "64"))]
-    let ratelimiter = Ok(None);
-
-    ratelimiter
-}
-
-impl QosPolicy {
-    pub fn check(
-        &self,
-    ) -> std::result::Result<
-        (),
-        <NoOpMiddleware<QuantaInstant> as RateLimitingMiddleware<
-            <QuantaClock as Clock>::Instant,
-        >>::NegativeOutcome,
-    > {
-        match &self.0 {
-            Some(ratelimit) => ratelimit.check(),
-            None => Ok(()),
-        }
-    }
 }

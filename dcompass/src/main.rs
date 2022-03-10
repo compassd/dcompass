@@ -28,13 +28,8 @@ mod worker;
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
 use bytes::BytesMut;
-use droute::{
-    builders::{RouterBuilder, UpstreamsBuilder},
-    error::DrouteError,
-    AsyncTryInto, Router,
-};
+use droute::{builders::RouterBuilder, error::DrouteError, AsyncTryInto, Router};
 use log::*;
-use parser::QosPolicy;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
 use structopt::StructOpt;
@@ -62,21 +57,17 @@ struct DcompassOpts {
     validate: bool,
 }
 
-async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter, QosPolicy), DrouteError> {
+async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter), DrouteError> {
     Ok((
-        RouterBuilder::new(
-            p.table,
-            UpstreamsBuilder::from_map(p.upstreams, p.cache_size),
-        )
-        .async_try_into()
-        .await?,
+        RouterBuilder::new(p.table, p.upstreams)
+            .async_try_into()
+            .await?,
         p.address,
         p.verbosity,
-        p.ratelimit,
     ))
 }
 
-async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, ratelimit: QosPolicy, tx: &Sender<()>) {
+async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, tx: &Sender<()>) {
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = BytesMut::with_capacity(1024);
@@ -91,20 +82,6 @@ async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, ratelimit: QosPolicy
         };
 
         buf.resize(len, 0);
-
-        // We check the throttling
-        match ratelimit.check() {
-            // If it within the ratelimit, we may continue
-            Ok(_) => (),
-            // If it is throttled, we would not process the request and continue to the next one.
-            // In that way, we deplete the queue to avoid congestion on further burst.
-            //
-            // If governor is not available on this platform, we will NEVER end up in this branch. i.e. we are never throttled.
-            Err(err) => {
-                warn!("ratelimiter throttled: {:?}", err);
-                continue;
-            }
-        };
 
         let router = router.clone();
         let socket = socket.clone();
@@ -176,7 +153,7 @@ async fn main() -> Result<()> {
     };
 
     // Create whatever we need for get dcompass up and running.
-    let (router, addr, verbosity, ratelimit) = init(
+    let (router, addr, verbosity) = init(
         serde_yaml::from_str(&config)
             .with_context(|| "Failed to parse the configuration file".to_string())?,
     )
@@ -210,7 +187,7 @@ async fn main() -> Result<()> {
     // We don't have to worry about incoming requests when shutting down, because when we initiate shutdown, the loop was already terminated
     #[rustfmt::skip]
     tokio::select! {
-        _ = serve(socket, router, ratelimit, &tx) => (),
+        _ = serve(socket, router, &tx) => (),
         _ = signal::ctrl_c() => {
             log::warn!("Ctrl-C received, shutting down");
 	    sleep(Duration::from_millis(500)).await;

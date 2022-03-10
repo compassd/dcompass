@@ -1,6 +1,5 @@
 ---
 verbosity: "info"
-ratelimit: 3000
 address: 0.0.0.0:2053
 table:
   start:
@@ -39,11 +38,13 @@ upstreams:
   cloudflare:
     https:
       uri: https://cloudflare-dns.com/dns-query
+      ratelimit: 3000
       addr: 1.0.0.1
 
   quad9:
     https:
       uri: https://quad9.net/dns-query
+      ratelimit: 3000
       addr: 9.9.9.9
 
   secure:

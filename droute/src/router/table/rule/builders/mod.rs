@@ -172,11 +172,11 @@ where
     M: AsyncTryInto<Box<dyn Matcher>, Error = MatchError>,
     A: AsyncTryInto<Box<dyn Action>, Error = ActionError>,
 {
-    /// If syntax rule
-    IfBlock(IfBlockBuilder<M, A>),
-
     /// Sequence of actions
     SeqBlock(BranchBuilder<A>),
+
+    /// If syntax rule
+    IfBlock(IfBlockBuilder<M, A>),
 }
 
 #[async_trait]

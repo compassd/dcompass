@@ -69,6 +69,7 @@ async fn test_resolve() {
                 addr: "127.0.0.1:53533".parse().unwrap(),
                 max_pool_size: 256,
                 timeout: 10,
+                ratelimit: None,
             },
         ),
     )

@@ -38,12 +38,6 @@ droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "d
 [target.'cfg(any(target_arch = "mips", target_arch = "mips64"))'.dependencies]
 droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-native-tls"]}
 
-# Disable ratelimit on 32-bit platforms
-# Related issue: https://github.com/metrics-rs/quanta/pull/55
-[target.'cfg(target_pointer_width = "64")'.dependencies]
-# governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}
-governor = "^0.4"
-
 # Both musl and msvc are not well-supoorted
 # Only allow on gnu or none env AND not on windows
 # [target.'cfg(all(any(target_env = "gnu", target_env = ""), not(target_os = "windows")))'.dependencies]

@@ -53,6 +53,12 @@ deadpool = { version = "^0.9", features = ["managed", "rt_tokio_1"] }
 # (de)compression libs (TODO: can we rewrite it to make it async?)
 niffler = "^2"
 
+# Disable ratelimit on 32-bit platforms
+# Related issue: https://github.com/metrics-rs/quanta/pull/55
+[target.'cfg(target_pointer_width = "64")'.dependencies]
+# governor = {version = "0.3.3-dev", git = "https://github.com/antifuchs/governor"}
+governor = "^0.4"
+
 [dev-dependencies]
 tokio-test = "^0.4"
 criterion = { version = "^0.3", features = ["async_tokio"]}

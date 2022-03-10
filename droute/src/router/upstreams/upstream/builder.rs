@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use std::net::IpAddr;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
 
 // Default value for timeout
 const fn default_timeout() -> u64 {
@@ -85,6 +85,9 @@ pub struct HttpsBuilder {
     /// Max connection pool size
     #[serde(default = "default_max_pool_size")]
     pub max_pool_size: usize,
+    /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
+    #[serde(default)]
+    pub ratelimit: Option<NonZeroU32>,
     /// SNI
     #[serde(default)]
     pub sni: bool,
@@ -100,6 +103,7 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
             Https::new(self.uri, self.addr, self.proxy, self.sni).await?,
             self.max_pool_size,
             Duration::from_secs(self.timeout),
+            self.ratelimit.into(),
         )?)))
     }
 }
@@ -113,6 +117,9 @@ pub struct UdpBuilder {
     /// Max connection pool size
     #[serde(default = "default_max_pool_size")]
     pub max_pool_size: usize,
+    /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
+    #[serde(default)]
+    pub ratelimit: Option<NonZeroU32>,
     /// Timeout length
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -127,6 +134,7 @@ impl AsyncTryInto<Upstream> for UdpBuilder {
             Udp::new(self.addr).await?,
             self.max_pool_size,
             Duration::from_secs(self.timeout),
+            self.ratelimit.into(),
         )?)))
     }
 }
