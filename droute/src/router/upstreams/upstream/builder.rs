@@ -47,6 +47,7 @@ const fn default_udp_max_pool_size() -> usize {
 
 // We don't cache HTTPS connections. That means we wouldn't need any recovery! Indeed, we store clients.
 // On average, HTTPS query roundtrip time is 750ms. That means a bigger connection pool is almost always better.
+#[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 const fn default_https_max_pool_size() -> usize {
     1024
 }
