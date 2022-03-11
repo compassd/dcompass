@@ -13,17 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(target_pointer_width = "64")]
-use governor::{
-    clock::{Clock, QuantaClock, QuantaInstant},
-    middleware::{NoOpMiddleware, RateLimitingMiddleware},
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
-};
-
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 pub mod https;
+#[cfg_attr(target_pointer_width = "64", path = "qos_governor.rs")]
+#[cfg_attr(not(target_pointer_width = "64"), path = "qos_none.rs")]
+mod qos;
 pub mod udp;
+
+use qos::QosPolicy;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -34,7 +31,7 @@ use deadpool::{
 use domain::base::Message;
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use reqwest::{StatusCode, Url};
-use std::{num::NonZeroU32, time::Duration};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
 
@@ -155,7 +152,7 @@ impl<T: ConnInitiator> ConnPool<T> {
 #[async_trait]
 impl<T: ConnInitiator> QHandle for ConnPool<T> {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
-        if self.ratelimiter.check().is_ok() {
+        if self.ratelimiter.check() {
             let mut conn = self.pool.get().await?;
 
             // Use flatten in the future
@@ -178,43 +175,6 @@ impl<T: ConnInitiator> QHandle for ConnPool<T> {
             }
         } else {
             Err(QHandleError::Throttled)
-        }
-    }
-}
-
-type QosPolicyInner =
-    Option<RateLimiter<NotKeyed, InMemoryState, QuantaClock, NoOpMiddleware<QuantaInstant>>>;
-
-#[derive(Default)]
-pub struct QosPolicy(QosPolicyInner);
-
-impl From<Option<NonZeroU32>> for QosPolicy {
-    fn from(qps: Option<NonZeroU32>) -> Self {
-        if let Some(qps) = qps {
-            #[cfg(target_pointer_width = "64")]
-            let ratelimiter = Self(Some(RateLimiter::direct(Quota::per_second(qps))));
-            #[cfg(not(target_pointer_width = "64"))]
-            let ratelimiter = Self(None);
-
-            ratelimiter
-        } else {
-            Self(None)
-        }
-    }
-}
-
-impl QosPolicy {
-    pub fn check(
-        &self,
-    ) -> std::result::Result<
-        (),
-        <NoOpMiddleware<QuantaInstant> as RateLimitingMiddleware<
-            <QuantaClock as Clock>::Instant,
-        >>::NegativeOutcome,
-    > {
-        match &self.0 {
-            Some(ratelimit) => ratelimit.check(),
-            None => Ok(()),
         }
     }
 }

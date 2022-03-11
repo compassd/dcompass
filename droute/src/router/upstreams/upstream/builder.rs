@@ -31,9 +31,24 @@ const fn default_timeout() -> u64 {
     5
 }
 
-// TODO: Is this a good default?
-const fn default_max_pool_size() -> usize {
-    256
+// RATIONALE BEHIND THIS DEFAULT VALUE
+// Actually, if the tolerance level is 2, then the expected number of queries needed to get a valid response is about E(n) = 1.34*n + 1.66
+// That means we have to have on average 344.265 queries by a single sender in order to get one valid response given all the connections in pool are broken and the pool size is 256.
+//
+// Let's say if we have m senders concurrently sending requests on an all-broken connection pool. Let's say for each sender the expected time to get the valid response is about E(n)/m. Then for m = 5, at the worst case -- timeout for 5 seconds each request -- we would need E(n) seconds to recover the system.
+//
+// According to our benchmark and real world scenario, UDP connections' turnabout time is between 4 - 60ms. That means a single connection can support 16 to 250 queries per second.
+// This means: for each 1.3 second we wait on recovery, we can get about 200 more qps. Quite a good deal!
+//
+// Let's say finally we are willing to wait 60 seconds on recovery. We could then take a pool size of 43, which corresponds to a recovery time of 59.6425
+const fn default_udp_max_pool_size() -> usize {
+    43
+}
+
+// We don't cache HTTPS connections. That means we wouldn't need any recovery! Indeed, we store clients.
+// On average, HTTPS query roundtrip time is 750ms. That means a bigger connection pool is almost always better.
+const fn default_https_max_pool_size() -> usize {
+    1024
 }
 
 /// A builder for hybrid upstream
@@ -83,7 +98,7 @@ pub struct HttpsBuilder {
     #[serde(default = "default_timeout")]
     pub timeout: u64,
     /// Max connection pool size
-    #[serde(default = "default_max_pool_size")]
+    #[serde(default = "default_https_max_pool_size")]
     pub max_pool_size: usize,
     /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
     #[serde(default)]
@@ -115,7 +130,7 @@ pub struct UdpBuilder {
     /// Address of the remote server
     pub addr: SocketAddr,
     /// Max connection pool size
-    #[serde(default = "default_max_pool_size")]
+    #[serde(default = "default_udp_max_pool_size")]
     pub max_pool_size: usize,
     /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
     #[serde(default)]
