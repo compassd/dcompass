@@ -501,6 +501,7 @@ dependencies = [
  "ron",
  "rustls",
  "serde",
+ "socket2",
  "thiserror",
  "tokio",
  "tokio-native-tls",

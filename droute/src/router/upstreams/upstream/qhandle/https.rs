@@ -167,7 +167,7 @@ impl QHandle for PostClient {
         }
     }
 
-    async fn reusable(&self) -> bool {
-        true
+    async fn reusable(&self) -> deadpool::managed::RecycleResult<std::io::Error> {
+        Ok(())
     }
 }

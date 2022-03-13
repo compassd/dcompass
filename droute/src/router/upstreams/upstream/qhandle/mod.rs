@@ -20,26 +20,36 @@ pub mod https;
 mod qos;
 #[cfg_attr(feature = "dot-native-tls", path = "tls-native-tls.rs")]
 #[cfg_attr(feature = "dot-rustls", path = "tls-rustls.rs")]
+#[cfg(any(feature = "dot-rustls", feature = "dot-native-tls"))]
 pub mod tls;
 pub mod udp;
 
-use qos::QosPolicy;
-
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use deadpool::{
     managed::{self, BuildError, Manager, Pool, RecycleError},
     Runtime,
 };
-use domain::base::Message;
+use domain::base::{Dname, Message, MessageBuilder, Rtype};
+use once_cell::sync::Lazy;
+use qos::QosPolicy;
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use reqwest::{StatusCode, Url};
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 use thiserror::Error;
 use tokio::time::{error::Elapsed, timeout};
 
 const MAX_ERROR_TOLERANCE: u8 = 2;
-const WAIT_TIMEOUT: Option<Duration> = Some(Duration::from_secs(1));
+const WAIT_TIMEOUT: Option<Duration> = Some(Duration::from_secs(5));
+
+static DUMMY_QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
+    let name = Dname::<Bytes>::from_str("example.com").unwrap();
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(1232)).unwrap();
+    builder.header_mut().set_id(0);
+    let mut builder = builder.question();
+    builder.push((&name, Rtype::A)).unwrap();
+    builder.into_message()
+});
 
 // The connection initiator, like Udp, Https. It is similar to ManageConnection.
 // The primary reason for its existence is that we want to reduce the boilderplate on implementing ManageConnection
@@ -66,19 +76,14 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
     }
 
     async fn recycle(&self, obj: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
-        if obj.0.reusable().await {
-            if obj.1 > MAX_ERROR_TOLERANCE {
-                log::warn!("the number of error(s) encountered exceeded the threshold");
-                Err(RecycleError::StaticMessage(
-                    "the number of error(s) encountered exceeded the threshold",
-                ))
-            } else {
-                Ok(())
-            }
-        } else {
+        obj.0.reusable().await?;
+        if obj.1 >= MAX_ERROR_TOLERANCE {
+            log::warn!("the number of error(s) encountered exceeded the threshold");
             Err(RecycleError::StaticMessage(
-                "the connection is self-reported non-reusable",
+                "the number of error(s) encountered exceeded the threshold",
             ))
+        } else {
+            Ok(())
         }
     }
 }
@@ -88,7 +93,9 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
 pub trait QHandle: Send + Sync {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>>;
 
-    async fn reusable(&self) -> bool;
+    async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
+        Ok(())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, QHandleError>;
@@ -130,10 +137,6 @@ pub enum QHandleError {
     #[cfg(any(feature = "dot-native-tls"))]
     #[error(transparent)]
     NativeTlsError(#[from] native_tls::Error),
-
-    #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
-    #[error("failed to match the response to query")]
-    NotAnswer,
 
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
@@ -198,7 +201,7 @@ impl<T: ConnInitiator> QHandle for ConnPool<T> {
     }
 
     // Although this is not used actually...
-    async fn reusable(&self) -> bool {
-        true
+    async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
+        Ok(())
     }
 }

@@ -86,7 +86,11 @@ impl QHandle for UdpSocket {
         }
     }
 
-    async fn reusable(&self) -> bool {
-        true
+    async fn reusable(&self) -> deadpool::managed::RecycleResult<std::io::Error> {
+        // We don't care about the response of our test query because we would ignore unrelated response that up in receive loop.
+        self.send(super::DUMMY_QUERY.as_slice())
+            .await
+            .map(|_| ())
+            .map_err(deadpool::managed::RecycleError::Backend)
     }
 }

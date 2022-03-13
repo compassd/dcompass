@@ -13,13 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ConnInitiator, QHandle, Result};
-use crate::router::upstreams::QHandleError;
+use super::{ConnInitiator, QHandle, Result, DUMMY_QUERY};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
+use deadpool::managed::{self, RecycleError};
 use domain::base::Message;
 use log::debug;
 use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
+use socket2::{Socket, TcpKeepalive};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -72,13 +73,15 @@ impl ConnInitiator for Tls {
     type Connection = Mutex<TlsStream<TcpStream>>;
 
     async fn create(&self) -> std::io::Result<Self::Connection> {
-        let stream = TcpStream::connect(self.addr).await?;
-        /*
-        let keepalive = TcpKeepalive::new().with_time(std::time::Duration::from_secs(3));
-            let socket: Socket = stream.into_std()?.into();
-            socket.set_tcp_keepalive(&keepalive)?;
-            stream = TcpStream::from_std(socket.into())?;
-        */
+        let mut stream = TcpStream::connect(self.addr).await?;
+
+        let keepalive = TcpKeepalive::new()
+            .with_time(std::time::Duration::from_secs(3))
+            .with_interval(std::time::Duration::from_secs(5))
+            .with_retries(5);
+        let socket: Socket = stream.into_std()?.into();
+        socket.set_tcp_keepalive(&keepalive)?;
+        stream = TcpStream::from_std(socket.into())?;
 
         let domain = rustls::ServerName::try_from(self.domain.as_str()).map_err(|_| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid dnsname")
@@ -121,33 +124,42 @@ impl QHandle for Mutex<TlsStream<TcpStream>> {
 
         debug!("TlsStream wrote all of the prefixed query");
 
-        // Get the length of the response
-        let mut len = [0; 2];
-        stream.read_exact(&mut len).await?;
-        let len = u16::from_be_bytes(len);
+        loop {
+            // Get the length of the response
+            let mut len = [0; 2];
+            stream.read_exact(&mut len).await?;
+            let len = u16::from_be_bytes(len);
 
-        debug!("TlsStream got response length: {} bytes", len);
+            debug!("TlsStream got response length: {} bytes", len);
 
-        // Read the response
-        let mut buf = BytesMut::with_capacity(len.into());
-        buf.resize(len.into(), 0);
-        stream.read_exact(&mut buf).await?;
+            // Read the response
+            let mut buf = BytesMut::with_capacity(len.into());
+            buf.resize(len.into(), 0);
+            stream.read_exact(&mut buf).await?;
 
-        debug!("TlsStream received {:?}", buf);
+            debug!("TlsStream received {:?}", buf);
 
-        // TODO: we are unable to manage connections well currently.
-        stream.shutdown().await?;
-
-        // We ignore garbage since there is a timer on this whole thing.
-        let answer = Message::from_octets(buf.into())?;
-        if !answer.is_answer(&msg) {
-            Err(QHandleError::NotAnswer)
-        } else {
-            Ok(answer)
+            // We ignore garbage since there is a timer on this whole thing.
+            let answer = match Message::from_octets(buf.freeze()) {
+                Ok(answer) => answer,
+                Err(_) => continue,
+            };
+            if !answer.is_answer(&msg) {
+                continue;
+            }
+            return Ok(answer);
         }
     }
 
-    async fn reusable(&self) -> bool {
-        false
+    async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
+        // For TCP streams, it is possible to have it being writable but not readable.
+        // Upon those situations, merely sending the query doesn't suffice our testing purpose.
+        // Therefore, it's better to conduct a full test
+        self.query(&DUMMY_QUERY.clone())
+            .await
+            .map(|_| {
+                log::debug!("reusable test successfully completed");
+            })
+            .map_err(|_| RecycleError::StaticMessage("test query failed"))
     }
 }
