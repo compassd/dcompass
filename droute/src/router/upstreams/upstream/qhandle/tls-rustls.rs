@@ -75,10 +75,7 @@ impl ConnInitiator for Tls {
     async fn create(&self) -> std::io::Result<Self::Connection> {
         let mut stream = TcpStream::connect(self.addr).await?;
 
-        let keepalive = TcpKeepalive::new()
-            .with_time(std::time::Duration::from_secs(3))
-            .with_interval(std::time::Duration::from_secs(5))
-            .with_retries(5);
+        let keepalive = TcpKeepalive::new().with_time(std::time::Duration::from_secs(3));
         let socket: Socket = stream.into_std()?.into();
         socket.set_tcp_keepalive(&keepalive)?;
         stream = TcpStream::from_std(socket.into())?;

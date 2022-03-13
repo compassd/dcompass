@@ -38,7 +38,7 @@ tokio-native-tls = { version = "^0.3", optional = true }
 tokio-rustls = { version = "^0.23", optional = true }
 
 # TCP keepalive doesn't help us pool our connections, sadly
-socket2 = {version = "^0.4"}
+socket2 = {version = "^0.4", features = ["all"]}
 
 # Async-aware dependencies
 futures = "^0.3"
@@ -83,4 +83,5 @@ skip_optional_dependencies = true
 
 skip_feature_sets = [
     ["doh-rustls", "doh-native-tls"],
+    ["dot-rustls", "dot-native-tls"],
 ]
