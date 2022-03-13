@@ -15,6 +15,8 @@
 
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
 use super::qhandle::https::Https;
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+use super::qhandle::tls::Tls;
 use super::{
     qhandle::{udp::Udp, ConnPool, Result},
     QHandleError, Upstream,
@@ -43,6 +45,12 @@ const fn default_timeout() -> u64 {
 // Let's say finally we are willing to wait 60 seconds on recovery. We could then take a pool size of 43, which corresponds to a recovery time of 59.6425
 const fn default_udp_max_pool_size() -> usize {
     43
+}
+
+// We do cache TLS connections, let's use the same default as UDP temporarily.
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+const fn default_tls_max_pool_size() -> usize {
+    32
 }
 
 // We don't cache HTTPS connections. That means we wouldn't need any recovery! Indeed, we store clients.
@@ -124,6 +132,44 @@ impl AsyncTryInto<Upstream> for HttpsBuilder {
     }
 }
 
+/// A builder for DNS over TLS upstream
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub struct TlsBuilder {
+    /// The domain of the DoH server. e.g. `cloudflare-dns.com`
+    pub domain: String,
+    /// The address of the server. e.g. `1.1.1.1:853` for Cloudflare DNS.
+    pub addr: SocketAddr,
+    /// Timeout length
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+    /// Max connection pool size
+    #[serde(default = "default_tls_max_pool_size")]
+    pub max_pool_size: usize,
+    /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
+    #[serde(default)]
+    pub ratelimit: Option<NonZeroU32>,
+    /// SNI
+    #[serde(default)]
+    pub sni: bool,
+}
+
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+#[async_trait]
+impl AsyncTryInto<Upstream> for TlsBuilder {
+    type Error = QHandleError;
+
+    async fn async_try_into(self) -> Result<Upstream> {
+        Ok(Upstream::Others(Arc::new(ConnPool::new(
+            Tls::new(self.domain, self.addr, self.sni)?,
+            self.max_pool_size,
+            Duration::from_secs(self.timeout),
+            self.ratelimit.into(),
+        )?)))
+    }
+}
+
 /// A builder for UDP upstream
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -166,6 +212,9 @@ pub enum UpstreamBuilder {
     #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     /// HTTPS connection.
     Https(HttpsBuilder),
+    #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+    /// HTTPS connection.
+    Tls(TlsBuilder),
 }
 
 #[async_trait]
@@ -180,6 +229,9 @@ impl AsyncTryInto<Upstream> for UpstreamBuilder {
 
             #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
             Self::Https(h) => h.async_try_into().await?,
+
+            #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+            Self::Tls(t) => t.async_try_into().await?,
         })
     }
 

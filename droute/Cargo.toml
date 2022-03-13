@@ -12,6 +12,8 @@ readme = "README.md"
 [features]
 doh-rustls = ["reqwest/rustls-tls", "rustls", "webpki-roots"]
 doh-native-tls = ["reqwest/native-tls-vendored", "native-tls"]
+dot-rustls = ["tokio-rustls", "rustls", "webpki-roots"]
+dot-native-tls = ["native-tls", "tokio-native-tls"]
 geoip = ["maxminddb"]
 
 [dependencies]
@@ -25,10 +27,18 @@ maxminddb = { version = "^0.21", optional = true }
 # doh
 reqwest = { version = "0.11", features = ["socks"], default-features = false}
 # doh-native-tls
-native-tls = { version = "0.2", optional = true}
+# we used vendored flag to make sure when used with tokio-native-tls, feature flags would merge and we can happily vendor openssl!
+native-tls = { version = "0.2", features = ["vendored"], optional = true}
 # doh-rustls
 rustls = {version = "^0.20", features = ["dangerous_configuration"], optional = true }
 webpki-roots = { version = "^0.22", optional = true }
+
+#dot
+tokio-native-tls = { version = "^0.3", optional = true }
+tokio-rustls = { version = "^0.23", optional = true }
+
+# TCP keepalive doesn't help us pool our connections, sadly.
+# socket2 = {version = "^0.4"}
 
 # Async-aware dependencies
 futures = "^0.3"

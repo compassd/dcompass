@@ -32,11 +32,11 @@ bytes = "^1"
 
 # Use rustls on other platforms
 [target.'cfg(not(any(target_arch = "mips", target_arch = "mips64")))'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-rustls"]}
+droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-rustls", "dot-rustls"]}
 
 # Use native tls on MIPS
 [target.'cfg(any(target_arch = "mips", target_arch = "mips64"))'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-native-tls"]}
+droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-native-tls", "dot-native-tls"]}
 
 # Both musl and msvc are not well-supoorted
 # Only allow on gnu or none env AND not on windows

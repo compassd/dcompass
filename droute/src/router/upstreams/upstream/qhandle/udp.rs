@@ -85,4 +85,8 @@ impl QHandle for UdpSocket {
             return Ok(answer);
         }
     }
+
+    async fn reusable(&self) -> bool {
+        true
+    }
 }

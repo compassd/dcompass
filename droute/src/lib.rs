@@ -34,6 +34,9 @@ mod router;
 #[cfg(all(feature = "doh-native-tls", feature = "doh-rustls"))]
 compile_error!("You should only choose one TLS backend for DNS over HTTPS implementation");
 
+#[cfg(all(feature = "dot-native-tls", feature = "dot-rustls"))]
+compile_error!("You should only choose one TLS backend for DNS over TLS implementation");
+
 use async_trait::async_trait;
 use compact_str::CompactStr;
 

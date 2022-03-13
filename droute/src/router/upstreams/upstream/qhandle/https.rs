@@ -69,7 +69,7 @@ use std::{
     time::Duration,
 };
 
-/// Client instance for UDP connections
+/// Client instance for HTTPS connections
 #[derive(Clone)]
 pub struct Https {
     client: PostClient,
@@ -165,5 +165,9 @@ impl QHandle for PostClient {
         } else {
             Err(QHandleError::FailedHttp(res.status()))
         }
+    }
+
+    async fn reusable(&self) -> bool {
+        true
     }
 }

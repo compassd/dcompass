@@ -18,6 +18,9 @@ pub mod https;
 #[cfg_attr(target_pointer_width = "64", path = "qos_governor.rs")]
 #[cfg_attr(not(target_pointer_width = "64"), path = "qos_none.rs")]
 mod qos;
+#[cfg_attr(feature = "dot-native-tls", path = "tls-native-tls.rs")]
+#[cfg_attr(feature = "dot-rustls", path = "tls-rustls.rs")]
+pub mod tls;
 pub mod udp;
 
 use qos::QosPolicy;
@@ -63,13 +66,19 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
     }
 
     async fn recycle(&self, obj: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
-        if obj.1 > MAX_ERROR_TOLERANCE {
-            log::warn!("the number of error(s) encountered exceeded the threshold");
-            Err(RecycleError::StaticMessage(
-                "the number of error(s) encountered exceeded the threshold",
-            ))
+        if obj.0.reusable().await {
+            if obj.1 > MAX_ERROR_TOLERANCE {
+                log::warn!("the number of error(s) encountered exceeded the threshold");
+                Err(RecycleError::StaticMessage(
+                    "the number of error(s) encountered exceeded the threshold",
+                ))
+            } else {
+                Ok(())
+            }
         } else {
-            Ok(())
+            Err(RecycleError::StaticMessage(
+                "the connection is self-reported non-reusable",
+            ))
         }
     }
 }
@@ -78,6 +87,8 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
 //#[clonable]
 pub trait QHandle: Send + Sync {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>>;
+
+    async fn reusable(&self) -> bool;
 }
 
 pub type Result<T> = std::result::Result<T, QHandleError>;
@@ -115,6 +126,14 @@ pub enum QHandleError {
     #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
     #[error("unsuccessful HTTP code: {0}")]
     FailedHttp(StatusCode),
+
+    #[cfg(any(feature = "dot-native-tls"))]
+    #[error(transparent)]
+    NativeTlsError(#[from] native_tls::Error),
+
+    #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+    #[error("failed to match the response to query")]
+    NotAnswer,
 
     #[error(transparent)]
     ShortBuf(#[from] domain::base::ShortBuf),
@@ -176,5 +195,10 @@ impl<T: ConnInitiator> QHandle for ConnPool<T> {
         } else {
             Err(QHandleError::Throttled)
         }
+    }
+
+    // Although this is not used actually...
+    async fn reusable(&self) -> bool {
+        true
     }
 }
