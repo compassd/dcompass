@@ -18,6 +18,7 @@ pub mod https;
 #[cfg_attr(target_pointer_width = "64", path = "qos_governor.rs")]
 #[cfg_attr(not(target_pointer_width = "64"), path = "qos_none.rs")]
 mod qos;
+#[cfg(any(feature = "dot-rustls", feature = "dot-native-tls"))]
 pub mod tls;
 pub mod udp;
 
