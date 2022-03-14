@@ -13,21 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ConnInitiator, QHandle, Result, DUMMY_QUERY};
+use super::{ConnInitiator, Result};
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
-use deadpool::managed::{self, RecycleError};
-use domain::base::Message;
-use log::debug;
 use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
 use socket2::{Socket, TcpKeepalive};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    sync::Mutex,
-};
-use tokio_rustls::{client::TlsStream, TlsConnector};
+use tokio::{net::TcpStream, sync::Mutex};
+pub use tokio_rustls::client::TlsStream;
+use tokio_rustls::TlsConnector;
 
 fn create_client_config(sni: &bool) -> ClientConfig {
     let mut root_store = RootCertStore::empty();
@@ -75,7 +68,8 @@ impl ConnInitiator for Tls {
     async fn create(&self) -> std::io::Result<Self::Connection> {
         let mut stream = TcpStream::connect(self.addr).await?;
 
-        let keepalive = TcpKeepalive::new().with_time(std::time::Duration::from_secs(3));
+        // Good default as reqwest also sets this.
+        let keepalive = TcpKeepalive::new().with_time(std::time::Duration::from_secs(60));
         let socket: Socket = stream.into_std()?.into();
         socket.set_tcp_keepalive(&keepalive)?;
         stream = TcpStream::from_std(socket.into())?;
@@ -93,70 +87,5 @@ impl ConnInitiator for Tls {
 
     fn conn_type(&self) -> &'static str {
         "TLS"
-    }
-}
-
-#[async_trait]
-impl QHandle for Mutex<TlsStream<TcpStream>> {
-    async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
-        let mut stream = self.lock().await;
-
-        // Randomnize the message
-        let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
-        msg.header_mut().set_random_id();
-        let msg = msg.for_slice();
-
-        // Prefix our payload with length per RFC.
-        let mut payload = BytesMut::new();
-        let len = u16::try_from(msg.as_slice().len())
-            .expect("request too long")
-            .to_be_bytes();
-        payload.extend_from_slice(&len);
-        payload.extend_from_slice(msg.as_slice());
-        let payload = payload.freeze();
-
-        // Write all of our query
-        stream.write_all(&payload).await?;
-        stream.flush().await?;
-
-        debug!("TlsStream wrote all of the prefixed query");
-
-        loop {
-            // Get the length of the response
-            let mut len = [0; 2];
-            stream.read_exact(&mut len).await?;
-            let len = u16::from_be_bytes(len);
-
-            debug!("TlsStream got response length: {} bytes", len);
-
-            // Read the response
-            let mut buf = BytesMut::with_capacity(len.into());
-            buf.resize(len.into(), 0);
-            stream.read_exact(&mut buf).await?;
-
-            debug!("TlsStream received {:?}", buf);
-
-            // We ignore garbage since there is a timer on this whole thing.
-            let answer = match Message::from_octets(buf.freeze()) {
-                Ok(answer) => answer,
-                Err(_) => continue,
-            };
-            if !answer.is_answer(&msg) {
-                continue;
-            }
-            return Ok(answer);
-        }
-    }
-
-    async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
-        // For TCP streams, it is possible to have it being writable but not readable.
-        // Upon those situations, merely sending the query doesn't suffice our testing purpose.
-        // Therefore, it's better to conduct a full test
-        self.query(&DUMMY_QUERY.clone())
-            .await
-            .map(|_| {
-                log::debug!("reusable test successfully completed");
-            })
-            .map_err(|_| RecycleError::StaticMessage("test query failed"))
     }
 }

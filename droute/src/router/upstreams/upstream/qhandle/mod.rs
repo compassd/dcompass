@@ -18,9 +18,6 @@ pub mod https;
 #[cfg_attr(target_pointer_width = "64", path = "qos_governor.rs")]
 #[cfg_attr(not(target_pointer_width = "64"), path = "qos_none.rs")]
 mod qos;
-#[cfg_attr(feature = "dot-native-tls", path = "tls-native-tls.rs")]
-#[cfg_attr(feature = "dot-rustls", path = "tls-rustls.rs")]
-#[cfg(any(feature = "dot-rustls", feature = "dot-native-tls"))]
 pub mod tls;
 pub mod udp;
 
@@ -76,13 +73,18 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
     }
 
     async fn recycle(&self, obj: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
-        obj.0.reusable().await?;
+        // If the number of error we encountered has reached the max error tolerance we set,
+        // we are ought to discard this connection
+        //
+        // This afterwards discard helps us passively keep the connection pool healthy
         if obj.1 >= MAX_ERROR_TOLERANCE {
             log::warn!("the number of error(s) encountered exceeded the threshold");
             Err(RecycleError::StaticMessage(
                 "the number of error(s) encountered exceeded the threshold",
             ))
         } else {
+            // Let's check actively if our connection is still up
+            obj.0.reusable().await?;
             Ok(())
         }
     }
@@ -93,6 +95,8 @@ impl<T: ConnInitiator> Manager for ConnInitWrapper<T> {
 pub trait QHandle: Send + Sync {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>>;
 
+    // Check whether the connection is still up.
+    // Specific implementation depends on specific connections. i.e. UDP connection may just send a simple query while TLS connection do a roundtrip.
     async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
         Ok(())
     }
@@ -176,6 +180,11 @@ impl<T: ConnInitiator> QHandle for ConnPool<T> {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
         if self.ratelimiter.check() {
             let mut conn = self.pool.get().await?;
+
+            log::debug!(
+                "got connection from pool; recycled {} times",
+                deadpool::managed::Object::<ConnInitWrapper<T>>::metrics(&conn).recycle_count
+            );
 
             // Use flatten in the future
             match timeout(self.timeout, conn.0.query(msg)).await {

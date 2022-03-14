@@ -50,7 +50,7 @@ const fn default_udp_max_pool_size() -> usize {
 // We do cache TLS connections, let's use the same default as UDP temporarily.
 #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
 const fn default_tls_max_pool_size() -> usize {
-    32
+    43
 }
 
 // We don't cache HTTPS connections. That means we wouldn't need any recovery! Indeed, we store clients.

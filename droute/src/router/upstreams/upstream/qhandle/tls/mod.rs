@@ -13,69 +13,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg_attr(feature = "dot-native-tls", path = "native_tls.rs")]
+#[cfg_attr(feature = "dot-rustls", path = "rustls.rs")]
+#[cfg(any(feature = "dot-rustls", feature = "dot-native-tls"))]
+mod connector;
+
 use super::{ConnInitiator, QHandle, Result, DUMMY_QUERY};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
+pub use connector::Tls;
+use connector::TlsStream;
 use deadpool::managed::{self, RecycleError};
 use domain::base::Message;
 use log::debug;
-use native_tls::{Protocol, TlsConnector as NativeTlsConnector};
-use socket2::{Socket, TcpKeepalive};
-use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
     sync::Mutex,
 };
-use tokio_native_tls::{TlsConnector, TlsStream};
-
-/// Client instance for TLS connections
-#[derive(Clone)]
-pub struct Tls {
-    client: TlsConnector,
-    addr: SocketAddr,
-    domain: String,
-}
-
-impl Tls {
-    /// Create a new TLS connection creator instance. with the given remote server address.
-    pub fn new(domain: String, addr: SocketAddr, sni: bool) -> Result<Self> {
-        Ok(Self {
-            client: NativeTlsConnector::builder()
-                .use_sni(sni)
-                .min_protocol_version(Some(Protocol::Tlsv12))
-                .build()?
-                .into(),
-            addr,
-            domain,
-        })
-    }
-}
-
-#[async_trait]
-impl ConnInitiator for Tls {
-    type Connection = Mutex<TlsStream<TcpStream>>;
-
-    async fn create(&self) -> std::io::Result<Self::Connection> {
-        let mut stream = TcpStream::connect(self.addr).await?;
-
-        let keepalive = TcpKeepalive::new().with_time(std::time::Duration::from_secs(3));
-        let socket: Socket = stream.into_std()?.into();
-        socket.set_tcp_keepalive(&keepalive)?;
-        stream = TcpStream::from_std(socket.into())?;
-
-        Ok(Mutex::new(
-            self.client
-                .connect(&self.domain, stream)
-                .await
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::WouldBlock, e))?,
-        ))
-    }
-
-    fn conn_type(&self) -> &'static str {
-        "TLS"
-    }
-}
 
 #[async_trait]
 impl QHandle for Mutex<TlsStream<TcpStream>> {
@@ -106,13 +61,13 @@ impl QHandle for Mutex<TlsStream<TcpStream>> {
             // Get the length of the response
             let mut len = [0; 2];
             stream.read_exact(&mut len).await?;
-            let len = u16::from_be_bytes(len);
+            let len: usize = u16::from_be_bytes(len).into();
 
             debug!("TlsStream got response length: {} bytes", len);
 
             // Read the response
-            let mut buf = BytesMut::with_capacity(len.into());
-            buf.resize(len.into(), 0);
+            let mut buf = BytesMut::with_capacity(len);
+            buf.resize(len, 0);
             stream.read_exact(&mut buf).await?;
 
             debug!("TlsStream received {:?}", buf);
@@ -130,11 +85,19 @@ impl QHandle for Mutex<TlsStream<TcpStream>> {
     }
 
     async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
-        self.query(&DUMMY_QUERY.clone())
-            .await
-            .map(|_| {
+        // Remote host can close a connection after a timeout set by it.
+        // Remote can also close connection after responding to up to a certain number of requests sent by us.
+        // It's better to conduct a full test.
+        match self.query(&DUMMY_QUERY.clone()).await {
+            Ok(_) => {
                 log::debug!("reusable test successfully completed");
-            })
-            .map_err(|_| RecycleError::StaticMessage("test query failed"))
+                Ok(())
+            }
+            Err(_) => {
+                // Shutdown the underlying stream
+                self.lock().await.shutdown().await?;
+                Err(RecycleError::StaticMessage("test query failed"))
+            }
+        }
     }
 }
