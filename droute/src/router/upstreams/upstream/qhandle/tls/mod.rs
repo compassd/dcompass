@@ -54,16 +54,13 @@ impl QHandle for (Mutex<(TlsStream<TcpStream>, Instant, usize)>, u64, usize) {
         let msg = msg.for_slice();
 
         // Prefix our payload with length per RFC.
-        let mut payload = BytesMut::new();
         let len = u16::try_from(msg.as_slice().len())
             .expect("request too long")
             .to_be_bytes();
-        payload.extend_from_slice(&len);
-        payload.extend_from_slice(msg.as_slice());
-        let payload = payload.freeze();
 
         // Write all of our query
-        stream.write_all(&payload).await?;
+        stream.write_all(&len).await?;
+        stream.write_all(msg.as_slice()).await?;
         stream.flush().await?;
 
         debug!("TlsStream wrote all of the prefixed query");

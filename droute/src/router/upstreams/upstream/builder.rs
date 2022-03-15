@@ -47,10 +47,11 @@ const fn default_udp_max_pool_size() -> usize {
     43
 }
 
-// We do cache TLS connections, let's use the same default as UDP temporarily.
+// We do cache TLS connections. However, they expire quite soon.
+// Therefore, pool size is not of problems.
 #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
 const fn default_tls_max_pool_size() -> usize {
-    43
+    256
 }
 
 #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
