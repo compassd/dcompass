@@ -18,7 +18,7 @@
 #[cfg(any(feature = "dot-rustls", feature = "dot-native-tls"))]
 mod connector;
 
-use super::{ConnInitiator, QHandle, Result, DUMMY_QUERY};
+use super::{ConnInitiator, QHandle, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 pub use connector::Tls;
@@ -26,16 +26,27 @@ use connector::TlsStream;
 use deadpool::managed::{self, RecycleError};
 use domain::base::Message;
 use log::debug;
+use std::time::Instant;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
     sync::Mutex,
 };
 
+// Instant: Time the connection established
+// usize: Number of query sent
 #[async_trait]
-impl QHandle for Mutex<TlsStream<TcpStream>> {
+impl QHandle for (Mutex<(TlsStream<TcpStream>, Instant, usize)>, u64, usize) {
     async fn query(&self, msg: &Message<Bytes>) -> Result<Message<Bytes>> {
-        let mut stream = self.lock().await;
+        let mut guard = self.0.lock().await;
+
+        {
+            // Sadly because of borrow checker issue we cannot increase our counter after we have sent all of our query.
+            // We have sent our query once more
+            guard.2 += 1;
+        }
+
+        let stream = &mut guard.0;
 
         // Randomnize the message
         let mut msg = Message::from_octets(BytesMut::from(msg.as_slice()))?;
@@ -80,24 +91,26 @@ impl QHandle for Mutex<TlsStream<TcpStream>> {
             if !answer.is_answer(&msg) {
                 continue;
             }
+
             return Ok(answer);
         }
     }
 
     async fn reusable(&self) -> managed::RecycleResult<std::io::Error> {
-        // Remote host can close a connection after a timeout set by it.
-        // Remote can also close connection after responding to up to a certain number of requests sent by us.
-        // It's better to conduct a full test.
-        match self.query(&DUMMY_QUERY.clone()).await {
-            Ok(_) => {
-                log::debug!("reusable test successfully completed");
-                Ok(())
-            }
-            Err(_) => {
-                // Shutdown the underlying stream
-                self.lock().await.shutdown().await?;
-                Err(RecycleError::StaticMessage("test query failed"))
-            }
+        // No matter when our last valid query was on, TCP connections all expire a certain amount of time after they were established.
+        // This is because the server may have got a timeout timer set on our outgoing connections.
+        // Moreover, most of the server has limit on the maximum number of query possible. We check it as well here
+        let mut guard = self.0.lock().await;
+        if guard.2 >= self.2 {
+            guard.0.shutdown().await?;
+            log::debug!("TlsStream has reached maximum number of queries that can be sent on the underlying persistent TCP connection.");
+            return Err(RecycleError::StaticMessage("max reuse TCP queries reached"));
         }
+        if guard.1.elapsed().as_millis() >= self.1.into() {
+            guard.0.shutdown().await?;
+            log::debug!("TlsStream has reached period dcompass will keep the underlying TCP persistent connections open.");
+            return Err(RecycleError::StaticMessage("TCP reuse timeout reached"));
+        }
+        Ok(())
     }
 }

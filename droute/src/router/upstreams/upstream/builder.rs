@@ -53,6 +53,16 @@ const fn default_tls_max_pool_size() -> usize {
     43
 }
 
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+const fn default_tls_max_reuse() -> usize {
+    200
+}
+
+#[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
+const fn default_tls_reuse_timeout() -> u64 {
+    60000
+}
+
 // We don't cache HTTPS connections. That means we wouldn't need any recovery! Indeed, we store clients.
 // On average, HTTPS query roundtrip time is 750ms. That means a bigger connection pool is almost always better.
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
@@ -147,6 +157,12 @@ pub struct TlsBuilder {
     /// Max connection pool size
     #[serde(default = "default_tls_max_pool_size")]
     pub max_pool_size: usize,
+    /// The time in millisecond to keep the underlying persistent TCP connection open for reuse
+    #[serde(default = "default_tls_reuse_timeout")]
+    pub reuse_timeout: u64,
+    /// The maximum number of queries allowed to send over a single underlying TCP connection
+    #[serde(default = "default_tls_max_reuse")]
+    pub max_reuse: usize,
     /// Maximum number of query per second and the query burst size allowed to upstream using Leaky Bucket algorithm
     #[serde(default)]
     pub ratelimit: Option<NonZeroU32>,
@@ -162,7 +178,13 @@ impl AsyncTryInto<Upstream> for TlsBuilder {
 
     async fn async_try_into(self) -> Result<Upstream> {
         Ok(Upstream::Others(Arc::new(ConnPool::new(
-            Tls::new(self.domain, self.addr, self.sni)?,
+            Tls::new(
+                self.domain,
+                self.addr,
+                self.sni,
+                self.reuse_timeout,
+                self.max_reuse,
+            )?,
             self.max_pool_size,
             Duration::from_secs(self.timeout),
             self.ratelimit.into(),

@@ -17,7 +17,7 @@ use super::{ConnInitiator, Result};
 use async_trait::async_trait;
 use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
 use socket2::{Socket, TcpKeepalive};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Instant};
 use tokio::{net::TcpStream, sync::Mutex};
 pub use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
@@ -48,22 +48,32 @@ pub struct Tls {
     client: TlsConnector,
     addr: SocketAddr,
     domain: String,
+    tcp_reuse_timeout: u64,
+    max_reuse_tcp_queries: usize,
 }
 
 impl Tls {
     /// Create a new TLS connection creator instance. with the given remote server address.
-    pub fn new(domain: String, addr: SocketAddr, sni: bool) -> Result<Self> {
+    pub fn new(
+        domain: String,
+        addr: SocketAddr,
+        sni: bool,
+        tcp_reuse_timeout: u64,
+        max_reuse_tcp_queries: usize,
+    ) -> Result<Self> {
         Ok(Self {
             client: TlsConnector::from(Arc::new(create_client_config(&sni))),
             addr,
             domain,
+            tcp_reuse_timeout,
+            max_reuse_tcp_queries,
         })
     }
 }
 
 #[async_trait]
 impl ConnInitiator for Tls {
-    type Connection = Mutex<TlsStream<TcpStream>>;
+    type Connection = (Mutex<(TlsStream<TcpStream>, Instant, usize)>, u64, usize);
 
     async fn create(&self) -> std::io::Result<Self::Connection> {
         let mut stream = TcpStream::connect(self.addr).await?;
@@ -77,11 +87,17 @@ impl ConnInitiator for Tls {
         let domain = rustls::ServerName::try_from(self.domain.as_str()).map_err(|_| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid dnsname")
         })?;
-        Ok(Mutex::new(
-            self.client
-                .connect(domain, stream)
-                .await
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::WouldBlock, e))?,
+        Ok((
+            Mutex::new((
+                self.client
+                    .connect(domain, stream)
+                    .await
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::WouldBlock, e))?,
+                Instant::now(),
+                0,
+            )),
+            self.tcp_reuse_timeout,
+            self.max_reuse_tcp_queries,
         ))
     }
 
