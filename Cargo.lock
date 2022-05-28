@@ -191,6 +191,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "castaway"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46b662d08e94a6c8e715abef5e10e6fdf47c2be6375a5bb246b65c177d575eb7"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -252,10 +261,13 @@ dependencies = [
 
 [[package]]
 name = "compact_str"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c1785f81f79585b3b8ee322db384b2b4c0dfd22423c3f6fb9fd4b5a3de30cd2"
+checksum = "fb6f80f92629b81f5b17b616a99f72870556ca457bbbd99aeda7bb5d194316a2"
 dependencies = [
+ "castaway",
+ "itoa 1.0.1",
+ "ryu",
  "serde",
 ]
 
@@ -1604,6 +1616,12 @@ checksum = "1ee86d63972a7c661d1536fefe8c3c8407321c3df668891286de28abcd087360"
 dependencies = [
  "base64",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
 
 [[package]]
 name = "ryu"

@@ -38,7 +38,7 @@ compile_error!("You should only choose one TLS backend for DNS over HTTPS implem
 compile_error!("You should only choose one TLS backend for DNS over TLS implementation");
 
 use async_trait::async_trait;
-use compact_str::CompactStr;
+use compact_str::CompactString;
 
 /// All the builders
 // API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
@@ -73,7 +73,7 @@ const MAX_TTL: u32 = 86400_u32;
 const MAX_LEN: usize = 1024_usize;
 
 /// The type used for tag names in upstreams and routing tables.
-pub type Label = CompactStr;
+pub type Label = CompactString;
 
 /// Async TryInto
 #[async_trait]

@@ -20,7 +20,7 @@ use super::upstreams::Upstreams;
 use crate::{AsyncTryInto, Label, Validatable, ValidateCell};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use compact_str::CompactStr;
+use compact_str::CompactString;
 use domain::{
     base::{name::PushError, octets::ParseError, Message, ParsedDname, Rtype, ToDname},
     rdata::AllRecordData,
@@ -151,7 +151,7 @@ fn traverse(
     } else {
         bucket.get_mut(tag).unwrap().0.add(1);
         for dst in dsts {
-            if dst != CompactStr::new("end") {
+            if dst != CompactString::new("end") {
                 traverse(bucket, &dst)?;
             }
         }

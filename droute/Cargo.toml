@@ -45,7 +45,7 @@ futures = "^0.3"
 tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
 # Logic-related dependencies
-compact_str = { version = "^0.3", features = ["serde"]}
+compact_str = { version = "^0.4", features = ["serde"]}
 pest = "^2"
 ron = "^0.7"
 pest_derive = "^2"
