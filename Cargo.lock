@@ -219,7 +219,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "cidr-utils"
 version = "0.5.7"
-source = "git+https://github.com/compassd/cidr-utils#c5f5c2ef167b4de9856764fd6b3b84e784b98db2"
+source = "git+https://github.com/compassd/cidr-utils?rev=c5f5c2ef167b4de9856764fd6b3b84e784b98db2#c5f5c2ef167b4de9856764fd6b3b84e784b98db2"
 dependencies = [
  "debug-helper",
  "num-bigint",

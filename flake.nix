@@ -30,7 +30,13 @@
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
             src = lib.cleanSource ./.;
-            cargoLock = { lockFile = ./Cargo.lock; };
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+              outputHashes = {
+                "cidr-utils-0.5.7" =
+                  "sha256-Kyvq1R5o7csR2BGWj9oZ6J+96fSqNBXBB2m/79HjGbM=";
+              };
+            };
             cargoBuildFlags = [ "--features ${v}" ];
             # Used by tokio-console
             # nativeBuildInputs = [ protobuf ];

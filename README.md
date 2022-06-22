@@ -2,33 +2,42 @@
 
 ![Automated build](https://github.com/LEXUGE/dcompass/workflows/Build%20dcompass%20on%20various%20targets/badge.svg)
 [![Join telegram channel](https://badges.aleen42.com/src/telegram.svg)](https://t.me/dcompass_channel)  
-A high-performance DNS server with flexible routing scheme and customized plugins.  
+A high-performance programmable DNS server.  
 [中文版](README-CN.md)
 
 Below is an example of using GeoIP to mitigate DNS pollution
 
 ```yaml
-table:
-  start:
-    - query: domestic
-    - check_secure
-  check_secure:
-    if: "!geoip(codes: [\"CN\"])"
-    then:
-      - query: secure
-      - end
+script:
+  init: |
+    let geoip = new_geoip_from_path("../data/full.mmdb").seal();
+  route: |
+    let resp = upstreams.send("domestic", query);
+
+    try {
+      let ans = resp.answer[0];
+      return switch ans.rtype.to_string() {
+        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
+        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
+        _ => resp
+      };
+    } catch(err) {
+      print(err);
+      return resp;
+    }
 ```
 
 # Features
 
 - Fast (~50000 qps in wild where upstream perf is about the same)
-- Flexible routing rules that are easy to compose and maintain
-- Built-in plugins to manipulate your DNS queries and responses (you can also add or tailor them to your need)
+- Rust-like scripting with rhai
 - Fearless hot switch between network environments
-- DNS over HTTPS support
 - Written in pure Rust
 
 # Notice
+**[2022-06-22] All-new script engine**  
+You are now in full control of every bit of your DNS server. With the new script engine, you can now access every bitflag, every record, and every section of every DNS message. You can literally program dcompass into whatever you want!
+
 **[2021-9-16] Expression Engine and breaking changes**  
 dcompass is now equipped with an expression engine which let you easily and freely compose logical expressions with existing matchers. This enables us to greatly improve config readablity and versatility. However, all existing config files involving if rule block are no longer working. Please see examples to migrate.
 
