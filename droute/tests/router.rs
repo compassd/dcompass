@@ -20,7 +20,7 @@ use domain::{
     base::{Dname, Message, MessageBuilder, Rtype},
     rdata::A,
 };
-use droute::{actions::CacheMode, builders::*, mock::Server, AsyncTryInto};
+use droute::{builders::*, mock::Server, AsyncTryInto};
 use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
 
@@ -48,21 +48,14 @@ static QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
     builder.into_message()
 });
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_resolve() {
     let socket = UdpSocket::bind(&"127.0.0.1:53533").await.unwrap();
     let server = Server::new(socket, vec![0; 1024], None);
     tokio::spawn(server.run(DUMMY_MSG.clone()));
 
     let router = RouterBuilder::new(
-        TableBuilder::new().add_rule(
-            "start",
-            RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(
-                BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
-                    QueryBuilder::new("mock", CacheMode::default()),
-                )),
-            ),
-        ),
+        ScriptBuilder::new(None, r#"upstreams.send("mock", query)"#),
         UpstreamsBuilder::new(1).unwrap().add_upstream(
             "mock",
             UdpBuilder {

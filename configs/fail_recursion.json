@@ -1,13 +1,8 @@
 {
     "verbosity": "off",
     "address": "0.0.0.0:2053",
-    "table": {
-        "start": [
-            {
-                "query": "secure"
-            },
-            "end"
-        ]
+    "script": {
+        "route": ""
     },
     "upstreams": {
         "114": {

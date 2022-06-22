@@ -25,22 +25,10 @@ async fn check_default() {
 
 #[tokio::test]
 async fn check_success_ipcidr() {
-    assert_eq!(
-        init(serde_yaml::from_str(include_str!("../../configs/success_cidr.yaml")).unwrap())
-            .await
-            .is_ok(),
-        true
-    );
-}
-
-#[tokio::test]
-async fn check_success_logic_jumble() {
-    assert_eq!(
-        init(serde_yaml::from_str(include_str!("../../configs/logic_jumble.yaml")).unwrap())
-            .await
-            .is_ok(),
-        true
-    );
+    assert_eq!(true, true);
+    init(serde_yaml::from_str(include_str!("../../configs/success_cidr.yaml")).unwrap())
+        .await
+        .unwrap();
 }
 
 #[cfg(all(feature = "geoip-maxmind", not(feature = "geoip-cn")))]
@@ -85,7 +73,7 @@ async fn check_success_query_cache_mode() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn check_success_geoip() {
     assert_eq!(
         init(serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap())
@@ -116,21 +104,6 @@ async fn check_success_header_yaml() {
 }
 
 #[tokio::test]
-async fn check_fail_undef() {
-    assert_eq!(
-        match init(serde_yaml::from_str(include_str!("../../configs/fail_undef.json")).unwrap())
-            .await
-            .err()
-            .unwrap()
-        {
-            DrouteError::UpstreamError(UpstreamError::MissingTag(tag)) => tag,
-            e => panic!("Not the right error type: {}", e),
-        },
-        compact_str::CompactStr::new("undefined")
-    );
-}
-
-#[tokio::test]
 async fn check_fail_recursion() {
     match init(serde_yaml::from_str(include_str!("../../configs/fail_recursion.json")).unwrap())
         .await
@@ -138,20 +111,6 @@ async fn check_fail_recursion() {
         .unwrap()
     {
         DrouteError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
-        e => panic!("Not the right error type: {}", e),
-    };
-}
-
-#[tokio::test]
-async fn fail_unused_upstreams() {
-    match init(
-        serde_yaml::from_str(include_str!("../../configs/fail_unused_upstreams.yaml")).unwrap(),
-    )
-    .await
-    .err()
-    .unwrap()
-    {
-        DrouteError::UpstreamError(UpstreamError::UnusedUpstreams(_)) => {}
         e => panic!("Not the right error type: {}", e),
     };
 }

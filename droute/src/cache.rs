@@ -22,14 +22,10 @@ use log::*;
 use std::{
     borrow::Borrow,
     hash::{Hash, Hasher},
-    net::IpAddr,
     num::NonZeroUsize,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-
-// Expire every hour
-const ECS_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 
 // Code to use (&A, &B) for accessing HashMap, clipped from https://stackoverflow.com/questions/45786717/how-to-implement-hashmap-with-two-keys/45795699#45795699.
 trait KeyPair<A: ?Sized, B: ?Sized> {
@@ -174,45 +170,48 @@ impl RespCache {
     }
 }
 
+// Expire every hour
+// const ECS_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
+
 // A LRU cache mapping local address to EDNS Client Subnet external IP addr
-#[derive(Clone)]
-pub struct EcsCache {
-    cache: Arc<Mutex<Option<CacheRecord<IpAddr>>>>,
-}
-
-impl EcsCache {
-    pub fn new() -> Self {
-        Self {
-            cache: Arc::new(Mutex::new(None)),
-        }
-    }
-
-    pub fn put(&self, external_ip: IpAddr) {
-        *self.cache.lock().unwrap() = Some(CacheRecord::new(external_ip, ECS_CACHE_TTL));
-    }
-
-    pub fn get(&self, ip: &IpAddr) -> Option<RecordStatus<IpAddr>> {
-        match &mut *self.cache.lock().unwrap() {
-            Some(r) => {
-                // Get record only once.
-                if r.validate() {
-                    info!("ECS external IP cache hit for private IP {}", ip);
-                    Some(Alive(r.get()))
-                } else {
-                    info!(
-                        "TTL passed for private IP {}, returning expired record.",
-                        ip
-                    );
-                    Some(Expired(r.get()))
-                }
-            }
-            Option::None => Option::None,
-        }
-    }
-}
-
-impl Default for EcsCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// #[derive(Clone)]
+// pub struct EcsCache {
+//     cache: Arc<Mutex<Option<CacheRecord<IpAddr>>>>,
+// }
+//
+// impl EcsCache {
+//     pub fn new() -> Self {
+//         Self {
+//             cache: Arc::new(Mutex::new(None)),
+//         }
+//     }
+//
+//     pub fn put(&self, external_ip: IpAddr) {
+//         *self.cache.lock().unwrap() = Some(CacheRecord::new(external_ip, ECS_CACHE_TTL));
+//     }
+//
+//     pub fn get(&self, ip: &IpAddr) -> Option<RecordStatus<IpAddr>> {
+//         match &mut *self.cache.lock().unwrap() {
+//             Some(r) => {
+//                 // Get record only once.
+//                 if r.validate() {
+//                     info!("ECS external IP cache hit for private IP {}", ip);
+//                     Some(Alive(r.get()))
+//                 } else {
+//                     info!(
+//                         "TTL passed for private IP {}, returning expired record.",
+//                         ip
+//                     );
+//                     Some(Expired(r.get()))
+//                 }
+//             }
+//             Option::None => Option::None,
+//         }
+//     }
+// }
+//
+// impl Default for EcsCache {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }

@@ -39,6 +39,10 @@ pub enum UpstreamError {
     #[error(transparent)]
     QHandleError(#[from] QHandleError),
 
+    /// The buffer is too short
+    #[error(transparent)]
+    ShortBuf(#[from] domain::base::ShortBuf),
+
     /// Some of the upstreams are unused.
     #[error("Some of the upstreams are not used: {0:?}")]
     UnusedUpstreams(HashSet<Label>),

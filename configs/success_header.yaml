@@ -1,12 +1,11 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-table:
-  start:
-    if: "header(cond: opcode(QUERY), query: true)"
-    then:
-      - query: secure
-      - end
+script:
+  route: |
+    if query.header.opcode == "QUERY" {
+       upstreams.send("secure", query)
+    };
 upstreams:
   secure:
     https:

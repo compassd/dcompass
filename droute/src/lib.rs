@@ -39,27 +39,18 @@ compile_error!("You should only choose one TLS backend for DNS over TLS implemen
 
 use async_trait::async_trait;
 use compact_str::CompactStr;
+use rhai::EvalAltResult;
 
 /// All the builders
 // API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
 pub mod builders {
     // Here we don't aggregate action and matcher builders into rule builders module, because they are quite logically different.
-    pub use super::router::{
-        table::{
-            rule::{actions::builder::*, builders::*, matchers::builder::*},
-            TableBuilder,
-        },
-        upstreams::builder::*,
-        RouterBuilder,
-    };
+    pub use super::router::{script::ScriptBuilder, upstreams::builder::*, RouterBuilder};
 }
 
 // All the major components
 pub use self::router::{
-    table::{
-        rule::{actions, matchers, Rule},
-        QueryContext, Table,
-    },
+    script::{QueryContext, Script},
     upstreams::{Upstream, Upstreams},
     Router,
 };
@@ -72,7 +63,7 @@ const MAX_TTL: u32 = 86400_u32;
 // To better align our memory, we take 1024 here.
 const MAX_LEN: usize = 1024_usize;
 
-/// The type used for tag names in upstreams and routing tables.
+/// The type used for tag names in upstreams and routing script.
 pub type Label = CompactStr;
 
 /// Async TryInto
@@ -94,29 +85,61 @@ pub trait Validatable {
     fn validate(&self, used: Option<&Vec<Label>>) -> std::result::Result<(), Self::Error>;
 }
 
-// A cell used for bucket for validations
+/// A cell used for bucket and validations
 #[derive(Default)]
-struct ValidateCell {
+pub struct ValidateCell {
+    /// Indication of whether the cell is used or not
     pub used: bool,
+    /// The internal value
     pub value: i32,
 }
 
 impl ValidateCell {
+    /// Get the `used` bit
     pub fn used(&self) -> bool {
         self.used
     }
 
+    /// Get the internal value
     pub fn val(&self) -> &i32 {
         &self.value
     }
 
+    /// Increment the internal value
     pub fn add(&mut self, rhs: i32) {
         self.used = true;
         self.value += rhs;
     }
 
+    /// Subtract from the internal value
     pub fn sub(&mut self, rhs: i32) {
         self.used = true;
         self.value -= rhs;
     }
+}
+
+trait IntoEvalAltResultError<T> {
+    fn into_evalrst_err(self) -> Result<T, Box<EvalAltResult>>;
+}
+
+trait IntoEvalAltResultStr<T> {
+    fn into_evalrst_str(self) -> Result<T, Box<EvalAltResult>>;
+}
+
+impl<T, E: 'static + std::error::Error + Send + Sync> IntoEvalAltResultError<T> for Result<T, E> {
+    fn into_evalrst_err(self) -> Result<T, Box<EvalAltResult>> {
+        self.map_err(|e| e.to_string()).into_evalrst_str()
+    }
+}
+
+impl<T, E: AsRef<str> + Send + Sync> IntoEvalAltResultStr<T> for Result<T, E> {
+    fn into_evalrst_str(self) -> Result<T, Box<EvalAltResult>> {
+        self.map_err(|e| -> Box<EvalAltResult> { e.into() })
+    }
+}
+
+fn to_sync<F: std::future::Future>(future: F) -> <F as std::future::Future>::Output {
+    use tokio::runtime::Handle;
+
+    tokio::task::block_in_place(|| Handle::current().block_on(future))
 }

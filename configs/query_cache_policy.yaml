@@ -1,18 +1,16 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-table:
-  start:
-    if: |
-      domain([file("../data/china.txt")])
-    then:
-      - query: domestic
-      - end
-    else:
-      - query:
-          tag: secure
-          cache_policy: persistent
-      - end
+script:
+  init: |
+    let domain = new_domain_list().add_file("../data/china.txt").seal();
+  route: |
+    if domain.contains(query.first_question.qname) {
+       upstreams.send("domestic", query)
+    } else {
+       upstreams.send("secure", "persistent", query)
+    };
+
 upstreams:
   domestic:
     udp:

@@ -21,7 +21,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 pub use qhandle::{QHandle, QHandleError};
 
-use super::{super::table::rule::actions::CacheMode, error::Result};
+use super::{error::Result, CacheMode};
 use crate::{
     cache::{RecordStatus::*, RespCache},
     Label,

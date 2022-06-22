@@ -1,25 +1,32 @@
 ---
 verbosity: "info"
 address: 0.0.0.0:2053
-table:
-  start:
-    if: "qtype([AAAA])"
-    then:
-      # A list of actions is allowed here
-      - blackhole
-      # The next tag to go
-      - end
-    else:
-      - dispatch
-  dispatch:
-    - query: domestic
-    - check_secure
-  check_secure:
-    if: |
-      geoip(codes: ["CN"])
-    else:
-      - query: secure
-      - end
+script:
+  init: |
+    let geoip = new_builtin_geoip().seal();
+  route: |
+    // A few constants are predefined:
+    // - query: the incoming query received
+    // - ctx: the query context, e.g. client IP
+    // - upstreams: the upstreams API
+
+    if query.first_question.qtype == "AAAA" {
+      return create_blackhole(query);
+    }
+
+    let resp = upstreams.send("domestic", query);
+
+    try {
+      let ans = resp.answer[0];
+      return switch ans.rtype.to_string() {
+        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
+        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
+        _ => resp
+      };
+    } catch(err) {
+      print(err);
+      return resp;
+    }
 
 upstreams:
   114DNS:

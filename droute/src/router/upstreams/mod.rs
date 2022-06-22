@@ -22,19 +22,52 @@ pub mod builder;
 pub mod error;
 mod upstream;
 
-use bytes::Bytes;
-pub use upstream::*;
-
 use self::error::{Result, UpstreamError};
-use crate::{actions::CacheMode, cache::RespCache, Label, Validatable, ValidateCell};
+use crate::{
+    cache::RespCache, to_sync, IntoEvalAltResultError, IntoEvalAltResultStr, Label, Validatable,
+    ValidateCell,
+};
+use bytes::{Bytes, BytesMut};
 use domain::base::Message;
 use futures::future::{select_ok, BoxFuture, FutureExt};
-use std::{
-    collections::{HashMap, HashSet},
-    num::NonZeroUsize,
-};
+use rhai::{export_fn, plugin::*, EvalAltResult};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, num::NonZeroUsize, str::FromStr};
+pub use upstream::*;
+
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+/// Cache Policy per query. this only affect the cache results adoption, and it will NOT change the cache results storing behaviors.
+pub enum CacheMode {
+    /// Do not use any cached result
+    Disabled,
+    /// Use cache records within the TTL
+    Standard,
+    /// Use cache results regardless of the time elapsed, and update the results on need.
+    Persistent,
+}
+
+impl Default for CacheMode {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
+
+// Used by rhai
+impl FromStr for CacheMode {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "disabled" => Ok(Self::Disabled),
+            "standard" => Ok(Self::Standard),
+            "persistent" => Ok(Self::Persistent),
+            _ => Err("unknown cache mode".to_string()),
+        }
+    }
+}
 
 /// [`Upstream`] aggregated, used to create `Router`.
+#[derive(Clone)]
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
     // All the responses are cached together, however, they are seperately tagged, so there should be no contamination in place.
@@ -43,29 +76,17 @@ pub struct Upstreams {
 
 impl Validatable for Upstreams {
     type Error = UpstreamError;
-    fn validate(&self, used: Option<&Vec<Label>>) -> Result<()> {
+    fn validate(&self, _: Option<&Vec<Label>>) -> Result<()> {
         // A bucket used to count the time each upstream being used.
         let mut bucket: HashMap<&Label, (ValidateCell, &Upstream)> = self
             .upstreams
             .iter()
             .map(|(k, v)| (k, (ValidateCell::default(), v)))
             .collect();
-        if let Some(u) = used {
-            for tag in u {
-                Self::traverse(&mut bucket, tag)?
-            }
+        for tag in self.tags() {
+            Self::traverse(&mut bucket, &tag)?
         }
-        let unused: HashSet<Label> = bucket
-            .into_iter()
-            .filter(|(_, (c, _))| !c.used())
-            .map(|(k, _)| k)
-            .cloned()
-            .collect();
-        if unused.is_empty() {
-            Ok(())
-        } else {
-            Err(UpstreamError::UnusedUpstreams(unused))
-        }
+        Ok(())
     }
 }
 
@@ -96,7 +117,10 @@ impl Upstreams {
         } else {
             return Err(UpstreamError::MissingTag(tag.clone()));
         };
+        // The following code is based on the assumption that only hybrid upstream would recurse into the next level and increment the counter
+        // Therefore, if the counter for the same upstream is already one, that means recursion.
         if val < &1 {
+            // Increment the counter
             bucket.get_mut(tag).unwrap().0.add(1);
             // Check if it is empty.
             if let Some(v) = u {
@@ -109,6 +133,7 @@ impl Upstreams {
                     Self::traverse(bucket, t)?
                 }
             }
+            // Sub the counter on leave
             bucket.get_mut(tag).unwrap().0.sub(1);
         } else {
             return Err(UpstreamError::HybridRecursion(tag.clone()));
@@ -116,27 +141,65 @@ impl Upstreams {
         Ok(())
     }
 
+    // Internal async version used to send a query
     // Write out in this way to allow recursion for async functions
     // Should no be accessible from external crates
-    pub(super) fn resolve<'a>(
+    fn send_internal<'a>(
         &'a self,
         tag: &'a Label,
         cache_mode: &'a CacheMode,
         msg: &'a Message<Bytes>,
     ) -> BoxFuture<'a, Result<Message<Bytes>>> {
         async move {
-            let u = self.upstreams.get(tag).unwrap();
-            Ok(if let Some(v) = u.try_hybrid() {
-                // Hybrid will never call `u.resolve()`
-                let v = v.iter().map(|t| self.resolve(t, cache_mode, msg));
+            let u = self
+                .upstreams
+                .get(tag)
+                .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?;
+            let resp = if let Some(v) = u.try_hybrid() {
+                // Hybrid will never call `u.send_internal()`
+                let v = v.iter().map(|t| self.send_internal(t, cache_mode, msg));
                 let (r, _) = select_ok(v).await?;
                 r
             } else {
                 u.resolve(tag, &self.cache, cache_mode, msg).await?
-            })
+            };
+
+            // Set back the message ID
+            let mut resp = Message::from_octets(BytesMut::from(resp.as_slice()))?;
+            resp.header_mut().set_id(msg.header().id());
+
+            Ok(Message::from_octets(resp.into_octets().freeze())?)
         }
         .boxed()
     }
+}
+
+// Public sync method used to resolve a query in rhai
+#[export_fn(pure, return_raw)]
+pub fn send(
+    upstreams: &mut Upstreams,
+    tag: ImmutableString,
+    cache_mode: ImmutableString,
+    msg: Message<Bytes>,
+) -> std::result::Result<Message<Bytes>, Box<EvalAltResult>> {
+    let cache_mode = CacheMode::from_str(&cache_mode).into_evalrst_str()?;
+    to_sync(upstreams.send_internal(&Label::from_str(tag.as_str()).unwrap(), &cache_mode, &msg))
+        .into_evalrst_err()
+}
+
+// Send query with default cachemode
+#[export_fn(pure, return_raw)]
+pub fn send_default(
+    upstreams: &mut Upstreams,
+    tag: ImmutableString,
+    msg: Message<Bytes>,
+) -> std::result::Result<Message<Bytes>, Box<EvalAltResult>> {
+    to_sync(upstreams.send_internal(
+        &Label::from_str(tag.as_str()).unwrap(),
+        &CacheMode::default(),
+        &msg,
+    ))
+    .into_evalrst_err()
 }
 
 #[cfg(test)]

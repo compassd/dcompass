@@ -19,7 +19,7 @@ use domain::{
     base::{Dname, Message, MessageBuilder, Rtype},
     rdata::A,
 };
-use droute::{actions::CacheMode, builders::*, mock::Server, AsyncTryInto, Router};
+use droute::{builders::*, mock::Server, AsyncTryInto, Router};
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 use tokio::net::UdpSocket;
@@ -51,21 +51,11 @@ static QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
 
 async fn create_router(c: usize) -> Router {
     RouterBuilder::new(
-        TableBuilder::new().add_rule(
-            "start",
-            RuleBuilders::<BuiltinMatcherBuilders, _>::SeqBlock(
-                BranchBuilder::new("end").add_action(BuiltinActionBuilders::Query(
-                    QueryBuilder::new(
-                        "mock",
-                        if c != 1 {
-                            CacheMode::default()
-                        } else {
-                            CacheMode::Disabled
-                        },
-                    ),
-                )),
-            ),
-        ),
+        if c != 1 {
+            ScriptBuilder::new(None, r#"upstreams.send("mock", query)"#)
+        } else {
+            ScriptBuilder::new(None, r#"upstreams.send("mock","disabled", query)"#)
+        },
         UpstreamsBuilder::new(c).unwrap().add_upstream(
             "mock",
             UpstreamBuilder::Udp(UdpBuilder {

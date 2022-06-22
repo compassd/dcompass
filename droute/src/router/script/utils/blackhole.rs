@@ -1,4 +1,4 @@
-// Copyright 2020 LEXUGE
+// Copyright 2022 LEXUGE
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -15,15 +15,11 @@
 
 use std::str::FromStr;
 
-use super::{
-    super::super::{super::upstreams::Upstreams, State},
-    Action, Result,
-};
-use crate::{Label, MAX_TTL};
-use async_trait::async_trait;
+use super::Result;
+use crate::MAX_TTL;
 use bytes::{Bytes, BytesMut};
 use domain::{
-    base::{Dname, MessageBuilder},
+    base::{Dname, Message, MessageBuilder},
     rdata::Soa,
 };
 use once_cell::sync::Lazy;
@@ -45,29 +41,13 @@ static SOA_RDATA: Lazy<(Dname<Bytes>, u32, Soa<Dname<Bytes>>)> = Lazy::new(|| {
     )
 });
 
-/// An action that sends back the message that may refrain the sender to continue to query.
-pub struct Blackhole;
+pub fn blackhole(query: &Message<Bytes>) -> Result<Message<Bytes>> {
+    // Is 50 a good number?
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(50))?
+        .start_answer(query, domain::base::iana::Rcode::NoError)?
+        .additional();
 
-impl Default for Blackhole {
-    /// Create a default `Disable` action.
-    fn default() -> Self {
-        Self
-    }
-}
+    builder.push(SOA_RDATA.clone())?;
 
-#[async_trait]
-impl Action for Blackhole {
-    async fn act(&self, state: &mut State, _: &Upstreams) -> Result<()> {
-        // Is 50 a good number?
-        let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(50))?.additional();
-
-        builder.push(SOA_RDATA.clone())?;
-
-        state.resp = builder.into_message();
-        Ok(())
-    }
-
-    fn used_upstream(&self) -> Option<Label> {
-        None
-    }
+    Ok(builder.into_message())
 }

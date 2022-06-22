@@ -59,7 +59,7 @@ struct DcompassOpts {
 
 async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter), DrouteError> {
     Ok((
-        RouterBuilder::new(p.table, p.upstreams)
+        RouterBuilder::new(p.script, p.upstreams)
             .async_try_into()
             .await?,
         p.address,

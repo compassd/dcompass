@@ -15,13 +15,7 @@
 
 //! This module provides universal error type used in the library. The error type uses `thiserror`.
 
-pub use super::router::{
-    table::{
-        rule::{actions::ActionError, matchers::MatchError},
-        TableError,
-    },
-    upstreams::error::UpstreamError,
-};
+pub use super::router::{script::ScriptError, upstreams::error::UpstreamError};
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -31,9 +25,9 @@ pub(crate) type Result<T> = std::result::Result<T, DrouteError>;
 /// DrouteError enumerates all possible errors returned by this library.
 #[derive(Error, Debug)]
 pub enum DrouteError {
-    /// Error related to the `table` section.
+    /// Error related to the `script` section.
     #[error(transparent)]
-    TableError(#[from] TableError),
+    ScriptError(#[from] ScriptError),
 
     /// Error related to the `upstreams` section.
     #[error(transparent)]

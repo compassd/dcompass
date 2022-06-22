@@ -1,16 +1,24 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-table:
-  start:
-    if: |
-      ipcidr(["../data/ipcn.txt"])
-    then:
-      - query: domestic
-      - end
-    else:
-      - query: secure
-      - end
+script:
+  init: |
+    let ipcidr = new_ipcidr().add_file("../data/ipcn.txt").seal();
+  route: |
+    let resp = upstreams.send("domestic", query);
+
+    try {
+      let ans = resp.answer[0];
+      return switch ans.rtype.to_string() {
+        "A" if !ipcidr.contains(ans.to_a().ip) => { upstreams.send("secure", query) }
+        "AAAA" if !ipcidr.contains(ans.to_aaaa().ip) => { upstreams.send("secure", query) }
+        _ => resp
+      };
+    } catch(err) {
+      print(err);
+      return resp;
+    }
+
 upstreams:
   domestic:
     udp:

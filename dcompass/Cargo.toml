@@ -1,6 +1,6 @@
 [package]
 name = "dcompass"
-version = "0.1.0-alpha.1"
+version = "0.2.0-alpha.1"
 authors = ["Harry Ying <lexugeyky@outlook.com>"]
 edition = "2021"
 description = "Rule-based high performance DNS server with multi-upstreams, DoT and DoH supports."
@@ -8,8 +8,8 @@ repository = "https://github.com/LEXUGE/dcompass"
 license = "GPL-3.0"
 
 [features]
-geoip-cn = []
-geoip-maxmind = []
+geoip-cn = ["droute/geoip-cn"]
+geoip-maxmind = ["droute/geoip-maxmind"]
 
 [dependencies]
 # used by tokio-console
@@ -32,11 +32,11 @@ bytes = "^1"
 
 # Use rustls on other platforms
 [target.'cfg(not(any(target_arch = "mips", target_arch = "mips64")))'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-rustls", "dot-rustls"]}
+droute = {version = "0.2.0-alpha.1", path = "../droute", features = ["doh-rustls", "dot-rustls"]}
 
 # Use native tls on MIPS
 [target.'cfg(any(target_arch = "mips", target_arch = "mips64"))'.dependencies]
-droute = {version = "0.1.0-alpha.1", path = "../droute", features = ["geoip", "doh-native-tls", "dot-native-tls"]}
+droute = {version = "0.2.0-alpha.1", path = "../droute", features = ["doh-native-tls", "dot-native-tls"]}
 
 # Both musl and msvc are not well-supoorted
 # Only allow on gnu or none env AND not on windows

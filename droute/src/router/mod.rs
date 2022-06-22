@@ -15,11 +15,11 @@
 
 //! Router is the core concept of `droute`.
 
-pub mod table;
+pub mod script;
 pub mod upstreams;
 
 use self::{
-    table::{QueryContext, Table, TableError},
+    script::{QueryContext, Script, ScriptBuilder},
     upstreams::{error::UpstreamError, Upstreams},
 };
 use crate::{
@@ -33,23 +33,21 @@ use log::warn;
 
 /// Router implementation.
 pub struct Router {
-    table: Table,
-    upstreams: Upstreams,
+    script: Script,
 }
 
 impl Validatable for Router {
     type Error = DrouteError;
     fn validate(&self, _: Option<&Vec<Label>>) -> Result<()> {
-        self.table.validate(None)?;
-        self.upstreams.validate(Some(self.table.used_upstreams()))?;
+        self.script.validate(None)?;
         Ok(())
     }
 }
 
 impl Router {
     /// Create a new `Router` from raw
-    pub fn new(table: Table, upstreams: Upstreams) -> Result<Self> {
-        let router = Self { table, upstreams };
+    pub fn new(script: Script) -> Result<Self> {
+        let router = Self { script };
         router.validate(None)?;
         Ok(router)
     }
@@ -65,7 +63,7 @@ impl Router {
         Ok(match msg.sole_question() {
             Ok(_) => {
                 // Clone should be cheap here guaranteed by Bytes
-                match self.table.route(msg.clone(), qctx, &self.upstreams).await {
+                match self.script.route(msg.clone(), qctx) {
                     Ok(m) => m,
                     Err(e) => {
                         // Catch all server failure here and return server fail
@@ -87,38 +85,34 @@ impl Router {
 }
 
 /// A Builder for Router.
-pub struct RouterBuilder<T, U>
+pub struct RouterBuilder<U>
 where
-    T: AsyncTryInto<Table, Error = TableError>,
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
 {
-    table: T,
+    script: ScriptBuilder,
     upstreams: U,
 }
 
-impl<T, U> RouterBuilder<T, U>
+impl<U> RouterBuilder<U>
 where
-    T: AsyncTryInto<Table, Error = TableError>,
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
 {
     /// Create a RouteBuilder
-    pub fn new(table: T, upstreams: U) -> Self {
-        Self { table, upstreams }
+    pub fn new(script: ScriptBuilder, upstreams: U) -> Self {
+        Self { script, upstreams }
     }
 }
 
 #[async_trait]
-impl<T, U> AsyncTryInto<Router> for RouterBuilder<T, U>
+impl<U> AsyncTryInto<Router> for RouterBuilder<U>
 where
-    T: AsyncTryInto<Table, Error = TableError>,
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
 {
     type Error = DrouteError;
 
     /// Build a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
     async fn async_try_into(self) -> Result<Router> {
-        let table = self.table.async_try_into().await?;
         let upstreams = self.upstreams.async_try_into().await?;
-        Router::new(table, upstreams)
+        Router::new(self.script.build(upstreams)?)
     }
 }

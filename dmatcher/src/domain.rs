@@ -21,14 +21,13 @@
 //! -  No dependencies
 //!
 
-use std::collections::HashMap;
-
 use bytes::Bytes;
 use domain::base::{name::OwnedLabel, Dname};
+use std::{collections::HashMap, sync::Arc};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 struct LevelNode {
-    next_lvs: HashMap<OwnedLabel, LevelNode>,
+    next_lvs: HashMap<Arc<OwnedLabel>, LevelNode>,
 }
 
 impl LevelNode {
@@ -40,6 +39,7 @@ impl LevelNode {
 }
 
 /// Domain matcher algorithm
+#[derive(Clone)]
 pub struct Domain {
     root: LevelNode,
 }
@@ -72,7 +72,7 @@ impl Domain {
         for lv in domain.iter().rev() {
             ptr = ptr
                 .next_lvs
-                .entry(lv.to_owned())
+                .entry(Arc::new(lv.to_owned()))
                 .or_insert_with(LevelNode::new);
         }
     }
@@ -85,7 +85,7 @@ impl Domain {
                 break;
             }
             // If not empty...
-            ptr = match ptr.next_lvs.get(lv) {
+            ptr = match ptr.next_lvs.get(&lv.to_owned()) {
                 Some(v) => v,
                 None => return false,
             };

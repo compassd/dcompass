@@ -1,16 +1,24 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-table:
-  start:
-    if: |
-      geoip(path: Some("../data/full.mmdb"), codes: ["CN"])
-    then:
-      - query: domestic
-      - end
-    else:
-      - query: secure
-      - end
+script:
+  init: |
+    let geoip = new_geoip_from_path("../data/full.mmdb").seal();
+  route: |
+    let resp = upstreams.send("domestic", query);
+
+    try {
+      let ans = resp.answer[0];
+      return switch ans.rtype.to_string() {
+        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
+        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
+        _ => resp
+      };
+    } catch(err) {
+      print(err);
+      return resp;
+    }
+
 upstreams:
   domestic:
     udp:

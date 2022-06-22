@@ -1,13 +1,8 @@
 {
     "verbosity": "info",
     "address": "0.0.0.0:2053",
-    "table": {
-        "start": [
-            {
-                "query": "cloudflare"
-            },
-            "end"
-        ]
+    "script": {
+        "route": "upstreams.send(\"cloudflare\", query)"
     },
     "upstreams": {
         "cloudflare": {
