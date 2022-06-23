@@ -76,6 +76,21 @@ script:
     upstreams.send("secure", query)
 ```
 
+Or implement your simple xip.io service:
+```yaml
+script:
+  route: |
+    let resp = query;
+    resp.header.qr = true;
+
+    let ip = query.first_question.qname.to_string();
+    ip.replace(".xip.io", "");
+
+    resp.push_answer(create_record(query.first_question.qname, "IN", 3600, create_a(ip)));
+
+    resp
+```
+
 # Configuration
 
 Configuration file contains different fields:
