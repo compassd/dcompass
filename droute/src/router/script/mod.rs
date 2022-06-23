@@ -16,7 +16,7 @@
 mod message;
 mod utils;
 
-use self::message::DnsRecordsIter;
+use self::message::{DnsRecordsIter, OptRecordsIter};
 use crate::{Upstreams, Validatable};
 use bytes::Bytes;
 use domain::base::Message;
@@ -58,6 +58,7 @@ def_package! {
 	InitPackage::init(module);
 
 	module.set_iterable::<DnsRecordsIter>();
+	module.set_iterable::<OptRecordsIter>();
 
 	combine_with_exported_module!(module, "message", self::message::rhai_mod);
 	set_exported_global_fn!(module, "send", super::upstreams::send);

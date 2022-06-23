@@ -16,7 +16,7 @@
 use super::{MessageError, MessageResult as Result};
 use bytes::Bytes;
 use domain::{
-    base::{Dname, ParsedDname, Record, ToDname},
+    base::{opt::AllOptData, Dname, ParsedDname, Record, ToDname},
     rdata::{
         AllRecordData, Cname, Dname as DnameRecord, Mb, Md, Mf, Minfo, Mr, Mx, Ns, Nsec, Ptr,
         Rrsig, Soa, Srv, Tsig,
@@ -25,8 +25,7 @@ use domain::{
 
 pub type DnsRecord = Record<Dname<Bytes>, AllRecordData<Bytes, Dname<Bytes>>>;
 
-// Missing Opt and Other
-pub(super) fn from_ref(
+pub(super) fn dns_record_from_ref(
     src: AllRecordData<Bytes, ParsedDname<&Bytes>>,
 ) -> Result<AllRecordData<Bytes, Dname<Bytes>>> {
     Ok(match src {
@@ -59,6 +58,8 @@ pub(super) fn from_ref(
         AllRecordData::Nsec3(nsec3) => nsec3.into(),
         AllRecordData::Nsec3param(nsec3param) => nsec3param.into(),
         AllRecordData::Null(null) => null.into(),
+        AllRecordData::Opt(opt) => opt.into(),
+        AllRecordData::Other(other) => other.into(),
         AllRecordData::Ptr(ptr) => AllRecordData::Ptr(Ptr::new(ptr.ptrdname().to_dname()?)),
         AllRecordData::Rrsig(rrsig) => AllRecordData::Rrsig(Rrsig::new(
             rrsig.type_covered(),
@@ -107,6 +108,19 @@ pub struct DnsRecordsIter(pub Vec<DnsRecord>);
 
 impl IntoIterator for DnsRecordsIter {
     type Item = DnsRecord;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+// An iterator over Opt records
+#[derive(Clone)]
+pub struct OptRecordsIter(pub Vec<AllOptData<Bytes>>);
+
+impl IntoIterator for OptRecordsIter {
+    type Item = AllOptData<Bytes>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {

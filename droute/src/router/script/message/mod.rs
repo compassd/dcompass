@@ -19,7 +19,7 @@ use domain::base::{name::PushError, octets::ParseError};
 use rhai::{export_module, plugin::*};
 use thiserror::Error;
 
-pub use helpers::{DnsRecord, DnsRecordsIter};
+pub use helpers::{DnsRecord, DnsRecordsIter, OptRecordsIter};
 
 /// A shorthand for returning utils error.
 pub type MessageResult<T> = std::result::Result<T, MessageError>;
@@ -27,9 +27,13 @@ pub type MessageResult<T> = std::result::Result<T, MessageError>;
 #[derive(Error, Debug)]
 /// All possible errors that may incur when using message.
 pub enum MessageError {
-    /// The record data indicated is currently not supported.
-    #[error("Record data not supported")]
+    /// The record data indicated is currently not supported or mismatched on conversion.
+    #[error("Record data not supported or mismatched")]
     RecordUnsupported,
+
+    /// The Opt data indicated is currently not supported or mismatched on conversion.
+    #[error("Option not supported or mismatched")]
+    OptionUnsupported,
 
     /// Failed to parse the record
     #[error(transparent)]
@@ -53,7 +57,7 @@ macro_rules! create_record_iter_impl {
         for record in $name {
             // We don't abort on error, we simply skip them. Therefore, we cannot use Try operators
             if let Ok(record) = record {
-                if let Ok(data) = from_ref(record.data().clone()) {
+                if let Ok(data) = dns_record_from_ref(record.data().clone()) {
                     inner.push(
                         (
                             record.owner().to_dname().into_evalrst_err()?,
@@ -70,14 +74,14 @@ macro_rules! create_record_iter_impl {
     }};
 }
 
-macro_rules! create_rdata_conversion {
-    ($record: ident, $rtype: path) => {{
+macro_rules! create_conversion {
+    ($src: expr, $rtype: path, $type: tt, $err: path) => {{
         use crate::{router::script::message::MessageError, IntoEvalAltResultError};
-        use domain::rdata::AllRecordData;
+        use $type;
 
-        match $record.data() {
+        match $src {
             $rtype(s) => Ok(s.clone()),
-            _ => Err(MessageError::RecordUnsupported).into_evalrst_err(),
+            _ => Err($err).into_evalrst_err(),
         }
     }};
 }
@@ -86,9 +90,10 @@ macro_rules! create_rdata_conversion {
 pub mod rhai_mod {
     pub mod indexers {
         use crate::{
-            router::script::message::{DnsRecord, DnsRecordsIter},
+            router::script::message::{DnsRecord, DnsRecordsIter, OptRecordsIter},
             IntoEvalAltResultStr,
         };
+        use domain::base::opt::AllOptData;
 
         #[rhai_fn(index_get, pure, return_raw)]
         pub fn record_iter_index_get(
@@ -101,19 +106,97 @@ pub mod rhai_mod {
                 Err("index is out of bound for the DNS record iterator").into_evalrst_str()
             }
         }
+
+        #[rhai_fn(index_get, pure, return_raw)]
+        pub fn option_iter_index_get(
+            iter: &mut OptRecordsIter,
+            index: i32,
+        ) -> Result<AllOptData<bytes::Bytes>, Box<EvalAltResult>> {
+            if let Some(r) = iter.0.get(index as usize) {
+                Ok(r.clone())
+            } else {
+                Err("index is out of bound for the Opt record iterator").into_evalrst_str()
+            }
+        }
     }
 
     pub mod convertions {
-        use domain::rdata::{Aaaa, A};
+        use crate::router::script::message::DnsRecord;
+        use bytes::Bytes;
+        use domain::{
+            base::{
+                opt::{AllOptData, ClientSubnet, Cookie, OptRecord},
+                Record,
+            },
+            rdata::{Aaaa, AllRecordData, Txt, A},
+        };
 
         #[rhai_fn(pure, return_raw)]
         pub fn to_a(record: &mut DnsRecord) -> Result<A, Box<EvalAltResult>> {
-            create_rdata_conversion!(record, AllRecordData::A)
+            create_conversion!(
+                record.data(),
+                AllRecordData::A,
+                AllRecordData,
+                MessageError::RecordUnsupported
+            )
         }
 
         #[rhai_fn(pure, return_raw)]
         pub fn to_aaaa(record: &mut DnsRecord) -> Result<Aaaa, Box<EvalAltResult>> {
-            create_rdata_conversion!(record, AllRecordData::Aaaa)
+            create_conversion!(
+                record.data(),
+                AllRecordData::Aaaa,
+                AllRecordData,
+                MessageError::RecordUnsupported
+            )
+        }
+
+        #[rhai_fn(pure, return_raw)]
+        pub fn to_txt(record: &mut DnsRecord) -> Result<Txt<Bytes>, Box<EvalAltResult>> {
+            create_conversion!(
+                record.data(),
+                AllRecordData::Txt,
+                AllRecordData,
+                MessageError::RecordUnsupported
+            )
+        }
+
+        #[rhai_fn(pure, return_raw)]
+        pub fn to_opt(record: &mut DnsRecord) -> Result<OptRecord<Bytes>, Box<EvalAltResult>> {
+            let opt = create_conversion!(
+                record.data(),
+                AllRecordData::Opt,
+                AllRecordData,
+                MessageError::RecordUnsupported
+            )?;
+            Ok(OptRecord::from_record(Record::new(
+                record.owner().clone(),
+                record.class(),
+                record.ttl(),
+                opt,
+            )))
+        }
+
+        #[rhai_fn(pure, return_raw)]
+        pub fn to_cookie(option: &mut AllOptData<Bytes>) -> Result<Cookie, Box<EvalAltResult>> {
+            create_conversion!(
+                option,
+                AllOptData::Cookie,
+                AllOptData,
+                MessageError::OptionUnsupported
+            )
+        }
+
+        #[rhai_fn(pure, return_raw)]
+        pub fn to_client_subnet(
+            option: &mut AllOptData<Bytes>,
+        ) -> Result<ClientSubnet, Box<EvalAltResult>> {
+            create_conversion!(
+                option,
+                AllOptData::ClientSubnet,
+                AllOptData,
+                MessageError::OptionUnsupported
+            )
         }
     }
 
@@ -239,6 +322,36 @@ pub mod rhai_mod {
             }
         }
 
+        pub mod optrcode {
+            use domain::base::iana::OptRcode;
+            use rhai::ImmutableString;
+
+            #[rhai_fn(pure)]
+            pub fn to_string(optrcode: &mut OptRcode) -> String {
+                optrcode.to_string()
+            }
+
+            #[rhai_fn(pure, name = "==")]
+            pub fn cmp_type_to_str(optrcode: &mut OptRcode, other: ImmutableString) -> bool {
+                optrcode.to_string() == other
+            }
+
+            #[rhai_fn(name = "==")]
+            pub fn cmp_str_to_type(other: ImmutableString, optrcode: OptRcode) -> bool {
+                optrcode.to_string() == other
+            }
+
+            #[rhai_fn(pure, name = "!=")]
+            pub fn cmp_ineq_type_to_str(optrcode: &mut OptRcode, other: ImmutableString) -> bool {
+                optrcode.to_string() != other
+            }
+
+            #[rhai_fn(name = "!=")]
+            pub fn cmp_ineq_str_to_type(other: ImmutableString, optrcode: OptRcode) -> bool {
+                optrcode.to_string() != other
+            }
+        }
+
         pub mod class {
             use domain::base::iana::Class;
             use rhai::ImmutableString;
@@ -300,6 +413,36 @@ pub mod rhai_mod {
             }
         }
 
+        pub mod cookie {
+            use domain::base::opt::Cookie;
+            use rhai::ImmutableString;
+
+            #[rhai_fn(pure)]
+            pub fn to_string(cookie: &mut Cookie) -> String {
+                hex::encode(cookie.cookie())
+            }
+
+            #[rhai_fn(pure, name = "==")]
+            pub fn cmp_type_to_str(cookie: &mut Cookie, other: ImmutableString) -> bool {
+                to_string(cookie) == other
+            }
+
+            #[rhai_fn(name = "==")]
+            pub fn cmp_str_to_type(other: ImmutableString, mut cookie: Cookie) -> bool {
+                to_string(&mut cookie) == other
+            }
+
+            #[rhai_fn(pure, name = "!=")]
+            pub fn cmp_ineq_type_to_str(cookie: &mut Cookie, other: ImmutableString) -> bool {
+                to_string(cookie) != other
+            }
+
+            #[rhai_fn(name = "!=")]
+            pub fn cmp_ineq_str_to_type(other: ImmutableString, mut cookie: Cookie) -> bool {
+                to_string(&mut cookie) != other
+            }
+        }
+
         pub mod ipaddr {
             use rhai::ImmutableString;
             use std::net::IpAddr;
@@ -332,7 +475,7 @@ pub mod rhai_mod {
     }
 
     pub mod getters {
-        use super::super::helpers::{from_ref, DnsRecordsIter};
+        use super::super::helpers::{dns_record_from_ref, DnsRecordsIter};
         use crate::{IntoEvalAltResultError, IntoEvalAltResultStr};
         use bytes::Bytes;
         use domain::base::{Dname, Header, Message, Question, ToDname};
@@ -499,6 +642,114 @@ pub mod rhai_mod {
                     #[rhai_fn(get = "ip", pure)]
                     pub fn get_ip(data: &mut Aaaa) -> IpAddr {
                         data.addr().into()
+                    }
+                }
+
+                pub mod txt {
+                    use crate::IntoEvalAltResultError;
+                    use domain::rdata::Txt;
+                    use rhai::EvalAltResult;
+
+                    #[rhai_fn(get = "text", pure, return_raw)]
+                    pub fn get_text(data: &mut Txt<Bytes>) -> Result<String, Box<EvalAltResult>> {
+                        // If the length of slice agrees with length indicated in the record header, it returns Some
+                        data.as_flat_slice()
+                            .map(|v| String::from_utf8(v.to_vec()).into_evalrst_err())
+                            .unwrap_or_else(|| Ok("".to_string()))
+                    }
+                }
+
+                pub mod opt {
+                    use crate::{
+                        router::script::message::helpers::OptRecordsIter, IntoEvalAltResultError,
+                    };
+                    use domain::base::{
+                        iana::OptRcode,
+                        opt::{AllOptData, OptRecord},
+                        Header,
+                    };
+                    use rhai::EvalAltResult;
+
+                    #[rhai_fn(get = "udp_payload_size", pure)]
+                    pub fn get_udp_payload_size(data: &mut OptRecord<Bytes>) -> i32 {
+                        data.udp_payload_size() as i32
+                    }
+
+                    #[rhai_fn(name = "rcode", pure)]
+                    pub fn get_rcode(data: &mut OptRecord<Bytes>, header: Header) -> OptRcode {
+                        data.rcode(header)
+                    }
+
+                    #[rhai_fn(get = "version", pure)]
+                    pub fn get_version(data: &mut OptRecord<Bytes>) -> i32 {
+                        data.version() as i32
+                    }
+
+                    #[rhai_fn(get = "dnssec_ok", pure)]
+                    pub fn get_dnssec_ok(data: &mut OptRecord<Bytes>) -> bool {
+                        data.dnssec_ok()
+                    }
+
+                    #[rhai_fn(get = "options", pure, return_raw)]
+                    pub fn get_options(
+                        data: &mut OptRecord<Bytes>,
+                    ) -> Result<OptRecordsIter, Box<EvalAltResult>> {
+                        Ok(OptRecordsIter(
+                            data.iter()
+                                .collect::<Result<Vec<AllOptData<Bytes>>, _>>()
+                                .into_evalrst_err()?,
+                        ))
+                    }
+
+                    pub mod options {
+                        use crate::router::script::message::MessageError;
+                        use domain::base::opt::AllOptData;
+                        use rhai::EvalAltResult;
+
+                        #[rhai_fn(get = "rtype", pure, return_raw)]
+                        pub fn get_rtype(
+                            data: &mut AllOptData<Bytes>,
+                        ) -> Result<String, Box<EvalAltResult>> {
+                            Ok(match data {
+                                AllOptData::Chain(_) => "CHAIN",
+                                AllOptData::ClientSubnet(_) => "CLIENT_SUBNET",
+                                AllOptData::Cookie(_) => "COOKIE",
+                                AllOptData::Dau(_) => "DAU",
+                                AllOptData::Dhu(_) => "DHU",
+                                AllOptData::Expire(_) => "EXPIRE",
+                                AllOptData::ExtendedError(_) => "EXTENDED_ERROR",
+                                AllOptData::KeyTag(_) => "KEY_TAG",
+                                AllOptData::N3u(_) => "N3U",
+                                AllOptData::Nsid(_) => "NSID",
+                                AllOptData::Other(_) => "OTHER",
+                                AllOptData::Padding(_) => "PADDING",
+                                AllOptData::TcpKeepalive(_) => "TCP_KEEPALIVE",
+                                _ => {
+                                    return Err(MessageError::OptionUnsupported).into_evalrst_err()
+                                }
+                            }
+                            .into())
+                        }
+
+                        pub mod client_subnet {
+                            use domain::base::opt::ClientSubnet;
+                            use std::net::IpAddr;
+
+                            #[rhai_fn(pure, get = "addr")]
+                            pub fn get_addr(client_subnet: &mut ClientSubnet) -> IpAddr {
+                                client_subnet.addr()
+                            }
+
+                            #[rhai_fn(pure, get = "source_prefix_len")]
+                            pub fn get_source_prefix_len(client_subnet: &mut ClientSubnet) -> i32 {
+                                client_subnet.source_prefix_len() as i32
+                            }
+
+                            #[rhai_fn(pure, get = "scope_prefix_len")]
+                            pub fn get_scope_prefix_len(client_subnet: &mut ClientSubnet) -> i32 {
+                                client_subnet.scope_prefix_len() as i32
+                            }
+                        }
                     }
                 }
             }
