@@ -39,7 +39,7 @@ dcompass -c path/to/config.json -v
 
 See [example.yaml](configs/example.yaml)  
 
-Below is an script example using GeoIP to mitigate DNS pollution
+Below is a script using GeoIP to mitigate DNS pollution
 
 ```yaml
 script:
@@ -59,6 +59,24 @@ script:
       print(err);
       return resp;
     }
+```
+
+And another script that removes and adds EDNS Client Subnet record into the OPT pseudo-section:
+
+```yaml
+script:
+  route: |
+    let query = query;
+
+    // Remove existing OPT section
+    for (record, counter) in query.additional {
+      if record.rtype == "OPT" {
+        query.remove_additional(counter);
+      }
+    }
+    query.push_opt(create_opt_section(), create_client_subnet(15, 0, "23.62.93.233"));
+
+    upstreams.send("secure", query)
 ```
 
 # Configuration
@@ -154,7 +172,7 @@ Found 2 outliers among 100 measurements (2.00%)
 
 - [ ] Support multiple inbound servers with different types like `DoH`, `DoT`, `TCP`, and `UDP`.
 - [ ] RESTful API and web dashboard
-- [ ] Flexible DNS message editing API
+- [x] Flexible DNS message editing API
 - [x] Script engine
 - [x] IP-CIDR matcher for both source address and response address
 - [x] GeoIP matcher for source address

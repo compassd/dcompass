@@ -14,9 +14,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{MessageError, MessageResult as Result};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use domain::{
-    base::{opt::AllOptData, Dname, ParsedDname, Record, ToDname},
+    base::{opt::AllOptData, Dname, Message, MessageBuilder, ParsedDname, Record, ToDname},
     rdata::{
         AllRecordData, Cname, Dname as DnameRecord, Mb, Md, Mf, Minfo, Mr, Mx, Ns, Nsec, Ptr,
         Rrsig, Soa, Srv, Tsig,
@@ -125,5 +125,159 @@ impl IntoIterator for OptRecordsIter {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+pub fn modify_opt(msg: &Message<Bytes>, opt: OptRecordsIter) -> Result<Message<Bytes>> {
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(crate::MAX_LEN))?;
+    // Copy header
+    *builder.header_mut() = msg.header();
+
+    // Copy questions
+    let mut builder = builder.question();
+    for item in msg.question().flatten() {
+        builder.push(item)?;
+    }
+
+    // Copy answer and authority sections
+    let mut builder = builder.answer();
+    for item in msg.answer()? {
+        if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+            builder.push(record)?;
+        }
+    }
+
+    let mut builder = builder.authority();
+    for item in msg.authority()? {
+        if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+            builder.push(record)?;
+        }
+    }
+
+    // Copy other additional records
+    let mut builder = builder.additional();
+    for item in msg.additional()? {
+        if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+            builder.push(record)?;
+        }
+    }
+
+    // Build OPT record
+    builder.opt(|builder| {
+        for option in opt.into_iter() {
+            builder.push(&option)?
+        }
+        Ok(())
+    })?;
+
+    Ok(builder.into_message())
+}
+
+pub enum SectionPayload {
+    Answer(DnsRecordsIter),
+    Additional(DnsRecordsIter),
+    Authority(DnsRecordsIter),
+}
+
+pub fn modify_message(
+    msg: &Message<Bytes>,
+    section_modified: SectionPayload,
+) -> Result<Message<Bytes>> {
+    let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(crate::MAX_LEN))?;
+    // Copy header
+    *builder.header_mut() = msg.header();
+
+    match section_modified {
+        SectionPayload::Answer(records) => {
+            // Copy questions
+            let mut builder = builder.question();
+            for item in msg.question().flatten() {
+                builder.push(item)?;
+            }
+
+            // Push the payload
+            let mut builder = builder.answer();
+            for item in records.into_iter() {
+                builder.push(item)?;
+            }
+
+            // Copy authority and additional sections
+            let mut builder = builder.authority();
+            for item in msg.authority()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            let mut builder = builder.additional();
+            for item in msg.additional()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            Ok(builder.into_message())
+        }
+        SectionPayload::Authority(records) => {
+            // Copy questions
+            let mut builder = builder.question();
+            for item in msg.question().flatten() {
+                builder.push(item)?;
+            }
+
+            // Copy answers
+            let mut builder = builder.answer();
+            for item in msg.answer()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            // Push the payload
+            let mut builder = builder.authority();
+            for item in records.into_iter() {
+                builder.push(item)?;
+            }
+
+            // Copy the additional section
+            let mut builder = builder.additional();
+            for item in msg.additional()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            Ok(builder.into_message())
+        }
+        SectionPayload::Additional(records) => {
+            // Copy questions
+            let mut builder = builder.question();
+            for item in msg.question().flatten() {
+                builder.push(item)?;
+            }
+
+            // Copy answer and authority sections
+            let mut builder = builder.answer();
+            for item in msg.answer()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            let mut builder = builder.authority();
+            for item in msg.authority()? {
+                if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
+                    builder.push(record)?;
+                }
+            }
+
+            // Push the payload
+            let mut builder = builder.additional();
+            for item in records.into_iter() {
+                builder.push(item)?;
+            }
+
+            Ok(builder.into_message())
+        }
     }
 }

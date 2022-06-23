@@ -15,7 +15,7 @@
 
 mod helpers;
 
-use domain::base::{name::PushError, octets::ParseError};
+use domain::base::{name::PushError, octets::ParseError, ShortBuf};
 use rhai::{export_module, plugin::*};
 use thiserror::Error;
 
@@ -42,6 +42,10 @@ pub enum MessageError {
     /// Failed to convert to Dname
     #[error(transparent)]
     PushError(#[from] PushError),
+
+    /// Buffer is too short
+    #[error(transparent)]
+    ShortBuf(#[from] ShortBuf),
 }
 
 macro_rules! create_record_iter_impl {
@@ -102,6 +106,21 @@ pub mod rhai_mod {
         ) -> Result<DnsRecord, Box<EvalAltResult>> {
             if let Some(r) = iter.0.get(index as usize) {
                 Ok(r.clone())
+            } else {
+                Err("index is out of bound for the DNS record iterator").into_evalrst_str()
+            }
+        }
+
+        // CAUTION: this doesn't update any DNS message.
+        #[rhai_fn(index_set, return_raw)]
+        pub fn record_iter_index_set(
+            iter: &mut DnsRecordsIter,
+            index: i32,
+            record: DnsRecord,
+        ) -> Result<(), Box<EvalAltResult>> {
+            if let Some(r) = iter.0.get_mut(index as usize) {
+                *r = record;
+                Ok(())
             } else {
                 Err("index is out of bound for the DNS record iterator").into_evalrst_str()
             }
@@ -752,6 +771,464 @@ pub mod rhai_mod {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    pub mod setters {
+        // Group them together, they will get flattened
+        pub mod header {
+            use domain::base::{
+                iana::{Opcode, Rcode},
+                Header,
+            };
+
+            #[rhai_fn(set = "aa")]
+            pub fn set_aa(header: &mut Header, aa: bool) {
+                header.set_aa(aa)
+            }
+
+            #[rhai_fn(set = "ad")]
+            pub fn set_ad(header: &mut Header, ad: bool) {
+                header.set_ad(ad)
+            }
+
+            #[rhai_fn(set = "cd")]
+            pub fn set_cd(header: &mut Header, cd: bool) {
+                header.set_cd(cd)
+            }
+
+            #[rhai_fn(set = "id")]
+            pub fn set_id(header: &mut Header, id: u16) {
+                header.set_id(id)
+            }
+
+            #[rhai_fn(set = "qr")]
+            pub fn set_qr(header: &mut Header, qr: bool) {
+                header.set_qr(qr)
+            }
+
+            #[rhai_fn(set = "ra")]
+            pub fn set_ra(header: &mut Header, ra: bool) {
+                header.set_ra(ra)
+            }
+
+            #[rhai_fn(set = "tc")]
+            pub fn set_tc(header: &mut Header, tc: bool) {
+                header.set_tc(tc)
+            }
+
+            #[rhai_fn(set = "z")]
+            pub fn set_z(header: &mut Header, z: bool) {
+                header.set_z(z)
+            }
+
+            #[rhai_fn(set = "rd")]
+            pub fn set_rd(header: &mut Header, rd: bool) {
+                header.set_rd(rd)
+            }
+
+            // TODO: add set_rcode_from_str
+            #[rhai_fn(set = "rcode")]
+            pub fn set_rcode(header: &mut Header, rcode: Rcode) {
+                header.set_rcode(rcode)
+            }
+
+            #[rhai_fn(set = "rcode")]
+            pub fn set_rcode_from_u8(header: &mut Header, rcode: u8) {
+                header.set_rcode(rcode.into())
+            }
+
+            #[rhai_fn(set = "opcode")]
+            pub fn set_opcode(header: &mut Header, opcode: Opcode) {
+                header.set_opcode(opcode)
+            }
+
+            #[rhai_fn(set = "opcode")]
+            pub fn set_opcode_from_u8(header: &mut Header, opcode: u8) {
+                header.set_opcode(opcode.into())
+            }
+        }
+
+        pub mod record {
+            use crate::{router::script::message::DnsRecord, IntoEvalAltResultError};
+            use bytes::Bytes;
+            use domain::{
+                base::{iana::Class, Dname},
+                rdata::AllRecordData,
+            };
+            use rhai::{EvalAltResult, ImmutableString};
+            use std::str::FromStr;
+
+            pub fn create_record(
+                owner: Dname<Bytes>,
+                class: Class,
+                ttl: i32,
+                data: AllRecordData<Bytes, Dname<Bytes>>,
+            ) -> DnsRecord {
+                DnsRecord::new(owner, class, ttl as u32, data)
+            }
+
+            #[rhai_fn(name = "create_record", return_raw)]
+            pub fn create_record_dname_str(
+                owner: Dname<Bytes>,
+                class: ImmutableString,
+                ttl: i32,
+                data: AllRecordData<Bytes, Dname<Bytes>>,
+            ) -> Result<DnsRecord, Box<EvalAltResult>> {
+                Ok(create_record(
+                    owner,
+                    Class::from_str(&class).into_evalrst_err()?,
+                    ttl,
+                    data,
+                ))
+            }
+
+            #[rhai_fn(name = "create_record", return_raw)]
+            pub fn create_record_str_class(
+                owner: ImmutableString,
+                class: Class,
+                ttl: i32,
+                data: AllRecordData<Bytes, Dname<Bytes>>,
+            ) -> Result<DnsRecord, Box<EvalAltResult>> {
+                Ok(create_record(
+                    Dname::from_str(&owner).into_evalrst_err()?,
+                    class,
+                    ttl,
+                    data,
+                ))
+            }
+
+            #[rhai_fn(name = "create_record", return_raw)]
+            pub fn create_record_str_str(
+                owner: ImmutableString,
+                class: ImmutableString,
+                ttl: i32,
+                data: AllRecordData<Bytes, Dname<Bytes>>,
+            ) -> Result<DnsRecord, Box<EvalAltResult>> {
+                Ok(create_record(
+                    Dname::from_str(&owner).into_evalrst_err()?,
+                    Class::from_str(&class).into_evalrst_err()?,
+                    ttl,
+                    data,
+                ))
+            }
+
+            pub mod rdata {
+                use bytes::Bytes;
+                use domain::{base::Dname, rdata::AllRecordData};
+
+                pub mod a {
+                    use domain::rdata::A;
+                    use rhai::{EvalAltResult, ImmutableString};
+                    use std::net::Ipv4Addr;
+
+                    use crate::IntoEvalAltResultError;
+
+                    pub fn create_a(ip: Ipv4Addr) -> AllRecordData<Bytes, Dname<Bytes>> {
+                        AllRecordData::A(A::new(ip))
+                    }
+
+                    #[rhai_fn(name = "create_a", return_raw)]
+                    pub fn create_a_from_str(
+                        ip: ImmutableString,
+                    ) -> Result<AllRecordData<Bytes, Dname<Bytes>>, Box<EvalAltResult>>
+                    {
+                        Ok(create_a(ip.parse().into_evalrst_err()?))
+                    }
+                }
+
+                pub mod aaaa {
+                    use domain::rdata::Aaaa;
+                    use rhai::{EvalAltResult, ImmutableString};
+                    use std::net::Ipv6Addr;
+
+                    use crate::IntoEvalAltResultError;
+
+                    pub fn create_aaaa(ip: Ipv6Addr) -> AllRecordData<Bytes, Dname<Bytes>> {
+                        AllRecordData::Aaaa(Aaaa::new(ip))
+                    }
+
+                    #[rhai_fn(name = "create_aaaa", return_raw)]
+                    pub fn create_aaaa_from_str(
+                        ip: ImmutableString,
+                    ) -> Result<AllRecordData<Bytes, Dname<Bytes>>, Box<EvalAltResult>>
+                    {
+                        Ok(create_aaaa(ip.parse().into_evalrst_err()?))
+                    }
+                }
+
+                pub mod txt {
+                    use crate::IntoEvalAltResultError;
+                    use domain::rdata::Txt;
+                    use rhai::{EvalAltResult, ImmutableString};
+
+                    #[rhai_fn(return_raw)]
+                    pub fn create_txt(
+                        text: ImmutableString,
+                    ) -> Result<AllRecordData<Bytes, Dname<Bytes>>, Box<EvalAltResult>>
+                    {
+                        Ok(AllRecordData::Txt(
+                            Txt::from_slice(text.as_bytes()).into_evalrst_err()?,
+                        ))
+                    }
+                }
+
+                pub mod opt {
+                    use crate::{
+                        router::script::message::helpers::{modify_opt, OptRecordsIter},
+                        IntoEvalAltResultError,
+                    };
+                    use bytes::Bytes;
+                    use domain::base::{opt::AllOptData, Message};
+                    use rhai::EvalAltResult;
+
+                    // Create an empty OPT section, this doesn't alter the message
+                    pub fn create_opt_section() -> OptRecordsIter {
+                        OptRecordsIter(Vec::new())
+                    }
+
+                    #[rhai_fn(return_raw)]
+                    pub fn update_opt(
+                        msg: &mut Message<Bytes>,
+                        opt: OptRecordsIter,
+                    ) -> Result<(), Box<EvalAltResult>> {
+                        *msg = modify_opt(msg, opt).into_evalrst_err()?;
+                        Ok(())
+                    }
+
+                    #[rhai_fn(return_raw)]
+                    pub fn push_opt(
+                        msg: &mut Message<Bytes>,
+                        mut opt: OptRecordsIter,
+                        data: AllOptData<Bytes>,
+                    ) -> Result<(), Box<EvalAltResult>> {
+                        opt.0.push(data);
+                        update_opt(msg, opt)
+                    }
+
+                    #[rhai_fn(return_raw)]
+                    pub fn insert_opt(
+                        msg: &mut Message<Bytes>,
+                        mut opt: OptRecordsIter,
+                        index: i32,
+                        data: AllOptData<Bytes>,
+                    ) -> Result<(), Box<EvalAltResult>> {
+                        opt.0.insert(index as usize, data);
+                        update_opt(msg, opt)
+                    }
+
+                    #[rhai_fn(return_raw)]
+                    pub fn remove_opt(
+                        msg: &mut Message<Bytes>,
+                        mut opt: OptRecordsIter,
+                        index: i32,
+                    ) -> Result<(), Box<EvalAltResult>> {
+                        opt.0.remove(index as usize);
+                        update_opt(msg, opt)
+                    }
+
+                    pub mod options {
+                        pub mod client_subnet {
+                            use domain::base::opt::{AllOptData, ClientSubnet};
+                            use rhai::{EvalAltResult, ImmutableString};
+                            use std::net::IpAddr;
+
+                            use crate::IntoEvalAltResultError;
+
+                            pub fn create_client_subnet(
+                                source: i32,
+                                scope: i32,
+                                addr: IpAddr,
+                            ) -> AllOptData<Bytes> {
+                                AllOptData::ClientSubnet(ClientSubnet::new(
+                                    source as u8,
+                                    scope as u8,
+                                    addr,
+                                ))
+                            }
+
+                            #[rhai_fn(name = "create_client_subnet", return_raw)]
+                            pub fn create_client_subnet_str(
+                                source: i32,
+                                scope: i32,
+                                addr: ImmutableString,
+                            ) -> Result<AllOptData<Bytes>, Box<EvalAltResult>>
+                            {
+                                Ok(create_client_subnet(
+                                    source,
+                                    scope,
+                                    addr.parse().into_evalrst_err()?,
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        pub mod answer {
+            use bytes::Bytes;
+            use domain::base::Message;
+            use rhai::EvalAltResult;
+
+            use crate::{
+                router::script::message::{
+                    helpers::{modify_message, SectionPayload},
+                    rhai_mod::getters::get_answer,
+                    DnsRecord, DnsRecordsIter,
+                },
+                IntoEvalAltResultError,
+            };
+
+            #[rhai_fn(return_raw)]
+            pub fn update_answer(
+                msg: &mut Message<Bytes>,
+                records: DnsRecordsIter,
+            ) -> Result<(), Box<EvalAltResult>> {
+                *msg = modify_message(msg, SectionPayload::Answer(records)).into_evalrst_err()?;
+                Ok(())
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn insert_answer(
+                msg: &mut Message<Bytes>,
+                index: i32,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_answer(msg)?;
+                records.0.insert(index as usize, record);
+                update_answer(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn push_answer(
+                msg: &mut Message<Bytes>,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_answer(msg)?;
+                records.0.push(record);
+                update_answer(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn remove_answer(
+                msg: &mut Message<Bytes>,
+                index: i32,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_answer(msg)?;
+                records.0.remove(index as usize);
+                update_answer(msg, records)
+            }
+        }
+
+        pub mod authority {
+            use crate::{
+                router::script::message::{
+                    helpers::{modify_message, SectionPayload},
+                    rhai_mod::getters::get_authority,
+                    DnsRecord, DnsRecordsIter,
+                },
+                IntoEvalAltResultError,
+            };
+            use bytes::Bytes;
+            use domain::base::Message;
+            use rhai::EvalAltResult;
+
+            #[rhai_fn(return_raw)]
+            pub fn update_authority(
+                msg: &mut Message<Bytes>,
+                records: DnsRecordsIter,
+            ) -> Result<(), Box<EvalAltResult>> {
+                *msg =
+                    modify_message(msg, SectionPayload::Authority(records)).into_evalrst_err()?;
+                Ok(())
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn insert_authority(
+                msg: &mut Message<Bytes>,
+                index: i32,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_authority(msg)?;
+                records.0.insert(index as usize, record);
+                update_authority(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn push_authority(
+                msg: &mut Message<Bytes>,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_authority(msg)?;
+                records.0.push(record);
+                update_authority(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn remove_authority(
+                msg: &mut Message<Bytes>,
+                index: i32,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_authority(msg)?;
+                records.0.remove(index as usize);
+                update_authority(msg, records)
+            }
+        }
+
+        pub mod additional {
+            use crate::{
+                router::script::message::{
+                    helpers::{modify_message, SectionPayload},
+                    rhai_mod::getters::get_additional,
+                    DnsRecord, DnsRecordsIter,
+                },
+                IntoEvalAltResultError,
+            };
+            use bytes::Bytes;
+            use domain::base::Message;
+            use rhai::EvalAltResult;
+
+            #[rhai_fn(return_raw)]
+            pub fn update_additional(
+                msg: &mut Message<Bytes>,
+                records: DnsRecordsIter,
+            ) -> Result<(), Box<EvalAltResult>> {
+                *msg =
+                    modify_message(msg, SectionPayload::Additional(records)).into_evalrst_err()?;
+                Ok(())
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn insert_additional(
+                msg: &mut Message<Bytes>,
+                index: i32,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_additional(msg)?;
+                records.0.insert(index as usize, record);
+                update_additional(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn push_additional(
+                msg: &mut Message<Bytes>,
+                record: DnsRecord,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_additional(msg)?;
+                records.0.push(record);
+                update_additional(msg, records)
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn remove_additional(
+                msg: &mut Message<Bytes>,
+                index: i32,
+            ) -> Result<(), Box<EvalAltResult>> {
+                let mut records = get_additional(msg)?;
+                records.0.remove(index as usize);
+                update_additional(msg, records)
             }
         }
     }
