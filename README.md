@@ -61,20 +61,17 @@ script:
     }
 ```
 
-And another script that removes and adds EDNS Client Subnet record into the OPT pseudo-section:
+And another script that adds EDNS Client Subnet record into the OPT pseudo-section:
 
 ```yaml
 script:
   route: |
     let query = query;
 
-    // Remove existing OPT section
-    for (record, counter) in query.additional {
-      if record.rtype == "OPT" {
-        query.remove_additional(counter);
-      }
-    }
-    query.push_opt(create_opt_section(), create_client_subnet(15, 0, "23.62.93.233"));
+    // Optionally remove all the existing OPT pseudo-section(s)
+    // query.clear_opt();
+
+    query.push_opt(create_client_subnet(15, 0, "23.62.93.233"));
 
     upstreams.send("secure", query)
 ```

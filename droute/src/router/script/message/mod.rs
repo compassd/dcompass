@@ -494,10 +494,17 @@ pub mod rhai_mod {
     }
 
     pub mod getters {
-        use super::super::helpers::{dns_record_from_ref, DnsRecordsIter};
-        use crate::{IntoEvalAltResultError, IntoEvalAltResultStr};
+        use self::record::rdata::opt::get_options;
+
+        use super::{
+            super::helpers::{dns_record_from_ref, DnsRecordsIter},
+            convertions::to_opt,
+        };
+        use crate::{
+            router::script::message::OptRecordsIter, IntoEvalAltResultError, IntoEvalAltResultStr,
+        };
         use bytes::Bytes;
-        use domain::base::{Dname, Header, Message, Question, ToDname};
+        use domain::base::{opt::OptRecord, Dname, Header, Message, Question, Rtype, ToDname};
         use rhai::EvalAltResult;
 
         #[rhai_fn(get = "header", pure)]
@@ -597,6 +604,30 @@ pub mod rhai_mod {
             pub fn get_qclass(question: &mut Question<Dname<Bytes>>) -> Class {
                 question.qclass()
             }
+        }
+
+        #[rhai_fn(get = "opt_section", pure, return_raw)]
+        pub fn get_opt_section(
+            msg: &mut Message<Bytes>,
+        ) -> Result<Option<OptRecord<Bytes>>, Box<EvalAltResult>> {
+            for mut record in get_additional(msg)?.into_iter() {
+                if record.rtype() == Rtype::Opt {
+                    return Ok(Some(to_opt(&mut record)?));
+                }
+            }
+            Ok(None)
+        }
+
+        #[rhai_fn(get = "options", pure, return_raw)]
+        pub fn get_options_msg(
+            msg: &mut Message<Bytes>,
+        ) -> Result<OptRecordsIter, Box<EvalAltResult>> {
+            for mut record in get_additional(msg)?.into_iter() {
+                if record.rtype() == Rtype::Opt {
+                    return get_options(&mut to_opt(&mut record)?);
+                }
+            }
+            Ok(OptRecordsIter(Vec::new()))
         }
 
         #[rhai_fn(get = "answer", pure, return_raw)]
@@ -976,33 +1007,37 @@ pub mod rhai_mod {
 
                 pub mod opt {
                     use crate::{
-                        router::script::message::helpers::{modify_opt, OptRecordsIter},
+                        router::script::message::{
+                            helpers::{modify_opt, OptRecordsIter},
+                            rhai_mod::getters::get_options_msg,
+                        },
                         IntoEvalAltResultError,
                     };
                     use bytes::Bytes;
                     use domain::base::{opt::AllOptData, Message};
                     use rhai::EvalAltResult;
 
-                    // Create an empty OPT section, this doesn't alter the message
-                    pub fn create_opt_section() -> OptRecordsIter {
-                        OptRecordsIter(Vec::new())
-                    }
-
                     #[rhai_fn(return_raw)]
                     pub fn update_opt(
                         msg: &mut Message<Bytes>,
                         opt: OptRecordsIter,
                     ) -> Result<(), Box<EvalAltResult>> {
-                        *msg = modify_opt(msg, opt).into_evalrst_err()?;
+                        *msg = modify_opt(msg, Some(opt)).into_evalrst_err()?;
+                        Ok(())
+                    }
+
+                    #[rhai_fn(return_raw)]
+                    pub fn clear_opt(msg: &mut Message<Bytes>) -> Result<(), Box<EvalAltResult>> {
+                        *msg = modify_opt(msg, None).into_evalrst_err()?;
                         Ok(())
                     }
 
                     #[rhai_fn(return_raw)]
                     pub fn push_opt(
                         msg: &mut Message<Bytes>,
-                        mut opt: OptRecordsIter,
                         data: AllOptData<Bytes>,
                     ) -> Result<(), Box<EvalAltResult>> {
+                        let mut opt = get_options_msg(msg)?;
                         opt.0.push(data);
                         update_opt(msg, opt)
                     }
@@ -1010,10 +1045,10 @@ pub mod rhai_mod {
                     #[rhai_fn(return_raw)]
                     pub fn insert_opt(
                         msg: &mut Message<Bytes>,
-                        mut opt: OptRecordsIter,
                         index: i32,
                         data: AllOptData<Bytes>,
                     ) -> Result<(), Box<EvalAltResult>> {
+                        let mut opt = get_options_msg(msg)?;
                         opt.0.insert(index as usize, data);
                         update_opt(msg, opt)
                     }
@@ -1021,9 +1056,9 @@ pub mod rhai_mod {
                     #[rhai_fn(return_raw)]
                     pub fn remove_opt(
                         msg: &mut Message<Bytes>,
-                        mut opt: OptRecordsIter,
                         index: i32,
                     ) -> Result<(), Box<EvalAltResult>> {
+                        let mut opt = get_options_msg(msg)?;
                         opt.0.remove(index as usize);
                         update_opt(msg, opt)
                     }
@@ -1091,6 +1126,11 @@ pub mod rhai_mod {
             }
 
             #[rhai_fn(return_raw)]
+            pub fn clear_answer(msg: &mut Message<Bytes>) -> Result<(), Box<EvalAltResult>> {
+                update_answer(msg, DnsRecordsIter(Vec::new()))
+            }
+
+            #[rhai_fn(return_raw)]
             pub fn insert_answer(
                 msg: &mut Message<Bytes>,
                 index: i32,
@@ -1146,6 +1186,11 @@ pub mod rhai_mod {
             }
 
             #[rhai_fn(return_raw)]
+            pub fn clear_authority(msg: &mut Message<Bytes>) -> Result<(), Box<EvalAltResult>> {
+                update_authority(msg, DnsRecordsIter(Vec::new()))
+            }
+
+            #[rhai_fn(return_raw)]
             pub fn insert_authority(
                 msg: &mut Message<Bytes>,
                 index: i32,
@@ -1198,6 +1243,11 @@ pub mod rhai_mod {
                 *msg =
                     modify_message(msg, SectionPayload::Additional(records)).into_evalrst_err()?;
                 Ok(())
+            }
+
+            #[rhai_fn(return_raw)]
+            pub fn clear_additional(msg: &mut Message<Bytes>) -> Result<(), Box<EvalAltResult>> {
+                update_additional(msg, DnsRecordsIter(Vec::new()))
             }
 
             #[rhai_fn(return_raw)]

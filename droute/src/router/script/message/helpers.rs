@@ -16,7 +16,7 @@
 use super::{MessageError, MessageResult as Result};
 use bytes::{Bytes, BytesMut};
 use domain::{
-    base::{opt::AllOptData, Dname, Message, MessageBuilder, ParsedDname, Record, ToDname},
+    base::{opt::AllOptData, Dname, Message, MessageBuilder, ParsedDname, Record, Rtype, ToDname},
     rdata::{
         AllRecordData, Cname, Dname as DnameRecord, Mb, Md, Mf, Minfo, Mr, Mx, Ns, Nsec, Ptr,
         Rrsig, Soa, Srv, Tsig,
@@ -128,7 +128,13 @@ impl IntoIterator for OptRecordsIter {
     }
 }
 
-pub fn modify_opt(msg: &Message<Bytes>, opt: OptRecordsIter) -> Result<Message<Bytes>> {
+impl OptRecordsIter {
+    pub fn iter(&self) -> std::slice::Iter<'_, AllOptData<Bytes>> {
+        self.0.iter()
+    }
+}
+
+pub fn modify_opt(msg: &Message<Bytes>, opt: Option<OptRecordsIter>) -> Result<Message<Bytes>> {
     let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(crate::MAX_LEN))?;
     // Copy header
     *builder.header_mut() = msg.header();
@@ -154,21 +160,51 @@ pub fn modify_opt(msg: &Message<Bytes>, opt: OptRecordsIter) -> Result<Message<B
         }
     }
 
+    // Per RFC 6891, there can only be one OPT pseudo-section within the additional section.
+    // Therefore, if we got a malformatted message with multiple OPT records, we only keep one of them.
+
+    // whether we have already replaced one OPT record
+    let mut flag = false;
+
     // Copy other additional records
     let mut builder = builder.additional();
     for item in msg.additional()? {
         if let Some(record) = item?.into_record::<AllRecordData<_, _>>()? {
-            builder.push(record)?;
+            match (record.rtype(), flag) {
+                // First time seeing an OPT record, replace it with what we build
+                (Rtype::Opt, false) => {
+                    if let Some(ref opt) = opt {
+                        // Build OPT record
+                        builder.opt(|builder| {
+                            for option in opt.iter() {
+                                builder.push(option)?
+                            }
+                            Ok(())
+                        })?;
+                    }
+
+                    flag = true;
+                }
+                // Multiple OPT record, do nothing.
+                (Rtype::Opt, true) => {}
+                // Other records, copy as usual
+                _ => builder.push(record)?,
+            }
         }
     }
 
-    // Build OPT record
-    builder.opt(|builder| {
-        for option in opt.into_iter() {
-            builder.push(&option)?
+    // If the original message doesn't contain any OPT record, we create them based on our needs
+    if !flag {
+        if let Some(ref opt) = opt {
+            // Build OPT record
+            builder.opt(|builder| {
+                for option in opt.iter() {
+                    builder.push(option)?
+                }
+                Ok(())
+            })?;
         }
-        Ok(())
-    })?;
+    }
 
     Ok(builder.into_message())
 }
