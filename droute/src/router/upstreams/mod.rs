@@ -120,6 +120,8 @@ impl Upstreams {
         // The following code is based on the assumption that only hybrid upstream would recurse into the next level and increment the counter
         // Therefore, if the counter for the same upstream is already one, that means recursion.
         if val < &1 {
+            // We have checked that tag exists.
+
             // Increment the counter
             bucket.get_mut(tag).unwrap().0.add(1);
             // Check if it is empty.

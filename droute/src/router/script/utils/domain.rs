@@ -50,6 +50,7 @@ impl Domain {
     }
 
     pub fn add_file(&mut self, path: impl AsRef<str>) -> Result<()> {
+        // from_str is Infallible
         let (mut file, _) = niffler::from_path(PathBuf::from_str(path.as_ref()).unwrap())?;
         let mut data = String::new();
         file.read_to_string(&mut data)?;

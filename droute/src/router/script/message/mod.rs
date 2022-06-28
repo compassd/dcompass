@@ -145,9 +145,9 @@ pub mod rhai_mod {
         use domain::{
             base::{
                 opt::{AllOptData, ClientSubnet, Cookie, OptRecord},
-                Record,
+                Dname, Record,
             },
-            rdata::{Aaaa, AllRecordData, Txt, A},
+            rdata::{Aaaa, AllRecordData, Cname, Txt, A},
         };
 
         #[rhai_fn(pure, return_raw)]
@@ -165,6 +165,16 @@ pub mod rhai_mod {
             create_conversion!(
                 record.data(),
                 AllRecordData::Aaaa,
+                AllRecordData,
+                MessageError::RecordUnsupported
+            )
+        }
+
+        #[rhai_fn(pure, return_raw)]
+        pub fn to_cname(record: &mut DnsRecord) -> Result<Cname<Dname<Bytes>>, Box<EvalAltResult>> {
+            create_conversion!(
+                record.data(),
+                AllRecordData::Cname,
                 AllRecordData,
                 MessageError::RecordUnsupported
             )
@@ -695,6 +705,16 @@ pub mod rhai_mod {
                     }
                 }
 
+                pub mod cname {
+                    use bytes::Bytes;
+                    use domain::{base::Dname, rdata::Cname};
+
+                    #[rhai_fn(get = "cname", pure)]
+                    pub fn get_cname(data: &mut Cname<Dname<Bytes>>) -> Dname<Bytes> {
+                        data.cname().clone()
+                    }
+                }
+
                 pub mod txt {
                     use crate::IntoEvalAltResultError;
                     use domain::rdata::Txt;
@@ -779,6 +799,15 @@ pub mod rhai_mod {
                                 }
                             }
                             .into())
+                        }
+
+                        pub mod cookie {
+                            use domain::base::opt::Cookie;
+
+                            #[rhai_fn(pure, get = "cookie")]
+                            pub fn get_cookie(cookie: &mut Cookie) -> String {
+                                hex::encode(cookie.cookie())
+                            }
                         }
 
                         pub mod client_subnet {
@@ -966,6 +995,26 @@ pub mod rhai_mod {
                     ) -> Result<AllRecordData<Bytes, Dname<Bytes>>, Box<EvalAltResult>>
                     {
                         Ok(create_a(ip.parse().into_evalrst_err()?))
+                    }
+                }
+
+                pub mod cname {
+                    use crate::IntoEvalAltResultError;
+                    use domain::{
+                        base::Dname,
+                        rdata::{AllRecordData, Cname},
+                    };
+                    use rhai::{EvalAltResult, ImmutableString};
+                    use std::str::FromStr;
+
+                    #[rhai_fn(name = "create_cname", return_raw)]
+                    pub fn create_cname(
+                        cname: ImmutableString,
+                    ) -> Result<AllRecordData<Bytes, Dname<Bytes>>, Box<EvalAltResult>>
+                    {
+                        Ok(AllRecordData::Cname(Cname::new(
+                            Dname::from_str(&cname).into_evalrst_err()?,
+                        )))
                     }
                 }
 

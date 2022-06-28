@@ -117,6 +117,7 @@ impl Validatable for Script {
     type Error = ScriptError;
 
     fn validate(&self, _: Option<&Vec<crate::Label>>) -> Result<()> {
+        // Guaranteed to exist as we pushed it in on creation.
         let upstreams = self.scope.get_value::<Upstreams>("upstreams").unwrap();
         upstreams.validate(None)?;
         Ok(())
