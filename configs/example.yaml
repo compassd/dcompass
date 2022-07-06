@@ -16,17 +16,14 @@ script:
 
     let resp = upstreams.send("domestic", query);
 
-    try {
-      let ans = resp.answer[0];
-      return switch ans.rtype.to_string() {
-        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
-        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
-        _ => resp
+    for ans in resp.answer {
+      switch ans.rtype.to_string() {
+        "A" if !geoip.contains(ans.to_a().ip, "CN") => { return upstreams.send("secure", query); }
+        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { return upstreams.send("secure", query); }
+        _ => continue,
       };
-    } catch(err) {
-      print(err);
-      return resp;
     }
+    resp
 
 upstreams:
   114DNS:

@@ -44,21 +44,18 @@ Below is a script using GeoIP to mitigate DNS pollution
 ```yaml
 script:
   init: |
-    let geoip = new_geoip_from_path("../data/full.mmdb").seal();
+    let geoip = new_builtin_geoip().seal();
   route: |
     let resp = upstreams.send("domestic", query);
 
-    try {
-      let ans = resp.answer[0];
-      return switch ans.rtype.to_string() {
-        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
-        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
-        _ => resp
+    for ans in resp.answer {
+      switch ans.rtype.to_string() {
+        "A" if !geoip.contains(ans.to_a().ip, "CN") => { return upstreams.send("secure", query); }
+        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { return upstreams.send("secure", query); }
+        _ => continue,
       };
-    } catch(err) {
-      print(err);
-      return resp;
     }
+    resp
 ```
 
 And another script that adds EDNS Client Subnet record into the OPT pseudo-section:
