@@ -95,7 +95,7 @@ impl Script {
         query: Message<Bytes>,
         ctx: Option<QueryContext>,
     ) -> Result<Message<Bytes>> {
-        let mut engine = Engine::new();
+        let mut engine = Engine::new_raw();
         engine
             .register_global_module(self.route_package.as_shared_module())
             .on_print(|x| log::info!("{}", x))
@@ -147,7 +147,7 @@ impl ScriptBuilder {
 
         let init_package = InitPackage::new();
 
-        let mut engine = Engine::new();
+        let mut engine = Engine::new_raw();
         engine
             .register_global_module(init_package.as_shared_module())
             .on_print(|x| log::info!("{}", x))

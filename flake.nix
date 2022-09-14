@@ -103,6 +103,8 @@
             cargo-cache
             cargo-outdated
 
+            linuxPackages.perf
+
             # perl
             # gnumake
           ];

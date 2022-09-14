@@ -48,7 +48,7 @@ tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", 
 # Logic-related dependencies
 hex = "^0.4"
 rhai = { version = "1.7.0", features = ["sync", "no_closure", "no_float", "only_i32", "no_module"]}
-compact_str = { version = "^0.3", features = ["serde"]}
+compact_str = { version = "^0.4", features = ["serde"]}
 cidr-utils = { version = "^0.5", git = "https://github.com/compassd/cidr-utils", rev = "c5f5c2ef167b4de9856764fd6b3b84e784b98db2" }
 once_cell = "^1.7"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
