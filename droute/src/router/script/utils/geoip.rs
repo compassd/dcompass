@@ -115,6 +115,6 @@ mod tests {
     async fn mixed() {
         let geoip = GeoIp::from_buf(DB.clone()).unwrap();
         assert_eq!(geoip.contains("180.101.49.12".parse().unwrap(), "CN"), true);
-        assert_eq!(geoip.contains("1.1.1.1".parse().unwrap(), "AU"), true)
+        assert_eq!(geoip.contains("69.162.81.155".parse().unwrap(), "US"), true)
     }
 }

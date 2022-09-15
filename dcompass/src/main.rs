@@ -107,7 +107,7 @@ async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, tx: &Sender<()>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // console_subscriber::init();
+    console_subscriber::init();
 
     let args: DcompassOpts = DcompassOpts::from_args();
 

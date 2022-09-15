@@ -41,11 +41,11 @@
             # Used by tokio-console
             # nativeBuildInputs = [ protobuf ];
           });
-    in utils.lib.eachSystem ([
-      "aarch64-linux"
-      "i686-linux"
-      "x86_64-darwin"
-      "x86_64-linux"
+    in utils.lib.eachSystem (with utils.lib.system; [
+      aarch64-linux
+      i686-linux
+      x86_64-darwin
+      x86_64-linux
     ]) (system: rec {
       # `nix build`
       packages = (pkgSet system) // {
@@ -56,7 +56,8 @@
         });
       };
 
-      defaultPackage = packages.dcompass-maxmind;
+      # TODO: figure out a way to write it as packages.default
+      # defaultPackage = packages.dcompass-maxmind;
 
       # We don't check packages.commit because techinically it is not a pacakge
       checks = builtins.removeAttrs packages [ "commit" ];
@@ -85,9 +86,9 @@
       defaultApp = apps.dcompass-maxmind;
 
       # `nix develop`
-      devShell = with (pkgsWithRust system);
+      devShells.default = with (pkgsWithRust system);
         mkShell {
-          nativeBuildInputs = [
+          nativeBuildInputs = lib.flatten [
             # write rustfmt first to ensure we are using nightly rustfmt
             rust-bin.nightly."2022-01-01".rustfmt
             rust-bin.stable.latest.default
@@ -103,7 +104,7 @@
             cargo-cache
             cargo-outdated
 
-            # linuxPackages.perf
+            (if stdenv.isLinux then [ linuxPackages.perf ] else [ ])
 
             # perl
             # gnumake
@@ -114,7 +115,7 @@
       publicKey =
         "dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=";
 
-      overlay = final: prev: {
+      overlays.default = final: prev: {
         dcompass = recurseIntoAttrs (pkgSet prev.pkgs.system);
       };
     };
