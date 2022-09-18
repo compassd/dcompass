@@ -28,7 +28,11 @@ mod worker;
 use self::{parser::Parsed, worker::worker};
 use anyhow::{Context, Result};
 use bytes::BytesMut;
-use droute::{builders::RouterBuilder, error::DrouteError, AsyncTryInto, Router};
+use droute::{
+    builders::{RouterBuilder, RuneScript},
+    errors::ScriptError,
+    AsyncTryInto, Router,
+};
 use log::*;
 use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, path::PathBuf, result::Result as StdResult, sync::Arc, time::Duration};
@@ -57,7 +61,7 @@ struct DcompassOpts {
     validate: bool,
 }
 
-async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter), DrouteError> {
+async fn init(p: Parsed) -> StdResult<(Router<RuneScript>, SocketAddr, LevelFilter), ScriptError> {
     Ok((
         RouterBuilder::new(p.script, p.upstreams)
             .async_try_into()
@@ -67,7 +71,7 @@ async fn init(p: Parsed) -> StdResult<(Router, SocketAddr, LevelFilter), DrouteE
     ))
 }
 
-async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, tx: &Sender<()>) {
+async fn serve(socket: Arc<UdpSocket>, router: Arc<Router<RuneScript>>, tx: &Sender<()>) {
     loop {
         // Size recommended by DNS Flag Day 2020: "This is practical for the server operators that know their environment, and the defaults in the DNS software should reflect the minimum safe size which is 1232."
         let mut buf = BytesMut::with_capacity(1024);
@@ -107,7 +111,7 @@ async fn serve(socket: Arc<UdpSocket>, router: Arc<Router>, tx: &Sender<()>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    console_subscriber::init();
+    // console_subscriber::init();
 
     let args: DcompassOpts = DcompassOpts::from_args();
 

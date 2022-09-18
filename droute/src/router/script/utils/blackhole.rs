@@ -13,8 +13,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::str::FromStr;
-
 use super::Result;
 use crate::MAX_TTL;
 use bytes::{Bytes, BytesMut};
@@ -23,6 +21,7 @@ use domain::{
     rdata::Soa,
 };
 use once_cell::sync::Lazy;
+use std::str::FromStr;
 
 // Data from smartdns. https://github.com/pymumu/smartdns/blob/42b3e98b2a3ca90ea548f8cb5ed19a3da6011b74/src/dns_server.c#L651
 static SOA_RDATA: Lazy<(Dname<Bytes>, u32, Soa<Dname<Bytes>>)> = Lazy::new(|| {
@@ -41,6 +40,7 @@ static SOA_RDATA: Lazy<(Dname<Bytes>, u32, Soa<Dname<Bytes>>)> = Lazy::new(|| {
     )
 });
 
+/// Create a message that stops the requestor to send the query again.
 pub fn blackhole(query: &Message<Bytes>) -> Result<Message<Bytes>> {
     // Is 50 a good number?
     let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(50))?

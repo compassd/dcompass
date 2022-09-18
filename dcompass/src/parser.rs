@@ -33,7 +33,7 @@ enum LevelFilterDef {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Parsed {
-    pub script: ScriptBuilder,
+    pub script: RuneScriptBuilder,
     // We are not using UpstreamsBuilder because flatten ruins error location.
     #[serde(flatten)]
     pub upstreams: UpstreamsBuilder<UpstreamBuilder>,

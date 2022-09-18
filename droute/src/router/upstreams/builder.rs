@@ -61,7 +61,7 @@ impl<U: AsyncTryInto<Upstream, Error = QHandleError>> UpstreamsBuilder<U> {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl<U: AsyncTryInto<Upstream, Error = QHandleError>> AsyncTryInto<Upstreams>
     for UpstreamsBuilder<U>
 {

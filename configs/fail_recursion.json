@@ -1,9 +1,7 @@
 {
     "verbosity": "off",
     "address": "0.0.0.0:2053",
-    "script": {
-        "route": ""
-    },
+    "script": "",
     "upstreams": {
         "114": {
             "udp": {

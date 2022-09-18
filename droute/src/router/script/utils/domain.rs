@@ -21,6 +21,7 @@ use std::{path::PathBuf, str::FromStr};
 
 /// The domain matcher
 #[derive(Clone)]
+#[cfg_attr(feature = "rune-scripting", derive(rune::Any))]
 pub struct Domain(DomainAlg);
 
 fn into_dnames(list: &str) -> std::result::Result<Vec<Dname<Bytes>>, FromStrError> {
@@ -38,17 +39,25 @@ fn into_dnames(list: &str) -> std::result::Result<Vec<Dname<Bytes>>, FromStrErro
         .collect()
 }
 
+impl Default for Domain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Domain {
     /// Create an empty `domain` matcher
     pub fn new() -> Self {
         Self(DomainAlg::new())
     }
 
+    /// Add a question name to the domain matcher's list
     pub fn add_qname(&mut self, s: impl AsRef<str>) -> Result<()> {
         self.0.insert_multi(&into_dnames(s.as_ref())?);
         Ok(())
     }
 
+    /// Add all question names in a file to the domain matcher's list
     pub fn add_file(&mut self, path: impl AsRef<str>) -> Result<()> {
         // from_str is Infallible
         let (mut file, _) = niffler::from_path(PathBuf::from_str(path.as_ref()).unwrap())?;
@@ -58,7 +67,8 @@ impl Domain {
         Ok(())
     }
 
-    pub fn contains(&self, qname: Dname<Bytes>) -> bool {
-        self.0.matches(&qname)
+    /// Check if the question name matches any in the matcher.
+    pub fn contains(&self, qname: &Dname<Bytes>) -> bool {
+        self.0.matches(qname)
     }
 }

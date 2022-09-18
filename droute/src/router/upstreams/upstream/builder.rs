@@ -94,7 +94,7 @@ impl HybridBuilder {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl AsyncTryInto<Upstream> for HybridBuilder {
     type Error = QHandleError;
 
@@ -129,7 +129,7 @@ pub struct HttpsBuilder {
 }
 
 #[cfg(any(feature = "doh-rustls", feature = "doh-native-tls"))]
-#[async_trait]
+#[async_trait(?Send)]
 impl AsyncTryInto<Upstream> for HttpsBuilder {
     type Error = QHandleError;
 
@@ -173,7 +173,7 @@ pub struct TlsBuilder {
 }
 
 #[cfg(any(feature = "dot-native-tls", feature = "dot-rustls"))]
-#[async_trait]
+#[async_trait(?Send)]
 impl AsyncTryInto<Upstream> for TlsBuilder {
     type Error = QHandleError;
 
@@ -210,7 +210,7 @@ pub struct UdpBuilder {
     pub timeout: u64,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl AsyncTryInto<Upstream> for UdpBuilder {
     type Error = QHandleError;
 
@@ -240,7 +240,7 @@ pub enum UpstreamBuilder {
     Tls(TlsBuilder),
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl AsyncTryInto<Upstream> for UpstreamBuilder {
     /// Build the Upstream from an UpstreamBuilder
     async fn async_try_into(self) -> std::result::Result<Upstream, QHandleError> {

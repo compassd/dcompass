@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::init;
-use droute::error::*;
+use droute::errors::*;
 
 #[tokio::test]
 async fn check_default() {
@@ -54,17 +54,10 @@ async fn check_example_cn() {
 }
 
 #[tokio::test]
-async fn check_success_rule() {
-    assert_eq!(
-        init(serde_yaml::from_str(include_str!("../../configs/success_rule.json")).unwrap())
-            .await
-            .is_ok(),
-        true
-    );
-}
-
-#[tokio::test]
 async fn check_success_query_cache_mode() {
+    init(serde_yaml::from_str(include_str!("../../configs/query_cache_policy.yaml")).unwrap())
+        .await
+        .unwrap();
     assert_eq!(
         init(serde_yaml::from_str(include_str!("../../configs/query_cache_policy.yaml")).unwrap())
             .await
@@ -77,16 +70,6 @@ async fn check_success_query_cache_mode() {
 async fn check_success_geoip() {
     assert_eq!(
         init(serde_yaml::from_str(include_str!("../../configs/success_geoip.yaml")).unwrap())
-            .await
-            .is_ok(),
-        true
-    );
-}
-
-#[tokio::test]
-async fn check_success_rule_yaml() {
-    assert_eq!(
-        init(serde_yaml::from_str(include_str!("../../configs/success_rule_yaml.yaml")).unwrap())
             .await
             .is_ok(),
         true
@@ -110,7 +93,7 @@ async fn check_fail_recursion() {
         .err()
         .unwrap()
     {
-        DrouteError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
+        ScriptError::UpstreamError(UpstreamError::HybridRecursion(_)) => {}
         e => panic!("Not the right error type: {}", e),
     };
 }

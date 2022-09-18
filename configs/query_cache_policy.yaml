@@ -1,15 +1,21 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-script:
-  init: |
-    let domain = new_domain_list().add_file("../data/china.txt").seal();
-  route: |
-    if domain.contains(query.first_question.qname) {
-       upstreams.send("domestic", query)
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
+    if inited.domain.0.contains(query.first_question?.qname) {
+       upstreams.send_default("domestic", query).await
     } else {
-       upstreams.send("secure", "persistent", query)
-    };
+       upstreams.send("secure", "persistent", query).await
+    }
+  }
+
+  pub async fn init() {
+    let domain = Domain::new();
+    domain.add_file("../data/china.txt")?;
+    Ok(#{"domain": Utils::Domain(domain)})
+  }
+
 
 upstreams:
   domestic:

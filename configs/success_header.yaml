@@ -1,11 +1,13 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-script:
-  route: |
-    if query.header.opcode == "QUERY" {
-       upstreams.send("secure", query)
-    };
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
+    if query.header.opcode.to_str() == "QUERY" {
+      upstreams.send_default("secure", query).await
+    }
+  }
+
 upstreams:
   secure:
     https:

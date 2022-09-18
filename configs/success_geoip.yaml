@@ -1,23 +1,23 @@
 ---
 verbosity: "off"
 address: 0.0.0.0:2053
-script:
-  init: |
-    let geoip = new_geoip_from_path("../data/full.mmdb").seal();
-  route: |
-    let resp = upstreams.send("domestic", query);
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
+    let resp = upstreams.send_default("domestic", query).await?;
 
-    try {
-      let ans = resp.answer[0];
-      return switch ans.rtype.to_string() {
-        "A" if !geoip.contains(ans.to_a().ip, "CN") => { upstreams.send("secure", query) }
-        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { upstreams.send("secure", query) }
-        _ => resp
-      };
-    } catch(err) {
-      print(err);
-      return resp;
+    for ans in resp.answer? {
+      match ans.rtype.to_str() {
+        "A" if !inited.geoip.0.contains(ans.to_a()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
+        "AAAA" if !inited.geoip.0.contains(ans.to_aaaa()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
+        _ => continue,
+      }
     }
+    Ok(resp)
+  }
+
+  pub async fn init() {
+    Ok(#{"geoip": Utils::GeoIp(GeoIp::from_path("../data/full.mmdb").await?)})
+  }
 
 upstreams:
   domestic:

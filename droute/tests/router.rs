@@ -20,7 +20,7 @@ use domain::{
     base::{Dname, Message, MessageBuilder, Rtype},
     rdata::A,
 };
-use droute::{builders::*, mock::Server, AsyncTryInto};
+use droute::{builders::*, errors::*, mock::Server, AsyncTryInto, QueryContext, Upstreams};
 use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
 
@@ -55,7 +55,7 @@ async fn test_resolve() {
     tokio::spawn(server.run(DUMMY_MSG.clone()));
 
     let router = RouterBuilder::new(
-        ScriptBuilder::new(None, r#"upstreams.send("mock", query)"#),
+        NativeScriptBuilder::new(resolve_script),
         UpstreamsBuilder::new(1).unwrap().add_upstream(
             "mock",
             UdpBuilder {
@@ -78,4 +78,14 @@ async fn test_resolve() {
             .into_octets(),
         DUMMY_MSG.clone().into_octets()
     );
+}
+
+async fn resolve_script(
+    upstreams: Upstreams,
+    query: Message<Bytes>,
+    _ctx: Option<QueryContext>,
+) -> Result<Message<Bytes>, ScriptError> {
+    Ok(upstreams
+        .send(&"mock".into(), &droute::CacheMode::Standard, &query)
+        .await?)
 }

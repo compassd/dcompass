@@ -1,9 +1,7 @@
 {
     "verbosity": "info",
-    "address": "0.0.0.0:2053",
-    "script": {
-        "route": "upstreams.send(\"cloudflare\", query)"
-    },
+    "address": "0.0.0.0:53",
+    "script": "pub async fn route(upstreams, inited, ctx, query) { upstreams.send_default(\"cloudflare\", query).await }",
     "upstreams": {
         "cloudflare": {
             "https": {

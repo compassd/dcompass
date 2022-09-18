@@ -13,7 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{MessageError, MessageResult as Result};
+type MessageResult<T> = std::result::Result<T, MessageError>;
+
+use super::super::types::{DnsRecord, OptRecordData};
+use crate::errors::MessageError;
 use bytes::{Bytes, BytesMut};
 use domain::{
     base::{opt::AllOptData, Dname, Message, MessageBuilder, ParsedDname, Record, Rtype, ToDname},
@@ -22,12 +25,11 @@ use domain::{
         Rrsig, Soa, Srv, Tsig,
     },
 };
+use rune::runtime::Iterator;
 
-pub type DnsRecord = Record<Dname<Bytes>, AllRecordData<Bytes, Dname<Bytes>>>;
-
-pub(super) fn dns_record_from_ref(
+pub fn dns_record_from_ref(
     src: AllRecordData<Bytes, ParsedDname<&Bytes>>,
-) -> Result<AllRecordData<Bytes, Dname<Bytes>>> {
+) -> MessageResult<AllRecordData<Bytes, Dname<Bytes>>> {
     Ok(match src {
         AllRecordData::A(a) => a.into(),
         AllRecordData::Aaaa(aaaa) => aaaa.into(),
@@ -103,28 +105,43 @@ pub(super) fn dns_record_from_ref(
 }
 
 // An iterator over records
-#[derive(Clone)]
-pub struct DnsRecordsIter(pub Vec<DnsRecord>);
+#[allow(clippy::type_complexity)]
+#[derive(Clone, rune::Any)]
+pub struct DnsRecordsIter(pub Vec<Record<Dname<Bytes>, AllRecordData<Bytes, Dname<Bytes>>>>);
 
 impl IntoIterator for DnsRecordsIter {
     type Item = DnsRecord;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = std::vec::IntoIter<DnsRecord>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.0
+            .into_iter()
+            .map(|x| x.into())
+            .collect::<Vec<DnsRecord>>()
+            .into_iter()
+    }
+}
+
+impl DnsRecordsIter {
+    pub fn into_iterator(self) -> Iterator {
+        Iterator::from("DnsRecordsIter", self.into_iter())
     }
 }
 
 // An iterator over Opt records
-#[derive(Clone)]
+#[derive(Clone, rune::Any)]
 pub struct OptRecordsIter(pub Vec<AllOptData<Bytes>>);
 
 impl IntoIterator for OptRecordsIter {
-    type Item = AllOptData<Bytes>;
+    type Item = OptRecordData;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.0
+            .into_iter()
+            .map(|x| x.into())
+            .collect::<Vec<OptRecordData>>()
+            .into_iter()
     }
 }
 
@@ -132,9 +149,16 @@ impl OptRecordsIter {
     pub fn iter(&self) -> std::slice::Iter<'_, AllOptData<Bytes>> {
         self.0.iter()
     }
+
+    pub fn into_iterator(self) -> Iterator {
+        Iterator::from("OptRecordsIter", self.into_iter())
+    }
 }
 
-pub fn modify_opt(msg: &Message<Bytes>, opt: Option<OptRecordsIter>) -> Result<Message<Bytes>> {
+pub fn modify_opt(
+    msg: &Message<Bytes>,
+    opt: Option<OptRecordsIter>,
+) -> MessageResult<Message<Bytes>> {
     let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(crate::MAX_LEN))?;
     // Copy header
     *builder.header_mut() = msg.header();
@@ -218,7 +242,7 @@ pub enum SectionPayload {
 pub fn modify_message(
     msg: &Message<Bytes>,
     section_modified: SectionPayload,
-) -> Result<Message<Bytes>> {
+) -> MessageResult<Message<Bytes>> {
     let mut builder = MessageBuilder::from_target(BytesMut::with_capacity(crate::MAX_LEN))?;
     // Copy header
     *builder.header_mut() = msg.header();
@@ -234,7 +258,7 @@ pub fn modify_message(
             // Push the payload
             let mut builder = builder.answer();
             for item in records.into_iter() {
-                builder.push(item)?;
+                builder.push(item.0)?;
             }
 
             // Copy authority and additional sections
@@ -272,7 +296,7 @@ pub fn modify_message(
             // Push the payload
             let mut builder = builder.authority();
             for item in records.into_iter() {
-                builder.push(item)?;
+                builder.push(item.0)?;
             }
 
             // Copy the additional section
@@ -310,7 +334,7 @@ pub fn modify_message(
             // Push the payload
             let mut builder = builder.additional();
             for item in records.into_iter() {
-                builder.push(item)?;
+                builder.push(item.0)?;
             }
 
             Ok(builder.into_message())

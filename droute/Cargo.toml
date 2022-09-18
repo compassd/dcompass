@@ -10,16 +10,18 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
+default = ["rune-scripting"]
 doh-rustls = ["reqwest/rustls-tls", "rustls", "webpki-roots"]
 doh-native-tls = ["reqwest/native-tls-vendored", "native-tls"]
 dot-rustls = ["tokio-rustls", "rustls", "webpki-roots"]
 dot-native-tls = ["native-tls", "tokio-native-tls"]
 geoip-cn = []
 geoip-maxmind = []
+rune-scripting = ["rune"]
 
 [dependencies]
 # DNS-implementation related dependencies
-domain = {version = "^0.6", features = ["bytes"]}
+domain = {version = "^0.7", features = ["bytes"]}
 bytes = "^1"
 
 # geoip
@@ -45,10 +47,12 @@ socket2 = {version = "^0.4", features = ["all"]}
 futures = "^0.3"
 tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util"]}
 
+# Scripting backends
+rune = { version = "^0.12", optional = true }
+
 # Logic-related dependencies
 hex = "^0.4"
-rhai = { version = "1.7.0", features = ["sync", "no_closure", "no_float", "only_i32", "no_module"]}
-compact_str = { version = "^0.4", features = ["serde"]}
+compact_str = { version = "^0.6", features = ["serde"]}
 cidr-utils = { version = "^0.5", git = "https://github.com/compassd/cidr-utils", rev = "c5f5c2ef167b4de9856764fd6b3b84e784b98db2" }
 once_cell = "^1.7"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
@@ -63,6 +67,9 @@ deadpool = { version = "^0.9", features = ["managed", "rt_tokio_1"] }
 # (de)compression libs (TODO: can we rewrite it to make it async?)
 niffler = "^2"
 
+# macro helper
+paste = "^1"
+
 # Disable ratelimit on 32-bit platforms
 # Related issue: https://github.com/metrics-rs/quanta/pull/55
 [target.'cfg(target_pointer_width = "64")'.dependencies]
@@ -74,7 +81,12 @@ tokio-test = "^0.4"
 criterion = { version = "^0.3", features = ["async_tokio"]}
 
 [[bench]]
-name = "benchmark"
+name = "native_script"
+harness = false
+
+[[bench]]
+name = "rune_script"
+required-features = ["rune-scripting"]
 harness = false
 
 [package.metadata.cargo-all-features]

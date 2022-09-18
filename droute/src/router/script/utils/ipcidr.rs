@@ -7,6 +7,7 @@ use std::{net::IpAddr, path::Path};
 
 /// IP CIDR matcher.
 #[derive(Clone)]
+#[cfg_attr(feature = "rune-scripting", derive(rune::Any))]
 pub struct IpCidr {
     matcher: CidrCombiner,
 }
@@ -34,7 +35,14 @@ impl IpCidr {
         Ok(())
     }
 
+    /// Check if IP CIDR set contains the given IP address.
     pub fn contains(&self, ip: IpAddr) -> bool {
         self.matcher.contains(ip)
+    }
+}
+
+impl Default for IpCidr {
+    fn default() -> Self {
+        Self::new()
     }
 }

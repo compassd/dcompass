@@ -16,14 +16,14 @@
 use anyhow::Result;
 use bytes::Bytes;
 use domain::base::Message;
-use droute::{QueryContext, Router};
+use droute::{builders::RuneScript, QueryContext, Router};
 use log::*;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
 /// Handle a single incoming packet
 pub async fn worker(
-    router: Arc<Router>,
+    router: Arc<Router<RuneScript>>,
     socket: Arc<UdpSocket>,
     buf: Bytes,
     src: SocketAddr,

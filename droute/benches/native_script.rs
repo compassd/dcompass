@@ -19,7 +19,10 @@ use domain::{
     base::{Dname, Message, MessageBuilder, Rtype},
     rdata::A,
 };
-use droute::{builders::*, mock::Server, AsyncTryInto, Router};
+use droute::{
+    builders::*, errors::*, mock::Server, AsyncTryInto, QueryContext, Router, ScriptBackend,
+    ScriptBuilder, Upstreams,
+};
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 use tokio::net::UdpSocket;
@@ -49,14 +52,10 @@ static QUERY: Lazy<Message<Bytes>> = Lazy::new(|| {
     builder.into_message()
 });
 
-async fn create_router(c: usize) -> Router {
+async fn create_router<T: ScriptBackend>(script_builder: impl ScriptBuilder<T>) -> Router<T> {
     RouterBuilder::new(
-        if c != 1 {
-            ScriptBuilder::new(None, r#"upstreams.send("mock", query)"#)
-        } else {
-            ScriptBuilder::new(None, r#"upstreams.send("mock","disabled", query)"#)
-        },
-        UpstreamsBuilder::new(c).unwrap().add_upstream(
+        script_builder,
+        UpstreamsBuilder::new(4096).unwrap().add_upstream(
             "mock",
             UpstreamBuilder::Udp(UdpBuilder {
                 addr: "127.0.0.1:53533".parse().unwrap(),
@@ -81,10 +80,12 @@ fn bench_resolve(c: &mut Criterion) {
     let server = Server::new(socket, vec![0; 1024], None);
     rt.spawn(server.run(DUMMY_MSG.clone()));
 
-    let router = rt.block_on(create_router(1));
-    let cached_router = rt.block_on(create_router(4096));
+    let router = rt.block_on(create_router(NativeScriptBuilder::new(
+        resolve_script_no_cache,
+    )));
+    let cached_router = rt.block_on(create_router(NativeScriptBuilder::new(resolve_script)));
 
-    c.bench_function("non_cache_resolve", |b| {
+    c.bench_function("native_non_cache_resolve", |b| {
         b.to_async(&rt).iter(|| async {
             assert_eq!(
                 router
@@ -97,7 +98,7 @@ fn bench_resolve(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("cached_resolve", |b| {
+    c.bench_function("native_cached_resolve", |b| {
         b.to_async(&rt).iter(|| async {
             assert_eq!(
                 cached_router
@@ -109,6 +110,26 @@ fn bench_resolve(c: &mut Criterion) {
             );
         })
     });
+}
+
+async fn resolve_script(
+    upstreams: Upstreams,
+    query: Message<Bytes>,
+    _ctx: Option<QueryContext>,
+) -> Result<Message<Bytes>, ScriptError> {
+    Ok(upstreams
+        .send(&"mock".into(), &droute::CacheMode::Standard, &query)
+        .await?)
+}
+
+async fn resolve_script_no_cache(
+    upstreams: Upstreams,
+    query: Message<Bytes>,
+    _ctx: Option<QueryContext>,
+) -> Result<Message<Bytes>, ScriptError> {
+    Ok(upstreams
+        .send(&"mock".into(), &droute::CacheMode::Disabled, &query)
+        .await?)
 }
 
 criterion_group!(benches, bench_resolve);

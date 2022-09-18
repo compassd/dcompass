@@ -13,14 +13,14 @@ geoip-maxmind = ["droute/geoip-maxmind"]
 
 [dependencies]
 # used by tokio-console
-console-subscriber = "^0.1"
-tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync", "tracing"]}
+# console-subscriber = "^0.1"
+# tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync", "tracing"]}
 
-compact_str = { version = "^0.4", features = ["serde"]}
+compact_str = { version = "^0.6", features = ["serde"]}
 async-trait = "^0.1"
-domain = {version = "^0.6", features = ["bytes"]}
+domain = {version = "^0.7", features = ["bytes"]}
 futures = "^0.3"
-# tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync"]}
+tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync"]}
 simple_logger = "^2"
 log = "^0.4"
 anyhow = "^1.0"

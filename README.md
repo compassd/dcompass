@@ -42,20 +42,23 @@ See [example.yaml](configs/example.yaml)
 Below is a script using GeoIP to mitigate DNS pollution
 
 ```yaml
-script:
-  init: |
-    let geoip = new_builtin_geoip().seal();
-  route: |
-    let resp = upstreams.send("domestic", query);
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
+    let resp = upstreams.send_default("domestic", query).await?;
 
-    for ans in resp.answer {
-      switch ans.rtype.to_string() {
-        "A" if !geoip.contains(ans.to_a().ip, "CN") => { return upstreams.send("secure", query); }
-        "AAAA" if !geoip.contains(ans.to_aaaa().ip, "CN") => { return upstreams.send("secure", query); }
+    for ans in resp.answer? {
+      match ans.rtype.to_str() {
+        "A" if !inited.geoip.0.contains(ans.to_a()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
+        "AAAA" if !inited.geoip.0.contains(ans.to_aaaa()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
         _ => continue,
-      };
+      }
     }
-    resp
+    Ok(resp)
+  }
+
+  pub async fn init() {
+    Ok(#{"geoip": Utils::GeoIp(GeoIp::create_default()?)})
+  }
 ```
 
 And another script that adds EDNS Client Subnet record into the OPT pseudo-section:

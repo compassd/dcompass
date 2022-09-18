@@ -1,5 +1,5 @@
-[build]
-rustflags = ["--cfg", "tokio_unstable"]
+# [build]
+# rustflags = ["--cfg", "tokio_unstable"]
 
 # Rustc is now going to NOT statically link musl on default.
 # See also: https://github.com/rust-lang/compiler-team/issues/422#issuecomment-816579989

@@ -22,6 +22,7 @@ use std::{net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
 
 /// A matcher that matches if IP address in the record of the first A/AAAA response is in the list of countries.
 #[derive(Clone)]
+#[cfg_attr(feature = "rune-scripting", derive(rune::Any))]
 pub struct GeoIp {
     db: Arc<Reader<Vec<u8>>>,
 }
@@ -38,10 +39,9 @@ fn get_builtin_db() -> Result<Vec<u8>> {
 
 impl GeoIp {
     /// Create a geoip matcher from the database file with the given path
-    pub fn from_path(path: impl AsRef<str>) -> Result<Self> {
+    pub async fn from_path(path: impl AsRef<str>) -> Result<Self> {
         // Per std documentation, this is infallible
-        let buf: Vec<u8> =
-            crate::to_sync(tokio::fs::read(PathBuf::from_str(path.as_ref()).unwrap()))?;
+        let buf: Vec<u8> = tokio::fs::read(PathBuf::from_str(path.as_ref()).unwrap()).await?;
         Ok(Self {
             db: Arc::new(Reader::from_source(buf)?),
         })

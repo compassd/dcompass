@@ -18,13 +18,14 @@
 pub mod script;
 pub mod upstreams;
 
+use std::marker::PhantomData;
+
 use self::{
-    script::{QueryContext, Script, ScriptBuilder},
+    script::QueryContext,
     upstreams::{error::UpstreamError, Upstreams},
 };
 use crate::{
-    error::{DrouteError, Result},
-    AsyncTryInto, Label, Validatable, MAX_LEN,
+    errors::ScriptError, AsyncTryInto, Label, ScriptBackend, ScriptBuilder, Validatable, MAX_LEN,
 };
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
@@ -32,21 +33,21 @@ use domain::base::{iana::rcode::Rcode, Message, MessageBuilder};
 use log::warn;
 
 /// Router implementation.
-pub struct Router {
-    script: Script,
+pub struct Router<T: ScriptBackend> {
+    script: T,
 }
 
-impl Validatable for Router {
-    type Error = DrouteError;
-    fn validate(&self, _: Option<&Vec<Label>>) -> Result<()> {
+impl<T: ScriptBackend> Validatable for Router<T> {
+    type Error = ScriptError;
+    fn validate(&self, _: Option<&Vec<Label>>) -> Result<(), Self::Error> {
         self.script.validate(None)?;
         Ok(())
     }
 }
 
-impl Router {
+impl<T: ScriptBackend> Router<T> {
     /// Create a new `Router` from raw
-    pub fn new(script: Script) -> Result<Self> {
+    pub fn new(script: T) -> Result<Self, ScriptError> {
         let router = Self { script };
         router.validate(None)?;
         Ok(router)
@@ -57,13 +58,13 @@ impl Router {
         &self,
         msg: Message<Bytes>,
         qctx: Option<QueryContext>,
-    ) -> Result<Message<Bytes>> {
+    ) -> Result<Message<Bytes>, ScriptError> {
         // We have to ensure the number of queries is larger than 0 as it is a gurantee for actions/matchers.
         // Not using `query_count()` because it is manually set, and may not be correct.
         Ok(match msg.sole_question() {
             Ok(_) => {
                 // Clone should be cheap here guaranteed by Bytes
-                match self.script.route(msg.clone(), qctx) {
+                match self.script.route(msg.clone(), qctx).await {
                     Ok(m) => m,
                     Err(e) => {
                         // Catch all server failure here and return server fail
@@ -85,34 +86,45 @@ impl Router {
 }
 
 /// A Builder for Router.
-pub struct RouterBuilder<U>
+pub struct RouterBuilder<U, S, T>
 where
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+    S: ScriptBuilder<T>,
+    T: ScriptBackend,
 {
-    script: ScriptBuilder,
+    script: S,
     upstreams: U,
+    _phantom: PhantomData<T>,
 }
 
-impl<U> RouterBuilder<U>
+impl<U, S, T> RouterBuilder<U, S, T>
 where
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+    S: ScriptBuilder<T>,
+    T: ScriptBackend,
 {
     /// Create a RouteBuilder
-    pub fn new(script: ScriptBuilder, upstreams: U) -> Self {
-        Self { script, upstreams }
+    pub fn new(script: S, upstreams: U) -> Self {
+        Self {
+            script,
+            upstreams,
+            _phantom: PhantomData::default(),
+        }
     }
 }
 
-#[async_trait]
-impl<U> AsyncTryInto<Router> for RouterBuilder<U>
+#[async_trait(?Send)]
+impl<U, S, T> AsyncTryInto<Router<T>> for RouterBuilder<U, S, T>
 where
     U: AsyncTryInto<Upstreams, Error = UpstreamError>,
+    S: ScriptBuilder<T>,
+    T: ScriptBackend,
 {
-    type Error = DrouteError;
+    type Error = ScriptError;
 
     /// Build a new `Router` from configuration and check the validity. `data` is the content of the configuration file.
-    async fn async_try_into(self) -> Result<Router> {
+    async fn async_try_into(self) -> Result<Router<T>, ScriptError> {
         let upstreams = self.upstreams.async_try_into().await?;
-        Router::new(self.script.build(upstreams)?)
+        Router::new(self.script.build(upstreams).await?)
     }
 }

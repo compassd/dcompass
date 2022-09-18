@@ -26,7 +26,6 @@
 // Documentation
 //! This is the core library for dcompass. It implements configuration parsing scheme, DNS query routing rules, and upstream managements.
 pub(crate) mod cache;
-pub mod error;
 #[doc(hidden)]
 pub mod mock;
 mod router;
@@ -39,19 +38,25 @@ compile_error!("You should only choose one TLS backend for DNS over TLS implemen
 
 use async_trait::async_trait;
 use compact_str::CompactString;
-use rhai::EvalAltResult;
 
 /// All the builders
 // API guideline: when we are exporting, make sure we aggregate builders by pub using them in parent builder(s) modules.
 pub mod builders {
-    // Here we don't aggregate action and matcher builders into rule builders module, because they are quite logically different.
-    pub use super::router::{script::ScriptBuilder, upstreams::builder::*, RouterBuilder};
+    pub use super::router::{script::builders::*, upstreams::builder::*, RouterBuilder};
+}
+
+/// A collection of all errors in `droute`
+pub mod errors {
+    pub use super::router::{
+        script::{MessageError, ScriptError},
+        upstreams::error::UpstreamError,
+    };
 }
 
 // All the major components
 pub use self::router::{
-    script::{QueryContext, Script},
-    upstreams::{Upstream, Upstreams},
+    script::{native::NativeScript, utils, QueryContext, ScriptBackend, ScriptBuilder},
+    upstreams::{CacheMode, Upstream, Upstreams},
     Router,
 };
 
@@ -67,8 +72,8 @@ const MAX_LEN: usize = 1024_usize;
 pub type Label = CompactString;
 
 /// Async TryInto
-#[async_trait]
-pub trait AsyncTryInto<T>: Send {
+#[async_trait(?Send)]
+pub trait AsyncTryInto<T> {
     /// Possible failures on conversion
     type Error;
 
@@ -116,30 +121,4 @@ impl ValidateCell {
         self.used = true;
         self.value -= rhs;
     }
-}
-
-trait IntoEvalAltResultError<T> {
-    fn into_evalrst_err(self) -> Result<T, Box<EvalAltResult>>;
-}
-
-trait IntoEvalAltResultStr<T> {
-    fn into_evalrst_str(self) -> Result<T, Box<EvalAltResult>>;
-}
-
-impl<T, E: 'static + std::error::Error + Send + Sync> IntoEvalAltResultError<T> for Result<T, E> {
-    fn into_evalrst_err(self) -> Result<T, Box<EvalAltResult>> {
-        self.map_err(|e| e.to_string()).into_evalrst_str()
-    }
-}
-
-impl<T, E: AsRef<str> + Send + Sync> IntoEvalAltResultStr<T> for Result<T, E> {
-    fn into_evalrst_str(self) -> Result<T, Box<EvalAltResult>> {
-        self.map_err(|e| -> Box<EvalAltResult> { e.into() })
-    }
-}
-
-fn to_sync<F: std::future::Future>(future: F) -> <F as std::future::Future>::Output {
-    use tokio::runtime::Handle;
-
-    tokio::task::block_in_place(|| Handle::current().block_on(future))
 }

@@ -23,26 +23,26 @@ pub mod error;
 mod upstream;
 
 use self::error::{Result, UpstreamError};
-use crate::{
-    cache::RespCache, to_sync, IntoEvalAltResultError, IntoEvalAltResultStr, Label, Validatable,
-    ValidateCell,
-};
+use crate::{cache::RespCache, Label, Validatable, ValidateCell};
 use bytes::{Bytes, BytesMut};
 use domain::base::Message;
 use futures::future::{select_ok, BoxFuture, FutureExt};
-use rhai::{export_fn, plugin::*, EvalAltResult};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, num::NonZeroUsize, str::FromStr};
 pub use upstream::*;
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "rune-scripting", derive(rune::Any))]
 #[serde(rename_all = "lowercase")]
 /// Cache Policy per query. this only affect the cache results adoption, and it will NOT change the cache results storing behaviors.
 pub enum CacheMode {
+    #[cfg_attr(feature = "rune-scripting", rune(constructor))]
     /// Do not use any cached result
     Disabled,
+    #[cfg_attr(feature = "rune-scripting", rune(constructor))]
     /// Use cache records within the TTL
     Standard,
+    #[cfg_attr(feature = "rune-scripting", rune(constructor))]
     /// Use cache results regardless of the time elapsed, and update the results on need.
     Persistent,
 }
@@ -68,6 +68,7 @@ impl FromStr for CacheMode {
 
 /// [`Upstream`] aggregated, used to create `Router`.
 #[derive(Clone)]
+#[cfg_attr(feature = "rune-scripting", derive(rune::Any))]
 pub struct Upstreams {
     upstreams: HashMap<Label, Upstream>,
     // All the responses are cached together, however, they are seperately tagged, so there should be no contamination in place.
@@ -143,10 +144,9 @@ impl Upstreams {
         Ok(())
     }
 
-    // Internal async version used to send a query
     // Write out in this way to allow recursion for async functions
-    // Should no be accessible from external crates
-    fn send_internal<'a>(
+    /// Send the query to a tagged upstream and a given cache mode.
+    pub fn send<'a>(
         &'a self,
         tag: &'a Label,
         cache_mode: &'a CacheMode,
@@ -159,7 +159,7 @@ impl Upstreams {
                 .ok_or_else(|| UpstreamError::MissingTag(tag.clone()))?;
             let resp = if let Some(v) = u.try_hybrid() {
                 // Hybrid will never call `u.send_internal()`
-                let v = v.iter().map(|t| self.send_internal(t, cache_mode, msg));
+                let v = v.iter().map(|t| self.send(t, cache_mode, msg));
                 let (r, _) = select_ok(v).await?;
                 r
             } else {
@@ -174,34 +174,6 @@ impl Upstreams {
         }
         .boxed()
     }
-}
-
-// Public sync method used to resolve a query in rhai
-#[export_fn(pure, return_raw)]
-pub fn send(
-    upstreams: &mut Upstreams,
-    tag: ImmutableString,
-    cache_mode: ImmutableString,
-    msg: Message<Bytes>,
-) -> std::result::Result<Message<Bytes>, Box<EvalAltResult>> {
-    let cache_mode = CacheMode::from_str(&cache_mode).into_evalrst_str()?;
-    to_sync(upstreams.send_internal(&Label::from_str(tag.as_str()).unwrap(), &cache_mode, &msg))
-        .into_evalrst_err()
-}
-
-// Send query with default cachemode
-#[export_fn(pure, return_raw)]
-pub fn send_default(
-    upstreams: &mut Upstreams,
-    tag: ImmutableString,
-    msg: Message<Bytes>,
-) -> std::result::Result<Message<Bytes>, Box<EvalAltResult>> {
-    to_sync(upstreams.send_internal(
-        &Label::from_str(tag.as_str()).unwrap(),
-        &CacheMode::default(),
-        &msg,
-    ))
-    .into_evalrst_err()
 }
 
 #[cfg(test)]
