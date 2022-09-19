@@ -96,4 +96,5 @@ skip_optional_dependencies = true
 skip_feature_sets = [
     ["doh-rustls", "doh-native-tls"],
     ["dot-rustls", "dot-native-tls"],
+    ["geoip-maxmind", "geoip-cn"],
 ]

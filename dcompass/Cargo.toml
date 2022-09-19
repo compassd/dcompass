@@ -45,3 +45,11 @@ droute = {version = "0.3.0-alpha.1", path = "../droute", features = ["doh-native
 
 [dev-dependencies]
 tokio-test = "^0.4"
+
+[package.metadata.cargo-all-features]
+# If your crate has a large number of optional dependencies, skip them for speed
+skip_optional_dependencies = true
+
+skip_feature_sets = [
+    ["geoip-maxmind", "geoip-cn"],
+]
