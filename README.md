@@ -8,11 +8,14 @@ A high-performance programmable DNS component.
 # Features
 
 - Fast (~50000 qps in wild where upstream perf is about the same)
-- Rust-like scripting with [rhai](https://rhai.rs)
+- Rust-like scripting with [rune](https://rune-rs.github.io)
 - Fearless hot switch between network environments
 - Written in pure Rust
 
 # Notice
+**[2022-09-19] More efficient and robust scripting with rune**  
+Introducing dcompass v0.3.0. With the rune script engine, dcompass is about 2-6x faster than the previous version with unparalleled concurrency stability. However, existing configurations are no longer valid. Please see example configs to migrate.
+
 **[2022-06-22] All-new script engine**  
 Introducing dcompass v0.2.0. With the new script engine, you can now access every bit, every record, and every section of every DNS message. Program dcompass into whatever you want! However, existing configurations are no longer valid. Please see examples to migrate.
 
@@ -64,31 +67,32 @@ script: |
 And another script that adds EDNS Client Subnet record into the OPT pseudo-section:
 
 ```yaml
-script:
-  route: |
-    let query = query;
-
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
     // Optionally remove all the existing OPT pseudo-section(s)
     // query.clear_opt();
 
-    query.push_opt(create_client_subnet(15, 0, "23.62.93.233"));
+    query.push_opt(ClientSubnet::new(u8(15), u8(0), IpAddr::from_str("23.62.93.233")?).to_opt_data())?;
 
-    upstreams.send("secure", query)
+    upstreams.send_default("ali", query).await
+  }
 ```
 
 Or implement your simple xip.io service:
 ```yaml
-script:
-  route: |
-    let resp = query;
-    resp.header.qr = true;
+script: |
+  pub async fn route(upstreams, inited, ctx, query) {
+    let header = query.header;
+    header.qr = true;
+    query.header = header;
 
-    let ip = query.first_question.qname.to_string();
-    ip.replace(".xip.io", "");
+    let ip_str = query.first_question?.qname.to_str();
+    let ip = IpAddr::from_str(ip_str.replace(".xip.io", ""))?;
 
-    resp.push_answer(create_record(query.first_question.qname, "IN", 3600, create_a(ip)));
+    query.push_answer(DnsRecord::new(query.first_question?.qname, Class::from_str("IN")?, 3600, A::new(ip)?.to_rdata()))?;
 
-    resp
+    Ok(query)
+  }
 ```
 
 # Configuration
@@ -102,24 +106,24 @@ Configuration file contains different fields:
 
 Different utilities:
 
-- `create_blackhole(Message)`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` to disable certain types of queries.
+- `blackhole(Message)`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` to disable certain types of queries.
 - `upstreams.send(tag, [optional] cache policy, Message)`: Send query via upstream with specified tag. Configure cache policy with one of the three levels: `disabled`, `standard`, `persistent`. See also [example](configs/query_cache_policy.yaml).
 
 Geo IP matcher:
 
-- `new_builtin_geoip()`: Create a new Geo IP matcher from builtin Geo IP database.
-- `new_geoip_from_path(path)`: Create a new GeoIp matcher from the Geo IP database file with the path given.
+- `GeoIp::create_default() -> Result<GeoIp>`: Create a new Geo IP matcher from builtin Geo IP database.
+- `GeoIp::from_path(path) -> Result<GeoIp>`: Create a new GeoIp matcher from the Geo IP database file with the path given.
 - `geoip.contains(IP address, country code)`: whether the IPs belonged to the given country code contains the given IP address
 
 IP CIDR matcher:
 
-- `new_ipcidr()`: Create an empty IP CIDR matcher.
+- `IpCidr::new()`: Create an empty IP CIDR matcher.
 - `ipcidr.add_file(path)`: Read IP CIDR rules from the given file and add them to the IP CIDR matcher.
 - `ipcidr.contains(IP address)`: whether the given IP address matches any rule in the IP CIDR matcher.
 
 Domain matcher:
 
-- `new_domain_list()`: Create an empty domain matcher.
+- `Domain::new()`: Create an empty domain matcher.
 - `domain.add_qname(domain)`: Add the given domain to the domain matcher's ruleset.
 - `domain.add_file(path)`: Read domains from the given file and add them to the domain matcher.
 - `domain.contains(domain)`: whether the given domain matches any rule in the domain matcher.

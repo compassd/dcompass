@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "dcompass"
-version = "0.2.0-alpha.1"
+version = "0.3.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "droute"
-version = "0.2.0-alpha.1"
+version = "0.3.0-alpha.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1863,9 +1863,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.99"
+version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58dbef6ec655055e20b86b15a8cc6d439cca19b667537ac6a1369572d151ab13"
+checksum = "52205623b1b0f064a4e71182c3b18ae902267282930c6d5462c91b859668426e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2033,9 +2033,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df54d54117d6fdc4e4fea40fe1e4e566b3505700e148a6827e59b34b0d2600d9"
+checksum = "f6edf2d6bc038a43d31353570e27270603f4648d18f5ed10c0e179abe43255af"
 dependencies = [
  "futures-core",
  "pin-project-lite",

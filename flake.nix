@@ -38,8 +38,7 @@
               };
             };
             cargoBuildFlags = [ "--features ${v}" ];
-            # Used by tokio-console
-            # nativeBuildInputs = [ protobuf ];
+            nativeBuildInputs = [ pkg-config openssl ];
           });
     in utils.lib.eachSystem (with utils.lib.system; [
       aarch64-linux
@@ -94,6 +93,10 @@
             rust-bin.stable.latest.default
             rust-bin.stable.latest.rust-src
             rust-analyzer
+
+            # OpenSSL
+            pkg-config
+            openssl
 
             # protobuf
 

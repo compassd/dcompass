@@ -17,7 +17,7 @@ pub mod helper;
 
 use super::types::*;
 use crate::errors::{MessageError, ScriptError};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use domain::base::ToDname;
 use helper::{DnsRecordsIter, OptRecordsIter};
 use once_cell::sync::Lazy;
@@ -176,17 +176,17 @@ macro_rules! create_section_kit {
 	    $m.inst_fn(stringify!([<insert_ $name>]), |msg: &mut Message, index: usize, record: DnsRecord| {
 		let mut records = [<get_ $name>](msg)?;
                 records.0.insert(index, record.0);
-		[<update_ $name>](msg, DnsRecordsIter(Vec::new()))
+		[<update_ $name>](msg, records)
 	    }).unwrap();
 	    $m.inst_fn(stringify!([<push_ $name>]), |msg: &mut Message, record: DnsRecord| {
 		let mut records = [<get_ $name>](msg)?;
                 records.0.push(record.0);
-		[<update_ $name>](msg, DnsRecordsIter(Vec::new()))
+		[<update_ $name>](msg, records)
 	    }).unwrap();
 	    $m.inst_fn(stringify!([<remove_ $name>]), |msg: &mut Message, index: usize| {
 		let mut records = [<get_ $name>](msg)?;
                 records.0.remove(index);
-		[<update_ $name>](msg, DnsRecordsIter(Vec::new()))
+		[<update_ $name>](msg, records)
 	    }).unwrap();
         }
     };
@@ -221,6 +221,19 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
         m.field_fn(Protocol::GET, "header", |msg: &Message| -> Header {
             msg.0.header().into()
         })
+        .unwrap();
+
+        m.field_fn(
+            Protocol::SET,
+            "header",
+            |msg: &mut Message, header: &Header| -> Result<(), ScriptError> {
+                let mut msg_mut =
+                    domain::base::Message::from_octets(BytesMut::from(msg.0.as_slice()))?;
+                (*msg_mut.header_mut()) = header.0;
+                *msg = domain::base::Message::from_octets(msg_mut.into_octets().freeze())?.into();
+                Ok(())
+            },
+        )
         .unwrap();
 
         // Header
