@@ -9,7 +9,7 @@ script: |
     // - inited: the value returned by init()
     // - upstreams: the upstreams API
 
-    if query.first_question.qtype.to_str() == "AAAA" {
+    if query.first_question?.qtype.to_str() == "AAAA" {
       return blackhole(query);
     }
 

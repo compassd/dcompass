@@ -6,7 +6,7 @@ script: |
     if inited.domain.0.contains(query.first_question?.qname) {
        upstreams.send_default("domestic", query).await
     } else {
-       upstreams.send("secure", "persistent", query).await
+       upstreams.send("secure", CacheMode::Persistent, query).await
     }
   }
 
