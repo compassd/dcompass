@@ -15,8 +15,7 @@ script: |
   }
 
   pub async fn init() {
-    let cidr = IpCidr::new();
-    cidr.add_file("../data/ipcn.txt")?;
+    let cidr = IpCidr::new().add_file("../data/ipcn.txt")?.seal();
     Ok(#{"cidr": Utils::IpCidr(cidr)})
   }
 

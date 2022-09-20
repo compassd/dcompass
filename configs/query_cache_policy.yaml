@@ -11,8 +11,7 @@ script: |
   }
 
   pub async fn init() {
-    let domain = Domain::new();
-    domain.add_file("../data/china.txt")?;
+    let domain = Domain::new().add_file("../data/china.txt")?.seal();
     Ok(#{"domain": Utils::Domain(domain)})
   }
 
@@ -20,7 +19,7 @@ script: |
 upstreams:
   domestic:
     udp:
-      addr: 114.114.114.114:53
+      addr: 223.5.5.6:53
       timeout: 1
   secure:
     https:

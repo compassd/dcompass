@@ -20,16 +20,26 @@ use crate::{
 };
 use once_cell::sync::Lazy;
 use rune::Module;
+use std::sync::Arc;
 
 #[derive(rune::Any, Clone)]
 pub enum Utils {
     #[rune(constructor)]
-    Domain(#[rune(get)] Domain),
+    Domain(#[rune(get)] SealedDomain),
     #[rune(constructor)]
-    GeoIp(#[rune(get)] GeoIp),
+    GeoIp(#[rune(get)] SealedGeoIp),
     #[rune(constructor)]
-    IpCidr(#[rune(get)] IpCidr),
+    IpCidr(#[rune(get)] SealedIpCidr),
 }
+
+#[derive(rune::Any, Clone)]
+pub struct SealedDomain(Arc<Domain>);
+
+#[derive(rune::Any, Clone)]
+pub struct SealedGeoIp(Arc<GeoIp>);
+
+#[derive(rune::Any, Clone)]
+pub struct SealedIpCidr(Arc<IpCidr>);
 
 pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
     let mut m = Module::new();
@@ -48,23 +58,33 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
     // Domain list
     {
         m.ty::<Domain>().unwrap();
+        m.ty::<SealedDomain>().unwrap();
+
         m.function(&["Domain", "new"], Domain::new).unwrap();
         m.inst_fn(
             "add_qname",
-            |domain: &mut Domain, qname: &str| -> Result<(), ScriptError> {
-                Ok(domain.add_qname(qname)?)
+            |mut domain: Domain, qname: &str| -> Result<Domain, ScriptError> {
+                domain.add_qname(qname)?;
+                Ok(domain)
             },
         )
         .unwrap();
         m.inst_fn(
             "add_file",
-            |domain: &mut Domain, path: &str| -> Result<(), ScriptError> {
-                Ok(domain.add_file(path)?)
+            |mut domain: Domain, path: &str| -> Result<Domain, ScriptError> {
+                domain.add_file(path)?;
+                Ok(domain)
             },
         )
         .unwrap();
-        m.inst_fn("contains", |domain: &mut Domain, qname: &Dname| -> bool {
-            domain.contains(&qname.into())
+
+        m.inst_fn("seal", |domain: Domain| -> SealedDomain {
+            SealedDomain(Arc::new(domain))
+        })
+        .unwrap();
+
+        m.inst_fn("contains", |domain: &SealedDomain, qname: &Dname| -> bool {
+            domain.0.contains(&qname.into())
         })
         .unwrap();
     }
@@ -72,15 +92,18 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
     // GeoIP
     {
         m.ty::<GeoIp>().unwrap();
+        m.ty::<SealedGeoIp>().unwrap();
 
         m.function(
             &["GeoIp", "create_default"],
-            || -> Result<GeoIp, ScriptError> { Ok(GeoIp::create_default()?) },
+            || -> Result<SealedGeoIp, ScriptError> {
+                Ok(SealedGeoIp(Arc::new(GeoIp::create_default()?)))
+            },
         )
         .unwrap();
 
-        async fn geoip_from_path(path: &str) -> Result<GeoIp, ScriptError> {
-            Ok(GeoIp::from_path(path).await?)
+        async fn geoip_from_path(path: &str) -> Result<SealedGeoIp, ScriptError> {
+            Ok(SealedGeoIp(Arc::new(GeoIp::from_path(path).await?)))
         }
 
         m.async_function(&["GeoIp", "from_path"], geoip_from_path)
@@ -88,7 +111,9 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
 
         m.inst_fn(
             "contains",
-            |geoip: &GeoIp, ip: &IpAddr, code: &str| -> bool { geoip.contains(ip.into(), code) },
+            |geoip: &SealedGeoIp, ip: &IpAddr, code: &str| -> bool {
+                geoip.0.contains(ip.into(), code)
+            },
         )
         .unwrap();
     }
@@ -96,19 +121,25 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
     // IP CIDR
     {
         m.ty::<IpCidr>().unwrap();
+        m.ty::<SealedIpCidr>().unwrap();
 
         m.function(&["IpCidr", "new"], IpCidr::new).unwrap();
         m.inst_fn(
             "add_file",
-            |ipcidr: &mut IpCidr, path: &str| -> Result<(), ScriptError> {
+            |mut ipcidr: IpCidr, path: &str| -> Result<IpCidr, ScriptError> {
                 ipcidr.add_file(path)?;
-                Ok(())
+                Ok(ipcidr)
             },
         )
         .unwrap();
 
-        m.inst_fn("contains", |ipcidr: &IpCidr, ip: &IpAddr| -> bool {
-            ipcidr.contains(ip.into())
+        m.inst_fn("seal", |cidr: IpCidr| -> SealedIpCidr {
+            SealedIpCidr(Arc::new(cidr))
+        })
+        .unwrap();
+
+        m.inst_fn("contains", |ipcidr: &SealedIpCidr, ip: &IpAddr| -> bool {
+            ipcidr.0.contains(ip.into())
         })
         .unwrap();
     }
