@@ -1,5 +1,5 @@
 ---
-verbosity: "off"
+verbosity: "info"
 address: 0.0.0.0:2053
 script: |
   pub async fn route(upstreams, inited, ctx, query) {
@@ -7,11 +7,13 @@ script: |
 
     for ans in resp.answer? {
       match ans.rtype.to_str() {
-        "A" if !inited.cidr.0.contains(ans.to_a()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
-        "AAAA" if !inited.cidr.0.contains(ans.to_aaaa()?.ip, "CN") => { return upstreams.send_default("secure", query).await; }
+        "A" if !inited.cidr.0.contains(ans.to_a()?.ip) => { return upstreams.send_default("secure", query).await; }
+        "AAAA" if !inited.cidr.0.contains(ans.to_aaaa()?.ip) => { return upstreams.send_default("secure", query).await; }
         _ => continue,
       }
     }
+
+    Ok(resp)
   }
 
   pub async fn init() {
