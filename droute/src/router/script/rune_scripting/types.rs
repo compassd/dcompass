@@ -166,8 +166,13 @@ pub static TYPES_MODULE: Lazy<Module> = Lazy::new(|| {
     m.ty::<OptRecordsIter>().unwrap();
     m.inst_fn(Protocol::INTO_ITER, OptRecordsIter::into_iterator)
         .unwrap();
+    m.inst_fn("into_iter", OptRecordsIter::into_iterator)
+        .unwrap();
+
     m.ty::<DnsRecordsIter>().unwrap();
     m.inst_fn(Protocol::INTO_ITER, DnsRecordsIter::into_iterator)
+        .unwrap();
+    m.inst_fn("into_iter", DnsRecordsIter::into_iterator)
         .unwrap();
 
     // Other types
