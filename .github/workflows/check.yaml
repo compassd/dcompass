@@ -17,11 +17,13 @@ jobs:
           fetch-depth: 0
       - uses: cachix/install-nix-action@v16
 
-      - uses: cachix/cachix-action@v8
+      - uses: cachix/cachix-action@v10
         if: ${{ github.event_name == 'push' }}
         with:
           name: dcompass
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          # Don't push source or .iso files as they are pointless to take up precious cache space.
+          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
 
       # Run the general flake checks
       - run: nix flake check -vL

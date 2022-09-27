@@ -28,6 +28,7 @@ pkgs.mkShell {
     find . -path ./target -prune -false -o -type f -name '*.sh' -exec shellcheck {} +
     find . -path ./target -prune -false -o -type f -name '*.sh' -exec shfmt -w {} +
     find . -path ./target -prune -false -o -type f -name '*.nix' -exec nixfmt {} +
+    nix flake update
     cargo update
     cargo fmt -- --check
     cargo build
