@@ -13,7 +13,7 @@
       pkgsWithRust = system:
         import nixpkgs {
           system = "${system}";
-          overlays = [ rust-overlay.overlay ];
+          overlays = [ rust-overlay.overlays.default ];
         };
       features = [ "geoip-maxmind" "geoip-cn" ];
       forEachFeature = f:
