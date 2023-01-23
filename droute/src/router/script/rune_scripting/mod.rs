@@ -61,7 +61,7 @@ impl ScriptBackend for RuneScript {
             let query: NewMessage = query.into();
 
             vm.send_execute(
-                &["route"],
+                ["route"],
                 (self.upstreams.clone(), self.inited.clone(), ctx, query),
             )?
         };
@@ -134,7 +134,7 @@ impl ScriptBuilder<RuneScript> for RuneScriptBuilder {
         let mut vm = Vm::new(runtime.clone(), unit.clone());
 
         // Don't error if we cannot find init function, just return an empty object
-        let inited = if unit.function(rune::Hash::type_hash(&["init"])).is_some() {
+        let inited = if unit.function(rune::Hash::type_hash(["init"])).is_some() {
             <Result<HashMap<String, Utils>>>::from_value(vm.async_call(&["init"], ()).await?)??
         } else {
             HashMap::<String, Utils>::new()
