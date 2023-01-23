@@ -82,7 +82,7 @@ impl Domain {
         let mut ptr = &self.root;
         for lv in domain.iter().rev() {
             if ptr.next_lvs.is_empty() {
-                break;
+                return true;
             }
             // If not empty...
             ptr = match ptr.next_lvs.get(&lv.to_owned()) {
@@ -90,7 +90,9 @@ impl Domain {
                 None => return false,
             };
         }
-        true
+        // The domain provided is a superset of our rules, this is considered as not mathed.
+        // e.g. domain: "apple.com", rule: "apps.apple.com"
+        false
     }
 }
 
@@ -114,6 +116,17 @@ mod tests {
         assert_eq!(matcher.matches(&dname!("store.apple.com")), true);
         assert_eq!(matcher.matches(&dname!("store.apple.com.")), true);
         assert_eq!(matcher.matches(&dname!("baidu.com")), false);
+    }
+
+    #[test]
+    fn matches_2() {
+        let mut matcher = Domain::new();
+        matcher.insert(&dname!("tejia.taobao.com"));
+        matcher.insert(&dname!("temai.m.taobao.com"));
+        matcher.insert(&dname!("tui.taobao.com"));
+        assert_eq!(matcher.matches(&dname!("a.tui.taobao.com")), true);
+        assert_eq!(matcher.matches(&dname!("m.taobao.com")), false);
+        assert_eq!(matcher.matches(&dname!("taobao.com")), false);
     }
 
     #[test]

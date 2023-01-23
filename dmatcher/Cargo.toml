@@ -14,7 +14,7 @@ domain = {version = "^0.7", features = ["bytes"]}
 bytes = "^1"
 
 [dev-dependencies]
-criterion = "^0.3"
+criterion = "^0.4"
 
 [[bench]]
 name = "benchmark"

@@ -21,11 +21,11 @@ async-trait = "^0.1"
 domain = {version = "^0.7", features = ["bytes"]}
 futures = "^0.3"
 tokio = { version = "^1", features = ["rt-multi-thread", "net", "fs", "macros", "io-util", "signal", "sync"]}
-simple_logger = "^2"
+simple_logger = "^4"
 log = "^0.4"
 anyhow = "^1.0"
 serde = { version = "^1.0", features = ["derive", "rc"] }
-serde_yaml = "^0.8"
+serde_yaml = "^0.9"
 dmatcher = {version = "^0.1", path = "../dmatcher"}
 structopt = "^0.3"
 bytes = "^1"
