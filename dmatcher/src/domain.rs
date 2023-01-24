@@ -81,8 +81,9 @@ impl Domain {
     pub fn matches(&self, domain: &Dname<Bytes>) -> bool {
         let mut ptr = &self.root;
         for lv in domain.iter().rev() {
+            // We have reached the end of our rule set, breaking
             if ptr.next_lvs.is_empty() {
-                return true;
+                break;
             }
             // If not empty...
             ptr = match ptr.next_lvs.get(&lv.to_owned()) {
@@ -90,9 +91,13 @@ impl Domain {
                 None => return false,
             };
         }
-        // The domain provided is a superset of our rules, this is considered as not mathed.
-        // e.g. domain: "apple.com", rule: "apps.apple.com"
-        false
+
+        // If we exhausted our rule set, then this is a match
+        // e.g. apps.apple.com is a match for apple.com
+        ptr.next_lvs.is_empty()
+        // Otherwise:
+        // If there are still rules left but we have reached the end of our test case, then it is not a match.
+        // e.g. apple.com is not a match for apps.apple.com
     }
 }
 
@@ -125,6 +130,7 @@ mod tests {
         matcher.insert(&dname!("temai.m.taobao.com"));
         matcher.insert(&dname!("tui.taobao.com"));
         assert_eq!(matcher.matches(&dname!("a.tui.taobao.com")), true);
+        assert_eq!(matcher.matches(&dname!("tejia.taobao.com")), true);
         assert_eq!(matcher.matches(&dname!("m.taobao.com")), false);
         assert_eq!(matcher.matches(&dname!("taobao.com")), false);
     }
