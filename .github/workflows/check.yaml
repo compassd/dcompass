@@ -23,7 +23,7 @@ jobs:
           name: dcompass
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           # Don't push source or .iso files as they are pointless to take up precious cache space.
-          pushFilter: '(-source$|nixpkgs\.tar\.gz$)'
+          pushFilter: '(-source$|nixpkgs\.tar\.gz$|\.iso$|-squashfs.img$|crate-$)'
 
       # Run the general flake checks
       - run: nix flake check -vL
