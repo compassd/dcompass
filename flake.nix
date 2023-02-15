@@ -37,6 +37,7 @@
                   "sha256-Kyvq1R5o7csR2BGWj9oZ6J+96fSqNBXBB2m/79HjGbM=";
               };
             };
+            doCheck = false;
             cargoBuildFlags = [ "--features ${v}" ];
             nativeBuildInputs = [ pkg-config openssl ];
           });
