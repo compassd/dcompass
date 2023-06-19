@@ -37,9 +37,13 @@
                   "sha256-Kyvq1R5o7csR2BGWj9oZ6J+96fSqNBXBB2m/79HjGbM=";
               };
             };
-            doCheck = false;
+            # doCheck = false;
+            # ZSTD_SYS_USE_PKG_CONFIG = true;
+            # PKG_CONFIG_PATH = "${zstd}/lib";
+
             cargoBuildFlags = [ "--features ${v}" ];
-            nativeBuildInputs = [ pkg-config openssl ];
+            buildInputs = [ zstd ];
+            nativeBuildInputs = [ pkg-config openssl zstd ];
           });
     in utils.lib.eachSystem (with utils.lib.system; [
       aarch64-linux
