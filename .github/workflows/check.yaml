@@ -15,9 +15,9 @@ jobs:
         with:
           # Nix Flakes doesn't work on shallow clones
           fetch-depth: 0
-      - uses: cachix/install-nix-action@v16
+      - uses: cachix/install-nix-action@v20
 
-      - uses: cachix/cachix-action@v10
+      - uses: cachix/cachix-action@v12
         if: ${{ github.event_name == 'push' }}
         with:
           name: dcompass
