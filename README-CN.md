@@ -31,30 +31,30 @@ dcompass -c path/to/config.json # 或 YAML 配置文件
 2. NixOS 打包文件在[这里](https://github.com/icebox-nix/netkit.nix). 同时，对于 NixOS 用户，我们提供了一个包含 systemd 服务的 NixOS module 来方便用户配置。
 
 # 配置（待翻译）
-**Please refer to the latest English version for up-to-date information.**
+**有关最新资料，请参阅最新英文版本。**
 配置文件包含不同的 fields
-- `cache_size`: DNS Cache 的大小. Larger size implies higher cache capacity (use LRU algorithm as the backend).
-- `verbosity`: Log 等级. Possible values are `trace`, `debug`, `info`, `warn`, `error`, `off`.
+- `cache_size`: DNS Cache 的大小。更大的大小意味着更高的缓存容量(使用LRU算法作为后端)。
+- `verbosity`: Log 等级.值可能为trace, debug, info, warn, error, off。
 - `address`: 监听的地址。
-- `table`: A routing table composed of `rule` blocks. The table cannot be empty and should contains a single rule named with `start`. Each rule contains `tag`, `if`, `then`, and `else`. Latter two of which are tuples of the form `(action, next)`, which means take the action first and goto the next rule with the tag specified.
-- `upstreams`: A set of upstreams. `timeout` is the time in seconds to timeout, which takes no effect on method `Hybrid` (default to 5). `tag` is the name of the upstream. `methods` is the method for each upstream.
+- `table`:由“规则”块组成的路由表。该表不能为空，而且应该包含一个名为“start”的规则。每条规则包含“tag”、“if”、“then”和“else值。后两个应该是' (action, next) '形式的元组，这意味着首先执行操作，然后使用指定的标记转到下一个规则。
+- `upstreams`: 一组上游。' timeout '是距离timeout的秒数，它对方法' Hybrid '(默认为5)不起作用。“tag”是上游的名称。' methods '是每个上游的方法。
 
-Different actions:
-- `skip`: Do nothing.
-- `disable`: Set response with a SOA message to curb further query. It is often used accompanied with `qtype` matcher to disable certain types of queries.
-- `query(tag)`: Send query via upstream with specified tag.
+不同的进程:
+- `skip`: 什么也不做。
+- `disable`: 使用SOA消息设置响应以限制进一步查询。它通常与' qtype '匹配器一起使用，以禁用某些类型的查询。
+- `query(标签)`: 通过上游发送带有指定标签的查询。
 
-Different matchers: (More matchers to come, including `cidr`)
-- `any`: Matches anything.
-- `domain(list of file paths)`: Matches domain in specified domain lists
-- `qtype(list of record types)`: Matches record type specified.
-- `geoip(on: resp or src, codes: list of country codes, path: optional path to the mmdb database file)`: If there is one or more `A` or `AAAA` records at the current state and the first of which has got a country code in the list specified, then it matches, otherwise it always doesn't match.
+不同的匹配器: (还将有更多的匹配器，包括`cidr`)
+- `any`: 匹配任何东西。
+- `domain(文件路径列表)`: 匹配指定域列表中的域。
+- `qtype(记录类型列表)`: 匹配指定的记录类型。
+- `geoip(位置: resp或src, 代码: :国家代码列表, 路径:MMDB数据库文件的可选路径)`: 如果有一个或多个' A '或' AAAA '记录处于当前状态，并且其中的第一个记录在列表中指定了国家代码，那么它就匹配，否则总是不匹配。
 
-Different querying methods:
-- `https`: DNS over HTTPS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
-- `tls`: DNS over TLS querying methods. `no_sni` means don't send SNI (useful to counter censorship). `name` is the TLS certification name of the remote server. `addr` is the remote server address.
-- `udp`: Typical UDP querying method. `addr` is the remote server address.
-- `hybrid`: Race multiple upstreams together. the value of which is a set of tags of upstreams. Note, you can include another `hybrid` inside the set as long as they don't form chain dependencies, which is prohibited and would be detected by `dcompass` in advance.
+不同的查询方式:
+- `https`: DNS覆盖HTTPS查询方法。' no_sni '表示不发送SNI(用于对抗审查)。' name '是远程服务器的TLS认证名称。' addr '是远程服务器地址。
+- `tls`: DNS覆盖TLS查询方法。' no_sni '表示不发送SNI(用于对抗审查)。' name '是远程服务器的TLS认证名称。' addr '是远程服务器地址。
+- `udp`:典型的UDP查询方法。' addr '是远程服务器地址。
+- `hybrid`: 在多个上游一起运行。取值为上游标签的集合。注意，你可以在集合中包含另一个' hybrid '，只要它们不形成链依赖关系，这是被禁止的，并且会被' dcompass '提前检测到。
 
 一个无需任何外部文件的防污染分流且开箱及用的配置文件 [example.yaml](configs/example.yaml)（只支持 `full` 和 `cn`， `min` 如需使用此配置需要自带 GeoIP database）。  
 
@@ -112,6 +112,6 @@ Found 10 outliers among 100 measurements (10.00%)
 - [x] GeoIP 匹配器，可用于 source IP 或 response IP
 - [ ] 支持自由返回结果的上游（upstream）
 
-# License
-All three components `dmatcher`, `droute`, `dcompass` are licensed under GPLv3+.
-`dcompass` and `droute` with `geoip` feature gate enabled include GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com">https://www.maxmind.com</a>.
+# 版权
+`dmatcher`、`droute`、`dcompass`这三个组件都是在GPLv3+下授权的。
+`dcompass`和`droute`与`geoip`功能门启用包括由MaxMind创建的GeoLite2数据，可从<a href="https://www.maxmind.com">https://www.maxmind.com</a>。
