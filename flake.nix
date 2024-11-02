@@ -17,15 +17,18 @@
         };
       features = [ "geoip-maxmind" "geoip-cn" ];
       forEachFeature = f:
-        builtins.listToAttrs (map (v:
-          attrsets.nameValuePair "dcompass-${strings.removePrefix "geoip-" v}"
-          (f v)) features);
+        builtins.listToAttrs (map
+          (v:
+            attrsets.nameValuePair "dcompass-${strings.removePrefix "geoip-" v}"
+              (f v))
+          features);
       pkgSet = system:
         forEachFeature (v:
           with (pkgsWithRust system);
           (makeRustPlatform {
-            cargo = rust-bin.stable.latest.default;
-            rustc = rust-bin.stable.latest.default;
+            # Pinning these for now as I have no time to update the dependencies to accommodate the latest stable version.
+            cargo = rust-bin.stable."1.70.0".default;
+            rustc = rust-bin.stable."1.70.0".default;
           }).buildRustPackage {
             name = "dcompass-${strings.removePrefix "geoip-" v}";
             version = "git";
@@ -45,80 +48,82 @@
             buildInputs = [ zstd ];
             nativeBuildInputs = [ pkg-config openssl zstd ];
           });
-    in utils.lib.eachSystem (with utils.lib.system; [
-      aarch64-linux
-      i686-linux
-      x86_64-darwin
-      x86_64-linux
-    ]) (system: rec {
-      # `nix build`
-      packages = (pkgSet system) // {
-        # We have to do it like `nix develop .#commit` because libraries don't play well with `makeBinPath` or `makeLibraryPath`.
-        commit = (import ./commit.nix {
-          lib = utils.lib;
-          pkgs = (pkgsWithRust system);
-        });
-      };
-
-      # TODO: figure out a way to write it as packages.default
-      # defaultPackage = packages.dcompass-maxmind;
-
-      # We don't check packages.commit because techinically it is not a pacakge
-      checks = builtins.removeAttrs packages [ "commit" ];
-
-      # `nix run`
-      apps = {
-        update = utils.lib.mkApp {
-          drv = with (pkgsWithRust system);
-            (writeShellApplication {
-              name = "dcompass-update-data";
-              runtimeInputs = [ wget gzip ];
-              text = ''
-                set -e
-                wget -O ./data/full.mmdb --show-progress https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
-                wget -O ./data/cn.mmdb --show-progress https://github.com/Hackl0us/GeoIP2-CN/raw/release/Country.mmdb
-                wget -O ./data/ipcn.txt --show-progress https://github.com/17mon/china_ip_list/raw/master/china_ip_list.txt
-                gzip -f -k ./data/ipcn.txt
-              '';
-            });
+    in
+    utils.lib.eachSystem
+      (with utils.lib.system; [
+        aarch64-linux
+        i686-linux
+        x86_64-darwin
+        x86_64-linux
+      ])
+      (system: rec {
+        # `nix build`
+        packages = (pkgSet system) // {
+          # We have to do it like `nix develop .#commit` because libraries don't play well with `makeBinPath` or `makeLibraryPath`.
+          commit = (import ./commit.nix {
+            lib = utils.lib;
+            pkgs = (pkgsWithRust system);
+          });
         };
-      } // (forEachFeature (v:
-        utils.lib.mkApp {
-          drv = packages."dcompass-${strings.removePrefix "geoip-" v}";
-        }));
 
-      defaultApp = apps.dcompass-maxmind;
+        # TODO: figure out a way to write it as packages.default
+        # defaultPackage = packages.dcompass-maxmind;
 
-      # `nix develop`
-      devShells.default = with (pkgsWithRust system);
-        mkShell {
-          nativeBuildInputs = lib.flatten [
-            # write rustfmt first to ensure we are using nightly rustfmt
-            rust-bin.nightly."2022-01-01".rustfmt
-            rust-bin.stable.latest.default
-            rust-bin.stable.latest.rust-src
-            rust-analyzer
+        # We don't check packages.commit because techinically it is not a pacakge
+        checks = builtins.removeAttrs packages [ "commit" ];
 
-            # OpenSSL
-            pkg-config
-            openssl
+        # `nix run`
+        apps = rec {
+          default = dcompass-maxmind;
+          update = utils.lib.mkApp {
+            drv = with (pkgsWithRust system);
+              (writeShellApplication {
+                name = "dcompass-update-data";
+                runtimeInputs = [ wget gzip ];
+                text = ''
+                  set -e
+                  wget -O ./data/full.mmdb --show-progress https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
+                  wget -O ./data/cn.mmdb --show-progress https://github.com/Hackl0us/GeoIP2-CN/raw/release/Country.mmdb
+                  wget -O ./data/ipcn.txt --show-progress https://github.com/17mon/china_ip_list/raw/master/china_ip_list.txt
+                  gzip -f -k ./data/ipcn.txt
+                '';
+              });
+          };
+        } // (forEachFeature (v:
+          utils.lib.mkApp {
+            drv = packages."dcompass-${strings.removePrefix "geoip-" v}";
+          }));
 
-            # protobuf
+        # `nix develop`
+        devShells.default = with (pkgsWithRust system);
+          mkShell {
+            nativeBuildInputs = lib.flatten [
+              # write rustfmt first to ensure we are using nightly rustfmt
+              rust-bin.nightly."2024-01-01".rustfmt
+              rust-bin.stable.latest.default
+              rust-bin.stable.latest.rust-src
+              rust-analyzer
 
-            # use by rust-gdb
-            gdb
+              # OpenSSL
+              pkg-config
+              openssl
 
-            binutils-unwrapped
-            cargo-cache
-            cargo-outdated
+              # protobuf
 
-            (if stdenv.isLinux then [ linuxPackages.perf ] else [ ])
+              # use by rust-gdb
+              gdb
 
-            # perl
-            # gnumake
-          ];
-        };
-    }) // {
+              binutils-unwrapped
+              cargo-cache
+              cargo-outdated
+
+              (if stdenv.isLinux then [ linuxPackages.perf ] else [ ])
+
+              # perl
+              # gnumake
+            ];
+          };
+      }) // {
       # public key for dcompass.cachix.org
       publicKey =
         "dcompass.cachix.org-1:uajJEJ1U9uy/y260jBIGgDwlyLqfL1sD5yaV/uWVlbk=";

@@ -10,11 +10,11 @@ pkgs.mkShell {
     git
     coreutils
     findutils
-    nixfmt
+    nixpkgs-fmt
 
     gcc
     # write rustfmt first to ensure we are using nightly rustfmt
-    rust-bin.nightly."2022-01-01".rustfmt
+    rust-bin.nightly."2024-01-01".rustfmt
     rust-bin.stable.latest.default
     binutils-unwrapped
 
@@ -27,7 +27,7 @@ pkgs.mkShell {
 
     find . -path ./target -prune -false -o -type f -name '*.sh' -exec shellcheck {} +
     find . -path ./target -prune -false -o -type f -name '*.sh' -exec shfmt -w {} +
-    find . -path ./target -prune -false -o -type f -name '*.nix' -exec nixfmt {} +
+    find . -path ./target -prune -false -o -type f -name '*.nix' -exec nixpkgs-fmt {} +
     nix flake update
     cargo update
     cargo fmt -- --check
