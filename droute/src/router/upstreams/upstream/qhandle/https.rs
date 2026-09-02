@@ -13,51 +13,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(feature = "doh-rustls")]
-mod rustls_cfgs {
-    use once_cell::sync::Lazy;
-    use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
-
-    pub static NO_SNI_CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&false));
-    pub static CLIENT_CFG: Lazy<ClientConfig> = Lazy::new(|| create_client_config(&true));
-
-    fn create_client_config(sni: &bool) -> ClientConfig {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
-
-        let mut client_config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        client_config.enable_sni = *sni; // Disable SNI on need.
-
-        client_config
-    }
-}
-
-#[cfg(feature = "doh-native-tls")]
-mod native_tls_cfgs {
-    use native_tls::TlsConnector;
-    use once_cell::sync::Lazy;
-
-    pub static NO_SNI_CLIENT_CFG: Lazy<TlsConnector> =
-        Lazy::new(|| TlsConnector::builder().use_sni(false).build().unwrap());
-    pub static CLIENT_CFG: Lazy<TlsConnector> = Lazy::new(|| TlsConnector::new().unwrap());
-}
-
-#[cfg(feature = "doh-rustls")]
-use rustls_cfgs::{CLIENT_CFG, NO_SNI_CLIENT_CFG};
-
-#[cfg(feature = "doh-native-tls")]
-use native_tls_cfgs::{CLIENT_CFG, NO_SNI_CLIENT_CFG};
-
 use super::{ConnInitiator, QHandle, QHandleError, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
@@ -94,16 +49,21 @@ impl Https {
         let client = Client::builder()
             // The port in socket addr doesn't take effect here per documentation
             .resolve(domain, SocketAddr::new(addr, 0))
-            .use_preconfigured_tls(if sni {
-                CLIENT_CFG.clone()
-            } else {
-                NO_SNI_CLIENT_CFG.clone()
-            })
             .https_only(true)
             .user_agent(APP_USER_AGENT)
             .connect_timeout(Duration::from_secs(3))
             // Disable the inner connection pool
-            .pool_max_idle_per_host(0);
+            .pool_max_idle_per_host(0)
+            .tls_sni(sni);
+
+        // Let reqwest initialize the TLS backend with the exact feature/version
+        // that reqwest itself was compiled with.  Passing droute's own
+        // preconfigured rustls/native-tls connector into reqwest can fail because
+        // the connector type must match reqwest's internal TLS dependency.
+        #[cfg(feature = "doh-rustls")]
+        let client = client.use_rustls_tls();
+        #[cfg(feature = "doh-native-tls")]
+        let client = client.use_native_tls();
 
         // Add proxy
         let client = if let Some(proxy) = proxy {
@@ -113,14 +73,7 @@ impl Https {
         };
 
         Ok(Self {
-            client: PostClient(
-                client.build().map_err(|_| {
-                    std::io::Error::other(
-                        "TLS backend failed to initialize",
-                    )
-                })?,
-                uri.clone(),
-            ),
+            client: PostClient(client.build()?, uri.clone()),
         })
     }
 }
