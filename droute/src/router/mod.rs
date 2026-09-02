@@ -104,11 +104,11 @@ where
     T: ScriptBackend,
 {
     /// Create a RouteBuilder
-    pub fn new(script: S, upstreams: U) -> Self {
+    pub const fn new(script: S, upstreams: U) -> Self {
         Self {
             script,
             upstreams,
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 }

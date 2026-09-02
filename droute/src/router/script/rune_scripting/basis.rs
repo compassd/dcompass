@@ -23,7 +23,7 @@ pub static BASIS_MODULE: Lazy<Module> = Lazy::new(|| {
     let mut m = Module::new();
 
     // Workaround on https://github.com/rune-rs/rune/issues/399
-    m.function(&["u8"], |val: usize| val as u8).unwrap();
+    m.function(["u8"], |val: usize| val as u8).unwrap();
 
     async fn send_default(
         upstreams: &Upstreams,

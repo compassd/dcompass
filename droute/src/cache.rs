@@ -47,20 +47,20 @@ where
     }
 }
 
-impl<A: Hash + ?Sized, B: Hash + ?Sized> Hash for (dyn KeyPair<A, B> + '_) {
+impl<A: Hash + ?Sized, B: Hash + ?Sized> Hash for dyn KeyPair<A, B> + '_ {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.a().hash(state);
         self.b().hash(state);
     }
 }
 
-impl<A: Eq + ?Sized, B: Eq + ?Sized> PartialEq for (dyn KeyPair<A, B> + '_) {
+impl<A: Eq + ?Sized, B: Eq + ?Sized> PartialEq for dyn KeyPair<A, B> + '_ {
     fn eq(&self, other: &Self) -> bool {
         self.a() == other.a() && self.b() == other.b()
     }
 }
 
-impl<A: Eq + ?Sized, B: Eq + ?Sized> Eq for (dyn KeyPair<A, B> + '_) {}
+impl<A: Eq + ?Sized, B: Eq + ?Sized> Eq for dyn KeyPair<A, B> + '_ {}
 
 impl<A: ?Sized, B: ?Sized, C, D> KeyPair<A, B> for (C, D)
 where

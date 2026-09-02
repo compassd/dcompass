@@ -104,11 +104,11 @@ impl ScriptBuilder<RuneScript> for RuneScriptBuilder {
         let mut context = Context::with_default_modules()?;
 
         // Types module should always install first.
-        context.install(&types::TYPES_MODULE)?;
+        context.install(&*types::TYPES_MODULE)?;
 
-        context.install(&message::MSG_MODULE)?;
-        context.install(&basis::BASIS_MODULE)?;
-        context.install(&utils::UTILS_MODULE)?;
+        context.install(&*message::MSG_MODULE)?;
+        context.install(&*basis::BASIS_MODULE)?;
+        context.install(&*utils::UTILS_MODULE)?;
         let runtime = Arc::new(context.runtime());
 
         let mut sources = Sources::new();

@@ -20,8 +20,8 @@ pub mod rune_scripting;
 pub mod utils;
 
 pub mod builders {
-    #[cfg(feature = "rhai-scripting")]
-    pub use super::rhai_scripting::{RhaiScript, RhaiScriptBuilder};
+    // #[cfg(feature = "rhai-scripting")]
+    // pub use super::rhai_scripting::{RhaiScript, RhaiScriptBuilder};
 
     #[cfg(feature = "rune-scripting")]
     pub use super::rune_scripting::{RuneScript, RuneScriptBuilder};

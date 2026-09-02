@@ -115,8 +115,7 @@ impl Https {
         Ok(Self {
             client: PostClient(
                 client.build().map_err(|_| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::Other,
+                    std::io::Error::other(
                         "TLS backend failed to initialize",
                     )
                 })?,

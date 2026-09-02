@@ -49,7 +49,7 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
     // Blackhole
     {
         m.function(
-            &["blackhole"],
+            ["blackhole"],
             |msg: &Message| -> Result<Message, ScriptError> { Ok(blackhole(&msg.into())?.into()) },
         )
         .unwrap();
@@ -60,7 +60,7 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
         m.ty::<Domain>().unwrap();
         m.ty::<SealedDomain>().unwrap();
 
-        m.function(&["Domain", "new"], Domain::new).unwrap();
+        m.function(["Domain", "new"], Domain::new).unwrap();
         m.inst_fn(
             "add_qname",
             |mut domain: Domain, qname: &str| -> Result<Domain, ScriptError> {
@@ -95,7 +95,7 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
         m.ty::<SealedGeoIp>().unwrap();
 
         m.function(
-            &["GeoIp", "create_default"],
+            ["GeoIp", "create_default"],
             || -> Result<SealedGeoIp, ScriptError> {
                 Ok(SealedGeoIp(Arc::new(GeoIp::create_default()?)))
             },
@@ -106,7 +106,7 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
             Ok(SealedGeoIp(Arc::new(GeoIp::from_path(path).await?)))
         }
 
-        m.async_function(&["GeoIp", "from_path"], geoip_from_path)
+        m.async_function(["GeoIp", "from_path"], geoip_from_path)
             .unwrap();
 
         m.inst_fn(
@@ -123,7 +123,7 @@ pub static UTILS_MODULE: Lazy<Module> = Lazy::new(|| {
         m.ty::<IpCidr>().unwrap();
         m.ty::<SealedIpCidr>().unwrap();
 
-        m.function(&["IpCidr", "new"], IpCidr::new).unwrap();
+        m.function(["IpCidr", "new"], IpCidr::new).unwrap();
         m.inst_fn(
             "add_file",
             |mut ipcidr: IpCidr, path: &str| -> Result<IpCidr, ScriptError> {

@@ -486,7 +486,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
     // Record and Option types
     {
         m.function(
-            &["DnsRecord", "new"],
+            ["DnsRecord", "new"],
             |owner: Dname, class: Class, ttl: u32, data: DnsRecordData| -> DnsRecord {
                 DnsRecord(domain::base::Record::new(owner.0, class.0, ttl, data.0))
             },
@@ -536,7 +536,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
                 m
             );
 
-            m.function(&["A", "new"], |addr: IpAddr| -> Result<A, ScriptError> {
+            m.function(["A", "new"], |addr: IpAddr| -> Result<A, ScriptError> {
                 match addr.0 {
                     std::net::IpAddr::V4(addr) => Ok(domain::rdata::A::new(addr).into()),
                     _ => Err(MessageError::InvalidIpAddrType(addr.0).into()),
@@ -577,7 +577,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
             );
 
             m.function(
-                &["Aaaa", "new"],
+                ["Aaaa", "new"],
                 |addr: IpAddr| -> Result<Aaaa, ScriptError> {
                     match addr.0 {
                         std::net::IpAddr::V6(addr) => Ok(domain::rdata::Aaaa::new(addr).into()),
@@ -624,7 +624,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
             })
             .unwrap();
 
-            m.function(&["Cname", "new"], |cname: Dname| -> Cname {
+            m.function(["Cname", "new"], |cname: Dname| -> Cname {
                 domain::rdata::Cname::new(cname.0).into()
             })
             .unwrap();
@@ -656,7 +656,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
             )
             .unwrap();
 
-            m.function(&["Txt", "new"], |text: &str| -> Result<Txt, ScriptError> {
+            m.function(["Txt", "new"], |text: &str| -> Result<Txt, ScriptError> {
                 Ok(domain::rdata::Txt::from_slice(text.as_bytes())?.into())
             })
             .unwrap();
@@ -689,7 +689,7 @@ pub static MSG_MODULE: Lazy<Module> = Lazy::new(|| {
             );
 
             m.function(
-                &["ClientSubnet", "new"],
+                ["ClientSubnet", "new"],
                 |source: u8, scope: u8, addr: IpAddr| -> ClientSubnet {
                     domain::base::opt::ClientSubnet::new(source, scope, addr.0).into()
                 },
